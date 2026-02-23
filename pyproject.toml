@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "pv-finder"
+version = "0.1.0"
+description = "Primary vertex reconstruction for ATLAS Run 3"
+requires-python = ">=3.8"
+dependencies = [
+    "torch>=1.10.0",
+    "numpy>=1.20.0",
+    "h5py>=3.0.0",
+    "uproot>=4.0.0",
+    "awkward>=1.0.0",
+    "matplotlib>=3.4.0",
+    "scipy>=1.7.0",
+    "tqdm>=4.60.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pre-commit",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py38"
+line-length = 88
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

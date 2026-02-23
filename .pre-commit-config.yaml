@@ -1,0 +1,35 @@
+repos:
+  # Commit message must be conventional
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, refactor, test, docs, chore]
+
+  # Ruff: lint + format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Block large files (data, weights, binaries)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Max 500 lines per file
+  - repo: local
+    hooks:
+      - id: max-file-lines
+        name: max file lines (500)
+        entry: python -c "import sys; [sys.exit(f'{f}:{sum(1 for _ in open(f))} lines (max 500)') for f in sys.argv[1:] if sum(1 for _ in open(f)) > 500]"
+        language: system
+        types: [python]
