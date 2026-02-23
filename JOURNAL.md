@@ -33,6 +33,25 @@ and shared utilities (peak finding, constants) don't belong to either.
 
 ---
 
+## 2026-02-23 — Migrated vertex finding training code
+
+Verbatim copy from atlas-pvfinder/mattia_finder into new structure:
+
+- `src/pv_finder/models/`: autoencoder_models.py (1628 lines, needs splitting), alt_loss_A.py
+- `src/pv_finder/data/`: collectdata_poca_KDE.py, h5_dataset.py
+- `src/pv_finder/training/`: 3 train scripts, training loop, weight initializer
+- `src/pv_finder/utils/`: utilities.py, efficiency.py, jagged.py
+- `configs/vertex_finding/`: 4 YAML configs (T2KDE, KDE2HIST, T2HIST, T2HIST combined)
+
+Files are unmodified copies. Imports will break until paths are updated.
+
+Confirmed: standard training uses KDE channel A_z only (out_idx=0, n_latent_channels=1).
+A 4-channel variant exists in old repo's first_troubleshooting/ but is experimental.
+
+Updated docs: models/vertex_finding.md, data/monte_carlo.md, training/vertex_finding.md.
+
+---
+
 ## 2026-02-23 — Docs restructured into subfolders
 
 Replaced flat doc files with subfolder structure mirroring `src/`. Each subfolder
@@ -54,3 +73,19 @@ Added `.pre-commit-config.yaml` enforcing:
 - Trailing whitespace and end-of-file fixes
 
 To activate: `pip install pre-commit && pre-commit install --hook-type commit-msg --hook-type pre-commit`
+
+---
+
+## 2026-02-23 — Import paths and hardcoded paths fixed
+
+Updated all 12 Python source files: `from model.X` → `from pv_finder.X` imports.
+Removed `sys.path.insert` hacks (package will be installed via `pip install -e .`).
+
+Updated all 4 YAML configs and 3 training scripts:
+- MLflow URI → `PV-Finder/mlruns`
+- save_folder → `PV-Finder/model_weights/`
+- output paths → `PV-Finder/outputs/`
+- Data file path unchanged (points to existing `/share/lazy/` H5 file)
+
+Added mlflow, pyyaml, torch_geometric to requirements.txt and pyproject.toml.
+Created local gitignored dirs: model_weights/, outputs/, mlruns/.

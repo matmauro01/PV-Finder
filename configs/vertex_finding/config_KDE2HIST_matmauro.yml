@@ -1,0 +1,71 @@
+# Config for KDE-to-Histogram training (Phase 2)
+
+# ===================================================
+# Data configurations
+
+# Path to input h5 file (contains pre-computed KDEs)
+data_file: /share/lazy/qibinlei/recoTrackNPV_jets_pubindices_1000bins_incbounds_Target_Y_split.h5
+
+# Path to output h5 file
+output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
+
+# ===================================================
+# Training configurations
+
+# GPU device ID to use
+device_id: 0
+
+# Number of events to process
+n_events: 51000
+
+# Train, validation, and test split ratios
+train_split: [0.7, 0.25, 0.05]
+
+# Number of training epochs
+n_epochs: 200
+
+# Batch size for training
+batch_size: 128
+
+# Number of data loading workers
+num_workers: 16
+
+# Initial learning rate
+learning_rate: 0.0001
+
+# Asymmetry parameter for alt loss function
+asymmetry_param: 2.5
+
+# To save model weights during training
+save_weights: True
+
+# Frequency (in epochs) to save weights
+save_frequency: 10
+
+# Directory to save model weights
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/
+
+# Specifics for MLFlow
+experimentname: "ATLAS 2025 Reproduction - KDE to Histogram"
+
+runname: "reproduction_KDE2HIST_matmauro_200epochs"
+
+# ===================================================
+# Model configurations
+
+# Options: tracks-to-KDE, KDE-to-hist, tracks-to-hist
+model_class: KDE-to-hist
+
+# Options: UNet, UNetPlusPlus, MaskedDNN
+model_type: UNet
+
+# Specific configurations available for models
+models_config:
+    UNet:
+        n: 64
+        sc_mode: concat
+        dropout_p: 0.25
+        d_selection: ConvBNrelu
+        u_selection: Up
+        n_features: 1
+        out_idx: 0

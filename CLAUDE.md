@@ -72,11 +72,12 @@ docs/                            ← wiki (current truth)
   evaluation/                      vertex_finding, vertex_association
   diagnostics/                     vertex_finding, vertex_association
 src/pv_finder/                   ← source code
-  models/                          UNet (PVF), GNN, losses
-  data/                            datasets, loaders, preprocessing
-  training/                        training loops, schedulers
+  models/                          autoencoder_models, alt_loss_A
+  data/                            collectdata_poca_KDE, h5_dataset
+  training/                        train scripts, trainNet loop, weight init
   evaluation/                      metrics, efficiency, comparisons
   diagnostics/                     plotting, visualization
-  utils/                           peak finding, constants, helpers
+  utils/                           utilities, efficiency, jagged
+configs/vertex_finding/          ← YAML training configs
 tests/                           ← tests (coming)
 ```

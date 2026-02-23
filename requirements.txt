@@ -7,3 +7,6 @@ awkward>=1.0.0
 matplotlib>=3.4.0
 scipy>=1.7.0
 tqdm>=4.60.0
+mlflow>=1.2.0
+pyyaml>=5.0
+torch_geometric>=2.0.0

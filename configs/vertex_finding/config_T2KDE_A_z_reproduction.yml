@@ -1,0 +1,107 @@
+# This is a template config file for the PV-Finder package
+
+# ===================================================
+# Data configurations
+
+# Path to input h5 file
+data_file: /share/lazy/qibinlei/recoTrackNPV_jets_pubindices_1000bins_incbounds_Target_Y_split.h5
+
+# Path to output h5 file
+output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
+
+# ===================================================
+# Training configurations
+
+# GPU device ID to use
+device_id: 0
+
+# Number of events to process (-1 for all)
+n_events: 51000
+
+# Train, validation, and test split ratios
+train_split: [0.7, 0.25, 0.05]
+
+# Number of training epochs
+n_epochs: 200
+
+# Batch size for training
+batch_size: 128
+
+# Number of data loading workers
+num_workers: 16
+
+# Initial learning rate
+learning_rate: 0.001
+
+# Asymmetry parameter for alt loss function
+asymmetry_param: 2.5
+
+# To save model weights during training
+save_weights: True
+
+# Frequency (in epochs) to save weights (uses a modulo operation)
+save_frequency: 10
+
+# Directory to save model weights
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/
+
+# Name of the MLFlow experiment
+experimentname: "ATLAS 2025 Reproduction - Tracks to KDE"
+
+# Name of the MLFlow run
+# runname: "ChisqLF_KDE_A_z"
+runname: "reproduction_KDE_A_z_matmauro_run1_200"
+
+# ===================================================
+# Model configurations
+
+# Options: tracks-to-KDE, KDE-to-hist, tracks-to-hist, poca-to-KDE, poca-to-hist
+model_class: tracks-to-KDE
+
+# Options: UNet, UNetPlusPlus, MaskedDNN
+model_type: MaskedDNN
+
+# Specific configurations available for models
+models_config:
+    MaskedDNN:
+        input_size: 7
+        hidden_nodes: [100, 100, 100, 100, 100]
+        output_size: 1000
+        leaky_param: 0.01
+        use_bn: False
+        use_drop: False
+        maskVal: -240.
+        predScaleFactor: 0.001
+        # Options: "KDE_A_z": 0, "KDE_A_x": 1, "KDE_A_y": 2, "KDE_B_z": 3
+        out_idx: 0
+        # False for KDE-A-z and KDE-B-z, True for KDE-A-x and KDE-A-y
+        allow_negative_output: False
+    UNet:
+        n: 64
+        sc_mode: concat
+        dropout_p: 0
+        d_selection: ConvBNrelu
+        u_selection: Up
+        n_features: 4
+        out_idx: 0
+    UNetPlusPlus:
+        n: 64
+        sc_mode: concat
+        dropout_p: .25
+        d_selection: ConvBNrelu
+        u_selection: Up
+        n_features: 4
+        out_idx: 0
+
+# Continue training from prior weights
+continue_prior: False
+
+# Tracks to KDE Weights
+# DNN_KDE_A_z_prior_weights: /data/home/qibinlei/atlas_pvfinder/model_weights/ChisqLF_KDE_A_z_700.pth
+DNN_KDE_A_z_prior_weights: /data/home/qibinlei/atlas_pvfinder/model_weights/3sig_full_mask_512_epoch_200_weights.pth
+DNN_KDE_B_z_prior_weights: /data/home/qibinlei/atlas_pvfinder/model_weights/KDE_B_z_epoch_3900_weights.pth
+DNN_KDE_A_x_prior_weights: /data/home/qibinlei/atlas_pvfinder/model_weights/KDE_A_x_epoch_900_weights.pth
+DNN_KDE_A_y_prior_weights: /data/home/qibinlei/atlas_pvfinder/model_weights/KDE_A_y_epoch_900_weights.pth
+
+# KDE to Hists Weights
+cnn_prior_weights: /share/lazy/pv-finder_model_repo/36/f4e97edfa57a4ac8bfd8f0d4ba6a6556/artifacts/UNet_FixedPOCA_v2_746.pyt

@@ -18,7 +18,7 @@ build/
 *.pkl
 *.pickle
 *.pyt
-data/
+/data/
 
 # ML artifacts
 runs/
@@ -26,6 +26,8 @@ checkpoints/
 outputs/
 results/
 wandb/
+model_weights/
+mlruns/
 
 # Notebooks
 .ipynb_checkpoints/

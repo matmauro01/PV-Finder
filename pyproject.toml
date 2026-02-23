@@ -16,6 +16,9 @@ dependencies = [
     "matplotlib>=3.4.0",
     "scipy>=1.7.0",
     "tqdm>=4.60.0",
+    "mlflow>=1.2.0",
+    "pyyaml>=5.0",
+    "torch_geometric>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +39,7 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP"]
+ignore = ["E501"]  # line length handled by ruff-format
 
 [tool.mypy]
 python_version = "3.8"
