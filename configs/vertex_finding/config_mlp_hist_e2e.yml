@@ -1,0 +1,106 @@
+# Configuration for MLP-only warmup + End-to-End training
+
+# ===================================================
+# Data configurations
+
+# Path to input h5 file
+data_file: /share/lazy/qibinlei/recoTrackNPV_jets_pubindices_1000bins_incbounds_Target_Y_split.h5
+
+# Path to output directory
+output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
+
+# ===================================================
+# Training configurations
+
+# GPU device ID to use
+device_id: 1
+
+# Number of events to process
+n_events: 51000
+
+# Train, validation, and test split ratios
+train_split: [0.7, 0.25, 0.05]
+
+# Batch size for training
+batch_size: 128
+
+# Number of data loading workers
+num_workers: 16
+
+# ===================================================
+# Phase 1: MLP Warmup Configuration
+
+# Number of epochs for Phase 1 (MLP-only histogram supervision)
+phase1_epochs: 50
+
+# Learning rate for Phase 1
+phase1_learning_rate: 0.001
+
+# ===================================================
+# Phase 2: End-to-End Training Configuration
+
+# Number of epochs for Phase 2 (MLP + UNet training)
+phase2_epochs: 400
+
+# Learning rate for Phase 2
+phase2_learning_rate: 0.001
+
+# ===================================================
+# Loss Configuration
+
+# Use MSE loss for both phases
+use_mse_loss: true
+
+# Asymmetry parameter (unused when use_mse_loss=true)
+asymmetry_param: 2.5
+
+# ===================================================
+# Checkpointing Configuration
+
+# Save model weights during training
+save_weights: true
+
+# Frequency (in epochs) to save weights
+save_frequency: 10
+
+# Directory to save model weights
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/
+
+# Directory to save training logs
+log_folder: /data/home/matmauro/codice/PV-Finder/outputs/logs/
+
+# ===================================================
+# MLflow Configuration
+
+# Experiment name
+experimentname: "End-to-End Random Init - MLP Hist Warmup"
+
+# Run name
+runname: "e2e_mlpHist50_e2e400_1latent_mse"
+
+# ===================================================
+# Model configurations
+
+models_config:
+  # Number of input track features (d_0, z_0, sig_d, sig_z, sig_dz, theta, phi)
+  n_input_features: 7
+
+  # Number of latent histogram channels (use 1 for compatibility)
+  n_latent_channels: 1
+
+  # Dropout probability
+  dropout: 0.25
+
+# ===================================================
+# Notes
+
+# Phase Breakdown:
+# - Phase 1 (50 epochs): Train only the MLP layers against histogram targets.
+#   UNet layers are not invoked; MLP output is compared directly to Target_Y.
+# - Phase 2 (400 epochs): Load Phase 1 checkpoint and train the full model end-to-end.
+#
+# Expected Benefits:
+# - Removes dependency on KDE supervision.
+# - Forces MLP to learn a reasonable histogram initialization.
+# - Provides a cleaner warmup before full fine-tuning.
+

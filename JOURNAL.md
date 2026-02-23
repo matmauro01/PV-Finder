@@ -89,3 +89,18 @@ Updated all 4 YAML configs and 3 training scripts:
 
 Added mlflow, pyyaml, torch_geometric to requirements.txt and pyproject.toml.
 Created local gitignored dirs: model_weights/, outputs/, mlruns/.
+
+---
+
+## 2026-02-23 — Added KDE-free end-to-end training (Strategy C)
+
+Migrated `train_mlp_hist_then_e2e.py` and `config_mlp_hist_e2e.yml` from
+atlas-pvfinder/mattia_finder/end_to_end_training_random_init/attempt_4/.
+
+This is a two-phase training that avoids KDE supervision entirely:
+- Phase 1 (50 epochs): MLP trained on histogram targets, UNet frozen
+- Phase 2 (400 epochs): Full MLP+UNet trained end-to-end on histograms
+
+Key insight: pure random init with histogram MSE finds degenerate solutions
+(peaks at bin 0). The MLP warmup phase gives the model a reasonable spatial
+mapping before the UNet co-adapts. Documented in training/vertex_finding.md.

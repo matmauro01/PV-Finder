@@ -16,14 +16,36 @@ Train Phase 1 and Phase 2 independently, then combine.
 4. Fine-tune end-to-end                         (train_tracks_to_hist.py)
 ```
 
-### Strategy B: End-to-end (direct)
+### Strategy B: End-to-end with pretrained init
 
-Train trackstoHists_UNet_1000 directly, optionally initialized from Strategy A weights.
+Train trackstoHists_UNet_1000 directly, initialized from Strategy A weights.
 
 ```
 1. (Optional) Initialize from pretrained weights
 2. Train end-to-end: tracks → histogram         (train_tracks_to_hist.py)
 ```
+
+### Strategy C: End-to-end without KDEs (MLP warmup)
+
+No KDE supervision at all. Two-phase approach to avoid degenerate solutions.
+
+```
+1. Phase 1: Train MLP only on histogram targets, UNet frozen  (50 epochs)
+2. Phase 2: Train MLP + UNet end-to-end on histograms         (400 epochs)
+```
+
+Script: `train_mlp_hist_then_e2e.py`
+Config: `config_mlp_hist_e2e.yml`
+
+Run:
+```bash
+python src/pv_finder/training/train_mlp_hist_then_e2e.py \
+    -c configs/vertex_finding/config_mlp_hist_e2e.yml
+```
+
+Why two phases: training MLP+UNet jointly from random init on histogram MSE finds
+degenerate solutions (peaks at bin 0). Warming up the MLP first gives it a reasonable
+spatial mapping before the UNet co-adapts.
 
 ## Configs
 
@@ -33,6 +55,7 @@ Train trackstoHists_UNet_1000 directly, optionally initialized from Strategy A w
 | `config_KDE2HIST_matmauro.yml` | 2 | 200 epochs, lr=0.0001, batch=128 |
 | `config_T2HIST_matmauro.yml` | 3 | 100 epochs, lr=0.001, MSE loss |
 | `config_T2HIST_combined_200epochs.yml` | 3 | 400 epochs, initialized from Phase 1+2 |
+| `config_mlp_hist_e2e.yml` | C | 50+400 epochs, no KDE, MLP warmup |
 
 ## MLflow
 
@@ -56,4 +79,5 @@ Tracking URI: `file:<repo_root>/mlruns`
 | `train_kde_to_hist.py` | Phase 2 training script |
 | `train_tracks_to_hist.py` | Phase 3 / end-to-end training script |
 | `initialize_combined_weights.py` | Combines Phase 1 + 2 weights |
+| `train_mlp_hist_then_e2e.py` | Strategy C: KDE-free end-to-end with MLP warmup |
 | `training.py` | `trainNet()` loop, GPU selection |
