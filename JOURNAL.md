@@ -104,3 +104,28 @@ This is a two-phase training that avoids KDE supervision entirely:
 Key insight: pure random init with histogram MSE finds degenerate solutions
 (peaks at bin 0). The MLP warmup phase gives the model a reasonable spatial
 mapping before the UNet co-adapts. Documented in training/vertex_finding.md.
+
+---
+
+## 2026-02-23 — Migrated and split feature distribution comparison tool
+
+Copied `compare_feature_distributions.py` (1352 lines) from
+atlas-pvfinder/clean_run3/ and split it into 4 files, all under 500 lines:
+
+- `src/pv_finder/data/feature_loading.py` (389 lines): constants, data loading,
+  MC track decoding, Run 3 tensor building, feature collection
+- `src/pv_finder/diagnostics/feature_plots_1.py` (387 lines): Figures 1--3
+  (core params, 2D correlations, tensor distributions)
+- `src/pv_finder/diagnostics/feature_plots_2.py` (369 lines): Figures 4--6
+  (CDF/QQ, per-subevent stats, beam spot investigation)
+- `src/pv_finder/diagnostics/compare_feature_distributions.py` (356 lines):
+  thin entry point with CLI, summary computation, JSON export
+
+Also created `__init__.py` for all subpackages (data, diagnostics, models,
+training, utils, evaluation) and set up data symlinks for Run 3 ROOT files.
+
+Data files (gitignored, in `data/`):
+- `run3/file_2.root` → symlink to atlas_pvfinder (18G)
+- `run3/file_3.root` → symlink to atlas_pvfinder (16G)
+- `run3/cache_file3_2000ev_seed42.npz` — copied (29M)
+- `monte_carlo/training_data.h5` → symlink to /share/lazy/ (48G)
