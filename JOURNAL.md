@@ -197,3 +197,77 @@ different physical quantities.
 The new PV-Finder code uses the correct mapping (confirmed by eval_run3_v2.py) and
 shows the model works similarly on both datasets (Pearson r ~0.91, integral ratio ~0.91).
 No bugs found in the new code.
+
+---
+
+## 2026-02-24 — Per-vertex histogram visualization tool
+
+Created `src/pv_finder/diagnostics/per_vertex_visualization/` subpackage (4 files):
+
+- `inference.py` (169 lines): Loads `trackstoHists_UNet_1000` (e2e_mlpHist epoch 130)
+  via `torch.load`. Feeds ALL tracks per subevent without truncation (Run 3 max: 290
+  tracks). Batch-internal padding to max N_tracks in each batch, maskVal = -240.0.
+  MC padding (-999999) converted via `_repad` before inference.
+- `peak_matching.py` (121 lines): Peak finding with `scipy.signal.find_peaks`
+  (threshold_frac=0.05, min_distance=5 bins). MC truth vertices from H5 `pv` dataset
+  (val_start_event=35700). Run 3 AMVF vertices beam-corrected and nTracks-filtered.
+- `vertex_plots.py` (346 lines): Two public functions: `plot_event_overview` (full
+  z-range, 2 panels) and `plot_vertex_zoom` (3 panels: histogram, residual, track
+  scatter). Dots for peak markers: filled = within ±0.5mm band, open = outside.
+- `run_per_vertex.py` (260 lines): CLI entry point, orchestrates loading → inference
+  → analytical KDE → peak finding → plotting for MC and Run 3.
+
+Verified on 3 MC + 3 Run 3 events (exit code 0). Example results:
+- MC Event 0 (6 truth vtx): 4/6 matched (67%); isolated vertices at ±40mm well matched
+- MC Event 1 (71 truth vtx, high pile-up): 47 peaks, most clusters resolved
+- Run 3 Event 0 (21 AMVF vtx): 20/21 matched (95%), very good performance
+
+Decision: use dots (not triangles) for peak markers for clarity. No truncation to 100
+tracks — UNet architecture handles arbitrary track count via masked sum.
+
+---
+
+## 2026-02-24 — Migrated GNN Track-to-Vertex Association (TTVA)
+
+Migrated the GNN TTVA system from atlas_pvfinder/tracks_to_vertex/ into PV-Finder.
+This adds vertex association as a post-processing step after PVF peak finding:
+given candidate PVs and reconstructed tracks, a GAT predicts which tracks belong
+to which vertex via binary edge classification on a bipartite graph.
+
+New files (7):
+
+- `src/pv_finder/utils/constants.py` (~30 lines): Centralized physics constants
+  (PT_SCALE, PV resolution fit params, bin geometry, thresholds).
+- `src/pv_finder/models/ttva_gnn.py` (~120 lines): TTVAGATModel — heterogeneous
+  bipartite GAT with edge attributes. 2x HeteroConv(GATConv, 4 heads) + residual,
+  edge prediction MLP. State dict keys preserved for existing weight compatibility
+  (verified: 38/38 keys match test_GATConv_edgeattr_BCE_100.pyt).
+- `src/pv_finder/data/graph_construction.py` (~470 lines): Merged h5_to_graph.py
+  and pvfinder_output_to_graph.py. Shared edge attribute computation (longitudinal
+  significance, horizontal significance, |dz|). Two modes: create_training_graph()
+  from MC truth, create_inference_graph() from PVF peaks. Numba for compute_pv_sigma
+  and norm_cdf.
+- `src/pv_finder/training/training_gnn.py` (~175 lines): GNN train/validate loop.
+  BCEWithLogitsLoss with dynamic pos_weight (num_neg/num_pos per batch). Imports
+  gradient monitoring from existing training.py (not duplicated).
+- `src/pv_finder/training/train_gnn_ttva.py` (~185 lines): CLI entry point following
+  train_tracks_to_hist.py pattern. YAML config, MLflow, Adam optimizer, checkpoint
+  saving (.pyt + .pth).
+- `src/pv_finder/evaluation/evaluate_gnn_ttva.py` (~490 lines): Clean/Merged/Split/Fake
+  vertex classification. Two evaluation methods: MaxScore (top-1 per track) and
+  Threshold (all edges above cutoff). Results saved as .npy.
+- `configs/vertex_association/config_gnn_ttva.yml` (~32 lines): Training config.
+
+Key decisions:
+- Stayed as close as possible to original working code. Changes limited to: type hints,
+  import paths, deprecated API fixes, constant extraction.
+- Fixed wrong defaults in model (track_input_size=7→8, edge_attr_dim=1→3) that were
+  never actually used but were misleading.
+- Fixed deprecated import: torch_geometric.loader.DataLoader (not .data.DataLoader).
+- Fixed split/fake accumulation bug in source Evaluation_GNN_TTVA.py (lines 285-288
+  swapped results[2]↔results[3], but results order is [clean, merged, split, fake]).
+- Decoupled inference graph construction from embedded peak finding — caller provides
+  pre-computed peaks.
+
+Proofreading: All 4 code files verified against source by dedicated smart-coder agents.
+Weight loading verified against existing checkpoint.

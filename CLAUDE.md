@@ -48,6 +48,7 @@ All enforced automatically on `git commit`:
 - No data or model weights in git (see .gitignore)
 - Validate data at boundaries, trust internal code
 - Prefer simple and readable over clever
+- Important: all code added to this repo must be at minimum thoroughly proofread, and if possible tested. You can do it yourself for small changes, and launch subagents (such as expert coder) for larger ones.
 
 ## Documentation
 
@@ -57,6 +58,7 @@ Two systems, both must stay current:
 - **JOURNAL.md** — Append-only log. What was done, when, why. Never edit old entries.
 
 When you make a meaningful change: update the relevant doc in docs/ AND append to JOURNAL.md.
+Always pyush you're code when you're done, and make sure to document it properly before doing so.
 
 ## Project Map
 
@@ -72,16 +74,18 @@ docs/                            ← wiki (current truth)
   evaluation/                      vertex_finding, vertex_association
   diagnostics/                     vertex_finding, vertex_association
 src/pv_finder/                   ← source code
-  models/                          autoencoder_models, alt_loss_A
-  data/                            collectdata_poca_KDE, h5_dataset
-  training/                        train scripts, trainNet loop, weight init
-  evaluation/                      metrics, efficiency, comparisons
+  models/                          autoencoder_models, alt_loss_A, ttva_gnn
+  data/                            collectdata_poca_KDE, h5_dataset, graph_construction
+  training/                        train scripts, trainNet loop, training_gnn, weight init
+  evaluation/                      metrics, efficiency, evaluate_gnn_ttva
   diagnostics/                     plotting, visualization
     domain_shift_investigation/      MC vs Run 3 analysis
       feature_distribution/          feature comparison
       kde_study/                     KDE model vs analytical
+    per_vertex_visualization/        per-vertex histogram plots
   scratch/                           data_exploration.ipynb
-  utils/                           utilities, efficiency, jagged
-configs/vertex_finding/          ← YAML training configs
+  utils/                           utilities, efficiency, jagged, constants
+configs/vertex_finding/          ← YAML training configs (PVF)
+configs/vertex_association/      ← YAML training configs (GNN TTVA)
 tests/                           ← tests (coming)
 ```
