@@ -1,0 +1,31 @@
+# GNN Track-to-Vertex Association (TTVA) training configuration
+# Usage: python -m pv_finder.training.train_gnn_ttva -c configs/vertex_association/config_gnn_ttva.yml
+
+# --- Data ---
+data_file: "/path/to/ttva_graph_data.pt"  # List[HeteroData] saved with torch.save
+train_split: [0.7, 0.15, 0.15]  # train / val / test fractions
+batch_size: 64
+num_workers: 2
+
+# --- Model architecture ---
+model_config:
+  track_input_size: 8   # d0, z0, d0_err, z0_err, cov, theta, phi, pt_scaled
+  pv_input_size: 2      # z_position, peak_height
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3      # long_sig, horiz_sig, |dz|
+  dropout: 0.25
+
+# --- Training ---
+n_epochs: 100
+learning_rate: 0.001
+device_id: 0
+
+# --- Checkpointing ---
+save_weights: true
+save_frequency: 5       # save every N epochs
+save_folder: "/data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn/"
+
+# --- MLflow ---
+experimentname: "TTVA_GNN"
+runname: "gat_edgeattr_baseline"
