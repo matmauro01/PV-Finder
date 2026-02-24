@@ -136,10 +136,10 @@ truth/AMVF vertices, full-event overviews, and track scatter panels.
 |------|-------|---------|
 | `per_vertex_visualization/run_per_vertex.py` | ~275 | Entry point: CLI, orchestration |
 | `per_vertex_visualization/inference.py` | ~163 | Load e2e model, run batched inference (all tracks, no truncation) |
-| `per_vertex_visualization/peak_matching.py` | ~127 | Peak finding (shared algorithm), vertex-window matching, truth vertex loading |
+| `per_vertex_visualization/peak_matching.py` | ~120 | Peak finding (shared algorithm), vertex-window matching, truth vertex loading |
 | `per_vertex_visualization/vertex_plots.py` | ~464 | Two-panel overview and three-panel per-vertex zoom figures |
 
-Shared dependency: `src/pv_finder/utils/peak_finding.py` (~166 lines) — peak-finding
+Shared dependency: `src/pv_finder/utils/peak_finding.py` (~110 lines) — peak-finding
 algorithm shared with evaluation.
 
 ### Model
@@ -165,8 +165,8 @@ N_tracks per batch, maskVal = -240.0.
 - Panel 2: residual strip (e2e − analytical KDE)
 - Panel 3: track scatter z₀ vs |d₀|/σ_d₀, coloured by log₁₀(σ_d₀)
 
-All panels share x-axis for proper alignment. Curves normalized to their own global
-maximum (across all 12000 bins) before plotting.
+All panels share x-axis for proper alignment. Y-axis shows raw e2e histogram values;
+KDE and truth target are rescaled to the e2e global peak for shape comparison.
 
 ### Usage
 
@@ -203,11 +203,12 @@ beam-corrected. The offset is typically O(1 mm) and within the ±0.5mm matching 
 
 Uses `pv_locations_updated_res` from `src/pv_finder/utils/peak_finding.py` — the same
 algorithm used by evaluation metrics. Scans contiguous above-threshold regions with
-integral, width, and prominence criteria:
-- `threshold = 0.02` (minimum bin value)
-- `integral_threshold = 0.4` (minimum region integral)
-- `min_width = 2` (minimum consecutive bins)
+integral and width criteria (no conjoined-peak splitting):
+- `threshold = 0.01` (minimum bin value)
+- `integral_threshold = 0.5` (minimum region integral)
+- `min_width = 3` (minimum consecutive bins)
 
+Each region yields exactly one peak at the weighted-mean z-position.
 A vertex is considered "matched" if at least one histogram peak falls within ±0.5mm.
 
 ## Data Exploration Notebook

@@ -213,17 +213,22 @@ Found and fixed bugs, documentation errors, and structural issues.
 **Critical: shared peak-finding algorithm (new file)**
 
 Created `src/pv_finder/utils/peak_finding.py` — ported `pv_locations_updated_res`
-from atlas_pvfinder. This is the same algorithm used by evaluation metrics: scans
-contiguous above-threshold regions with integral/width/prominence cuts. Replaced
-scipy `find_peaks` (which used a different algorithm with relative threshold + distance)
-in `peak_matching.py`. Peak finding is now consistent across evaluation and diagnostics.
+from atlas_pvfinder. Replaced scipy `find_peaks` (different algorithm) in
+`peak_matching.py`. Peak finding is now consistent across evaluation and diagnostics.
+
+Removed conjoined-peak prominence splitting after calibration on 6 events showed it
+doesn't improve F1 under 1-to-1 greedy matching (F1=0.861 with splitting vs 0.827
+without, but splitting adds false peaks without meaningfully reducing misses). Each
+contiguous above-threshold region now yields exactly one peak.
+
+Tuned thresholds: threshold=0.01, integral_threshold=0.5, min_width=3.
 
 **Plot improvements (vertex_plots.py):**
-- All panels now use `sharex=True` for proper x-axis alignment
+- Y-axis shows raw e2e histogram values (KDE/truth rescaled to e2e peak for comparison)
+- All panels use `sharex=True` for proper x-axis alignment
 - Colorbar uses `fig.colorbar(ax=list(axes))` to take space equally from all panels
 - Removed axis tick marks (spines.top/right=False, all tick sizes=0)
 - All truth/AMVF vertices visible in zoom window are drawn (focused=black, others=grey)
-- Reduced hspace from 0.35 to 0.12
 
 **Other changes:**
 - Per-event output subdirectories: `mc/event0000/`, `run3/event0000/`

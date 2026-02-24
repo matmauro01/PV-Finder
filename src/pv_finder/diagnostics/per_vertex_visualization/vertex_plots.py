@@ -5,12 +5,10 @@ Two plotting functions:
   - plot_vertex_zoom: zoomed 3-panel view around a single truth vertex
   - plot_event_overview: full z-range 2-panel overview for an entire event
 
-Normalization: each histogram curve is divided by its own *global* maximum
-(across all 12000 bins) before plotting, mapping peaks to [0, 1].  Within a
-zoom window the visible amplitude may be well below 1.0 for small vertices.
-This preserves relative amplitude information while making the predicted
-histogram (e2e, typically O(1e-4)) and the analytical KDE (typically O(1-100))
-directly comparable.
+Y-axis: the e2e predicted histogram is plotted in raw (un-normalized) values so
+that peak heights are directly readable.  The analytical KDE and truth target
+(which live on different scales) are rescaled so their global peak matches the
+e2e global peak, enabling visual shape comparison on the same axis.
 
 Truth vertex sources:
   MC   -- generator-level z-positions from H5 ``pv`` dataset, labelled
@@ -99,16 +97,18 @@ def _z_to_label(z_mm: float) -> str:
     return f"z{z_mm:+.1f}mm".replace("+", "")
 
 
-def _safe_norm(arr: np.ndarray) -> tuple[np.ndarray, float]:
-    """Normalize array to [0, 1] by its global maximum absolute value.
+def _rescale_to(source: np.ndarray, target: np.ndarray) -> np.ndarray:
+    """Rescale *source* so its global peak matches *target*'s global peak.
 
-    Returns (normalized_array, scale_factor).  If the max is effectively
-    zero the array is returned unchanged and scale_factor = 1.0.
+    Used to overlay the analytical KDE (O(1--100)) on the same y-axis as
+    the e2e predicted histogram (O(0.01--1)) for shape comparison.
+    Returns a copy; never modifies the input arrays.
     """
-    mx = float(np.max(np.abs(arr)))
-    if mx > 1e-30:
-        return arr / mx, mx
-    return arr.copy(), 1.0
+    src_mx = float(np.max(np.abs(source)))
+    tgt_mx = float(np.max(np.abs(target)))
+    if src_mx > 1e-30 and tgt_mx > 1e-30:
+        return source * (tgt_mx / src_mx)
+    return source.copy()
 
 
 def _vtx_label(dataset_label: str) -> str:
@@ -220,8 +220,10 @@ def plot_vertex_zoom(
     ax_trk = axes[2] if has_tracks else None
 
     z = _full_z_axis()
-    e2e_norm, e2e_mx = _safe_norm(_flatten_kde(hist_e2e))
-    ana_norm, _ = _safe_norm(_flatten_kde(hist_analytical))
+    e2e_raw = _flatten_kde(hist_e2e)
+    ana_raw = _flatten_kde(hist_analytical)
+    # Rescale KDE to e2e scale for visual shape comparison
+    ana_scaled = _rescale_to(ana_raw, e2e_raw)
 
     lo = truth_z - window_mm
     hi = truth_z + window_mm
@@ -231,24 +233,25 @@ def plot_vertex_zoom(
     vtx_list = all_truth_vertices if all_truth_vertices is not None else [truth_z]
 
     # ------------------------------------------------------------------
-    # Panel 1: histogram overlay
+    # Panel 1: histogram overlay (raw e2e values)
     # ------------------------------------------------------------------
-    ax_hist.plot(z_win, e2e_norm[mask], color=COL_E2E, label="Predicted hist.")
+    ax_hist.plot(z_win, e2e_raw[mask], color=COL_E2E, label="Predicted hist.")
     ax_hist.plot(
         z_win,
-        ana_norm[mask],
+        ana_scaled[mask],
         color=COL_ANALYTICAL,
         linestyle="--",
-        label="Analytical KDE",
+        label="Analytical KDE (rescaled)",
     )
     if hist_truth is not None:
-        truth_norm, _ = _safe_norm(_flatten_kde(hist_truth))
+        truth_raw = _flatten_kde(hist_truth)
+        truth_scaled = _rescale_to(truth_raw, e2e_raw)
         ax_hist.plot(
             z_win,
-            truth_norm[mask],
+            truth_scaled[mask],
             color=COL_TRUTH_HIST,
             linestyle=":",
-            label="Truth target",
+            label="Truth target (rescaled)",
         )
 
     ax_hist.axvspan(
@@ -261,14 +264,13 @@ def plot_vertex_zoom(
 
     _draw_vertex_lines(ax_hist, vtx_list, truth_z, lo, hi, dataset_label)
 
-    # Predicted peak markers (heights rescaled to normalized axis)
+    # Predicted peak markers (raw heights)
     for pz, ph in pred_peaks:
         if lo <= pz <= hi:
-            ph_norm = ph / e2e_mx
             mfc = COL_E2E if abs(pz - truth_z) <= match_window_mm else "none"
             ax_hist.plot(
                 pz,
-                ph_norm,
+                ph,
                 marker="o",
                 markersize=7,
                 color=COL_E2E,
@@ -278,7 +280,7 @@ def plot_vertex_zoom(
                 zorder=5,
             )
 
-    ax_hist.set_ylabel("Norm. amplitude")
+    ax_hist.set_ylabel("Predicted histogram")
     ax_hist.set_title(
         f"{dataset_label.upper()} Ev {event_idx} | Vtx {vtx_idx} | "
         f"truth z = {truth_z:.2f} mm"
@@ -286,9 +288,9 @@ def plot_vertex_zoom(
     ax_hist.legend(loc="upper right", fontsize=9)
 
     # ------------------------------------------------------------------
-    # Panel 2: normalized residual strip
+    # Panel 2: residual strip (raw e2e - rescaled analytical)
     # ------------------------------------------------------------------
-    residual = e2e_norm - ana_norm
+    residual = e2e_raw - ana_scaled
     ax_res.plot(z_win, residual[mask], color=COL_E2E, linewidth=1.0)
     ax_res.axhline(0, color="black", linewidth=0.8)
     ax_res.axvspan(
@@ -300,7 +302,7 @@ def plot_vertex_zoom(
     _draw_vertex_lines(
         ax_res, vtx_list, truth_z, lo, hi, dataset_label, add_legend=False
     )
-    ax_res.set_ylabel("pred - ana\n(norm.)")
+    ax_res.set_ylabel("pred - ana\n(rescaled)")
     # xlabel only on the bottom-most panel (set below or on ax_trk)
     if not has_tracks:
         ax_res.set_xlabel("z [mm]")
@@ -385,30 +387,32 @@ def plot_event_overview(
     )
 
     z = _full_z_axis()
-    e2e_norm, e2e_mx = _safe_norm(_flatten_kde(hist_e2e))
-    ana_norm, _ = _safe_norm(_flatten_kde(hist_analytical))
+    e2e_raw = _flatten_kde(hist_e2e)
+    ana_raw = _flatten_kde(hist_analytical)
+    ana_scaled = _rescale_to(ana_raw, e2e_raw)
 
     # ------------------------------------------------------------------
-    # Panel 1: full-range histogram overlay (normalized)
+    # Panel 1: full-range histogram overlay (raw e2e values)
     # ------------------------------------------------------------------
-    ax_main.plot(z, e2e_norm, color=COL_E2E, linewidth=1.2, label="Predicted hist.")
+    ax_main.plot(z, e2e_raw, color=COL_E2E, linewidth=1.2, label="Predicted hist.")
     ax_main.plot(
         z,
-        ana_norm,
+        ana_scaled,
         color=COL_ANALYTICAL,
         linestyle="--",
         linewidth=1.2,
-        label="Analytical KDE",
+        label="Analytical KDE (rescaled)",
     )
     if hist_truth is not None:
-        truth_norm, _ = _safe_norm(_flatten_kde(hist_truth))
+        truth_raw = _flatten_kde(hist_truth)
+        truth_scaled = _rescale_to(truth_raw, e2e_raw)
         ax_main.plot(
             z,
-            truth_norm,
+            truth_scaled,
             color=COL_TRUTH_HIST,
             linestyle=":",
             linewidth=1.0,
-            label="Truth target",
+            label="Truth target (rescaled)",
         )
 
     # Truth vertex lines: label only the first to avoid duplicate legend entries
@@ -422,13 +426,13 @@ def plot_event_overview(
             vz - match_window_mm, vz + match_window_mm, alpha=0.12, color=COL_WINDOW
         )
 
-    # Predicted peak markers on normalized scale
+    # Predicted peak markers (raw heights)
     for pz, ph in pred_peaks:
         in_band = any(abs(pz - vz) <= match_window_mm for vz in truth_vertices)
         mfc = COL_E2E if in_band else "none"
         ax_main.plot(
             pz,
-            ph / e2e_mx,
+            ph,
             marker="o",
             markersize=5,
             color=COL_E2E,
@@ -439,23 +443,23 @@ def plot_event_overview(
         )
 
     ax_main.set_xlim(Z_MIN, Z_MAX)
-    ax_main.set_ylabel("Norm. amplitude")
+    ax_main.set_ylabel("Predicted histogram")
     ax_main.legend(loc="upper right", fontsize=9)
     ax_main.set_title(
         f"{dataset_label.upper()} Event {event_idx} -- full event overview"
     )
 
     # ------------------------------------------------------------------
-    # Panel 2: normalized residual strip
+    # Panel 2: residual strip (raw e2e - rescaled analytical)
     # ------------------------------------------------------------------
-    ax_res.plot(z, e2e_norm - ana_norm, color=COL_E2E, linewidth=0.8)
+    ax_res.plot(z, e2e_raw - ana_scaled, color=COL_E2E, linewidth=0.8)
     ax_res.axhline(0, color="black", linewidth=0.8)
     for vz in truth_vertices:
         ax_res.axvline(vz, color=COL_WINDOW, alpha=0.5, linewidth=0.7)
 
     ax_res.set_xlim(Z_MIN, Z_MAX)
     ax_res.set_xlabel("z [mm]")
-    ax_res.set_ylabel("pred - ana\n(norm.)")
+    ax_res.set_ylabel("pred - ana\n(rescaled)")
 
     stem = f"event{event_idx:04d}_overview"
     fig.savefig(os.path.join(output_dir, stem + ".png"), bbox_inches="tight")

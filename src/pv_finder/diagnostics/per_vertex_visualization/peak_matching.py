@@ -24,16 +24,15 @@ def _bin_to_z_mm(bin_idx: int | float) -> float:
 
 def find_histogram_peaks(
     hist_flat: np.ndarray,
-    threshold: float = 0.02,
-    integral_threshold: float = 0.4,
-    min_width: int = 2,
-    min_prominence: float = 0.0,
+    threshold: float = 0.01,
+    integral_threshold: float = 0.5,
+    min_width: int = 3,
 ) -> list[tuple[float, float]]:
     """Find peaks in a 12000-bin histogram using the standard PV-Finder algorithm.
 
     Delegates to ``pv_locations_updated_res`` (shared with evaluation) which
-    scans contiguous above-threshold regions, applies integral and width cuts,
-    and optionally splits conjoined peaks via prominence gating.
+    scans contiguous above-threshold regions and applies integral and width
+    cuts.  Each region yields exactly one peak at the weighted-mean position.
 
     Returns list of (z_mm, height) sorted by z_mm.
     Returns empty list when the histogram is all zeros.
@@ -46,7 +45,6 @@ def find_histogram_peaks(
         threshold=threshold,
         integral_threshold=integral_threshold,
         min_width=min_width,
-        min_prominence=min_prominence,
     )
 
     peaks = [(float(z), float(h)) for z, h in zip(z_pos, heights)]
