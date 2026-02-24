@@ -77,8 +77,9 @@ src/pv_finder/                   ← source code
   training/                        train scripts, trainNet loop, weight init
   evaluation/                      metrics, efficiency, comparisons
   diagnostics/                     plotting, visualization
-    feature_distribution/            MC vs Run 3 feature comparison
-    kde_study/                       KDE model vs analytical comparison
+    domain_shift_investigation/      MC vs Run 3 analysis
+      feature_distribution/          feature comparison
+      kde_study/                     KDE model vs analytical
   scratch/                           data_exploration.ipynb
   utils/                           utilities, efficiency, jagged
 configs/vertex_finding/          ← YAML training configs

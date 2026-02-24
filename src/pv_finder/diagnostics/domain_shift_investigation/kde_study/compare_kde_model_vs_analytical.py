@@ -5,7 +5,7 @@ MC validation data and Run 3 ATLAS data.  Produces overlay plots, per-vertex
 zooms, agreement summaries, residual distributions, and a JSON summary.
 
 Usage:
-    python -m pv_finder.diagnostics.kde_study.compare_kde_model_vs_analytical [options]
+    python -m pv_finder.diagnostics.domain_shift_investigation.kde_study.compare_kde_model_vs_analytical [options]
 """
 
 import argparse
@@ -27,15 +27,17 @@ from pv_finder.data.feature_loading import (
     load_mc_data,
     load_run3_data,
 )
-from pv_finder.diagnostics.kde_study.analytical_kde import compute_analytical_kdes_batch
-from pv_finder.diagnostics.kde_study.kde_comparison_plots import (
+from pv_finder.diagnostics.domain_shift_investigation.kde_study.analytical_kde import (
+    compute_analytical_kdes_batch,
+)
+from pv_finder.diagnostics.domain_shift_investigation.kde_study.kde_comparison_plots import (
     plot_agreement_summary,
     plot_event_overlay,
     plot_mc_vs_run3_comparison,
     plot_per_vertex,
     plot_residual_distributions,
 )
-from pv_finder.diagnostics.kde_study.kde_model_inference import (
+from pv_finder.diagnostics.domain_shift_investigation.kde_study.kde_model_inference import (
     load_t2kde_model,
     run_model_on_events,
 )

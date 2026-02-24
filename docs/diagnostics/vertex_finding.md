@@ -1,6 +1,6 @@
 # Diagnostics — Vertex Finding
 
-Source: `src/pv_finder/diagnostics/`
+Source: `src/pv_finder/diagnostics/domain_shift_investigation/`
 
 ## Feature Distribution Comparison (MC vs Run 3)
 
@@ -11,9 +11,9 @@ real ATLAS Run 3 data to quantify domain shift.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `feature_distribution/compare_feature_distributions.py` | 356 | Entry point: CLI, summary, JSON export |
-| `feature_distribution/feature_plots_1.py` | 387 | Figures 1--3: core params, 2D correlations, tensor distributions |
-| `feature_distribution/feature_plots_2.py` | 369 | Figures 4--6: CDF/QQ, per-subevent stats, beam spot |
+| `domain_shift_investigation/feature_distribution/compare_feature_distributions.py` | 356 | Entry point: CLI, summary, JSON export |
+| `domain_shift_investigation/feature_distribution/feature_plots_1.py` | 387 | Figures 1--3: core params, 2D correlations, tensor distributions |
+| `domain_shift_investigation/feature_distribution/feature_plots_2.py` | 369 | Figures 4--6: CDF/QQ, per-subevent stats, beam spot |
 
 Data loading and feature extraction live in `src/pv_finder/data/feature_loading.py` (389 lines).
 
@@ -29,7 +29,7 @@ Data loading and feature extraction live in `src/pv_finder/data/feature_loading.
 ### Usage
 
 ```bash
-PYTHONPATH=src python -m pv_finder.diagnostics.feature_distribution.compare_feature_distributions \
+PYTHONPATH=src python -m pv_finder.diagnostics.domain_shift_investigation.feature_distribution.compare_feature_distributions \
     --run3-cache data/run3/cache_file3_2000ev_seed42.npz \
     --mc-h5 data/monte_carlo/training_data.h5 \
     --output-dir outputs/domain_shift_investigation \
@@ -59,10 +59,10 @@ reproduces the ground-truth KDE, and whether domain shift degrades performance.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `kde_study/compare_kde_model_vs_analytical.py` | 389 | Entry point: CLI, metrics, JSON export |
-| `kde_study/analytical_kde.py` | 288 | Per-track 2D Gaussian KDE (numpy, no numba) |
-| `kde_study/kde_model_inference.py` | 223 | Model loading (pickle alias fix) and batched inference |
-| `kde_study/kde_comparison_plots.py` | 413 | All visualizations: overlays, per-vertex, summaries |
+| `domain_shift_investigation/kde_study/compare_kde_model_vs_analytical.py` | 389 | Entry point: CLI, metrics, JSON export |
+| `domain_shift_investigation/kde_study/analytical_kde.py` | 288 | Per-track 2D Gaussian KDE (numpy, no numba) |
+| `domain_shift_investigation/kde_study/kde_model_inference.py` | 223 | Model loading (pickle alias fix) and batched inference |
+| `domain_shift_investigation/kde_study/kde_comparison_plots.py` | 413 | All visualizations: overlays, per-vertex, summaries |
 
 ### Algorithm
 
@@ -96,7 +96,7 @@ outputs/kde_comparison/
 ### Usage
 
 ```bash
-PYTHONPATH=src venv/bin/python3 -m pv_finder.diagnostics.kde_study.compare_kde_model_vs_analytical \
+PYTHONPATH=src venv/bin/python3 -m pv_finder.diagnostics.domain_shift_investigation.kde_study.compare_kde_model_vs_analytical \
     --n-events 200 --n-viz-events 3 --output-dir outputs/kde_comparison
 ```
 
