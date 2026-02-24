@@ -33,6 +33,7 @@ from pv_finder.utils.utilities import (
 )
 
 LOGGER = logging.getLogger("attempt4")
+SCRIPT_PATH = Path(__file__)
 
 
 def setup_logging(log_folder: Path, runname: str) -> Path:

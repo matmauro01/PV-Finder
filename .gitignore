@@ -18,6 +18,7 @@ build/
 *.pkl
 *.pickle
 *.pyt
+*.npy
 /data/
 
 # ML artifacts

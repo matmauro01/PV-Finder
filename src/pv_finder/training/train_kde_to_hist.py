@@ -1,5 +1,6 @@
 ##### IMPORTS #####
 import argparse
+import os
 
 import mlflow
 import torch
@@ -124,7 +125,7 @@ def main(configs):
         )
     )
     with mlflow.start_run(run_name=runname) as run:  # noqa: F841
-        mlflow.log_artifact("training/train_kde_to_hist.py")
+        mlflow.log_artifact(os.path.abspath(__file__))
         for i, result in train_iter:
             print(result.cost)
             torch.save(model, "run_stats.pyt")
