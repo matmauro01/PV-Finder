@@ -11,9 +11,9 @@ real ATLAS Run 3 data to quantify domain shift.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `compare_feature_distributions.py` | 356 | Entry point: CLI, summary, JSON export |
-| `feature_plots_1.py` | 387 | Figures 1--3: core params, 2D correlations, tensor distributions |
-| `feature_plots_2.py` | 369 | Figures 4--6: CDF/QQ, per-subevent stats, beam spot |
+| `feature_distribution/compare_feature_distributions.py` | 356 | Entry point: CLI, summary, JSON export |
+| `feature_distribution/feature_plots_1.py` | 387 | Figures 1--3: core params, 2D correlations, tensor distributions |
+| `feature_distribution/feature_plots_2.py` | 369 | Figures 4--6: CDF/QQ, per-subevent stats, beam spot |
 
 Data loading and feature extraction live in `src/pv_finder/data/feature_loading.py` (389 lines).
 
@@ -29,7 +29,7 @@ Data loading and feature extraction live in `src/pv_finder/data/feature_loading.
 ### Usage
 
 ```bash
-PYTHONPATH=src python src/pv_finder/diagnostics/compare_feature_distributions.py \
+PYTHONPATH=src python -m pv_finder.diagnostics.feature_distribution.compare_feature_distributions \
     --run3-cache data/run3/cache_file3_2000ev_seed42.npz \
     --mc-h5 data/monte_carlo/training_data.h5 \
     --output-dir outputs/domain_shift_investigation \
@@ -59,10 +59,10 @@ reproduces the ground-truth KDE, and whether domain shift degrades performance.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `compare_kde_model_vs_analytical.py` | 389 | Entry point: CLI, metrics, JSON export |
-| `analytical_kde.py` | 288 | Per-track 2D Gaussian KDE (numpy, no numba) |
-| `kde_model_inference.py` | 223 | Model loading (pickle alias fix) and batched inference |
-| `kde_comparison_plots.py` | 413 | All visualizations: overlays, per-vertex, summaries |
+| `kde_study/compare_kde_model_vs_analytical.py` | 389 | Entry point: CLI, metrics, JSON export |
+| `kde_study/analytical_kde.py` | 288 | Per-track 2D Gaussian KDE (numpy, no numba) |
+| `kde_study/kde_model_inference.py` | 223 | Model loading (pickle alias fix) and batched inference |
+| `kde_study/kde_comparison_plots.py` | 413 | All visualizations: overlays, per-vertex, summaries |
 
 ### Algorithm
 
@@ -96,7 +96,7 @@ outputs/kde_comparison/
 ### Usage
 
 ```bash
-PYTHONPATH=src venv/bin/python3 -m pv_finder.diagnostics.compare_kde_model_vs_analytical \
+PYTHONPATH=src venv/bin/python3 -m pv_finder.diagnostics.kde_study.compare_kde_model_vs_analytical \
     --n-events 200 --n-viz-events 3 --output-dir outputs/kde_comparison
 ```
 
@@ -114,6 +114,15 @@ confirming the algorithm is correct.
 
 The model generalises well to Run 3 data (similar Pearson r), but misses more peaks
 (77.9% vs 93.3%), likely due to the domain shift in track multiplicity and errors.
+
+**Note on old atlas_pvfinder results**: The ~15x amplitude suppression on Run 3 reported
+in `atlas_pvfinder/clean_run3` was caused by feature encoding bugs in the old scripts
+(compare_kde_theory_vs_model.py, investigate_domain_shift.py). They fed theta/3 and
+(phi+pi)/3 into channels 2--3 instead of d0_err and z0_err, and used d0/2 instead of
+raw d0. For MC this cancelled out (round-trip encoding); for Run 3 it fed the model
+angular values where it expected uncertainties, causing output collapse. The "60% OOD"
+finding was comparing d0_err against theta/3. With correct feature encoding, the model
+shows no catastrophic domain shift.
 
 ## Data Exploration Notebook
 

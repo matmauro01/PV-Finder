@@ -172,7 +172,28 @@ Key findings (200 validation events each):
 
 Model used: `tracks2kde_KDE_A_z_epoch180.pyt` copied to `model_weights/`.
 
-Critical bug avoided: The old compare_kde_theory_vs_model.py in atlas_pvfinder used
+Corrected bug: The old compare_kde_theory_vs_model.py in atlas_pvfinder used
 POCA pair-based KDE (wrong algorithm) and wrong feature encoding (d0/2, theta/3,
 (phi+pi)/3). This new tool uses the correct per-track Gaussian KDE and correct
 feature mapping.
+
+---
+
+## 2026-02-24 — KDE comparison audit: old amplitude suppression was a bug
+
+Audited the KDE comparison tool against the old atlas_pvfinder/clean_run3 results.
+The ~15x amplitude suppression on Run 3 reported there was entirely caused by three
+feature encoding bugs in compare_kde_theory_vs_model.py and investigate_domain_shift.py:
+
+- Ch0: fed d0/2 instead of raw d0
+- Ch2: fed theta/3 instead of d0_err
+- Ch3: fed (phi+pi)/3 instead of z0_err
+
+For MC, these cancelled out (round-trip read/re-encode), so the model appeared to work.
+For Run 3, the model received angular values where it expected uncertainties, causing
+output collapse. The "60% OOD d0_err" finding was comparing d0_err against theta/3 --
+different physical quantities.
+
+The new PV-Finder code uses the correct mapping (confirmed by eval_run3_v2.py) and
+shows the model works similarly on both datasets (Pearson r ~0.91, integral ratio ~0.91).
+No bugs found in the new code.
