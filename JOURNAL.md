@@ -380,3 +380,43 @@ is unchanged so all callers are unaffected. The conjoined splitting is required 
 correct resolution measurement; the F1 analysis should not have been applied here.
 
 Updated: `docs/evaluation/vertex_finding.md`.
+
+---
+
+## 2026-02-24 — Run3 GNN track probability distribution script
+
+Added `src/pv_finder/diagnostics/run3_track_probability.py`.
+
+The script runs the full PVF → peak-finding → GNN pipeline on Run3 events
+from the pre-extracted NPZ cache and plots the distribution of per-edge GNN
+association scores (sigmoid of edge logits).
+
+**Motivation:** Inspect how confident the GNN is about track-to-vertex
+associations on real (Run3) data, without any truth labels. The score
+distribution reveals whether the model produces sharp decisions (mass near 0
+and 1) or diffuse uncertain scores.
+
+**Pipeline per event:**
+1. Build padded subevent tensors (100 tracks/chunk) and run the PVF model to
+   obtain the 12 000-bin histogram.
+2. Peak-find with `pv_locations_updated_res` to get `pred_z / pred_heights /
+   pred_sigmas`.
+3. Build a fully-connected bipartite inference graph with
+   `create_inference_graph`.
+4. Run `TTVAGATModel`; apply sigmoid to edge logits.
+5. Collect all scores plus max-score-per-track.
+
+**Outputs:** two-panel PNG/PDF (all edge scores + max-per-track, log y-axis)
+and a JSON summary.
+
+**Key design notes:**
+- PVF weights (`tracks2kde_KDE_A_z_epoch180.pyt`) were pickled with the
+  legacy `model.autoencoder_models` module path. The `--legacy-model-path`
+  argument inserts `mattia_finder/` into `sys.path` before loading.
+- GNN weights (`gnn_ttva_epoch100.pyt`) are a plain state dict; loaded into
+  `TTVAGATModel` directly.
+- Max-score-per-track uses `scores.reshape(n_tracks, n_pvs).max(axis=1)`,
+  valid because the bipartite graph is fully connected and edges are ordered
+  by the `meshgrid(indexing="ij")` in `create_inference_graph`.
+
+Updated: `docs/diagnostics/vertex_association.md`.
