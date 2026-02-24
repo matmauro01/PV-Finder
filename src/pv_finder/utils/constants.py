@@ -26,3 +26,7 @@ Z_MAX: float = 240.0  # mm
 TOTAL_NUM_BINS: int = 12000
 BINS_PER_MM: int = 25  # = 12000 / 480
 BIN_WIDTH_MM: float = 0.04  # = 1 / 25
+
+# --- Subevent structure ---
+N_SUBEVENTS: int = 12
+BINS_PER_SUBEVENT: int = 1000

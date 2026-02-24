@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pv_finder.data.feature_loading import Z_MAX, Z_MIN
+from pv_finder.utils.constants import Z_MAX, Z_MIN
 
 # Bin geometry (must match model output: 12 subevents x 1000 bins = 12000)
 _N_BINS = 12000
