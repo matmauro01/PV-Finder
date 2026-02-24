@@ -35,11 +35,11 @@ from pv_finder.data.feature_loading import (
     load_mc_data,
     load_run3_data,
 )
-from pv_finder.diagnostics.feature_plots_1 import (
+from pv_finder.diagnostics.feature_distribution.feature_plots_1 import (
     plot_2d_correlations,
     plot_feature_distributions,
 )
-from pv_finder.diagnostics.feature_plots_2 import (
+from pv_finder.diagnostics.feature_distribution.feature_plots_2 import (
     plot_tails_and_quantiles,
     plot_z0_beam_spot_investigation,
 )
