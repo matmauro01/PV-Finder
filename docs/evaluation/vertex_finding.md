@@ -6,7 +6,7 @@ Two-step evaluation of the PV-Finder UNet on MC test data.
 
 ```
 Step 1 (Resolution): PVF model → inference → peak finding → pairwise distances → fit σ_vtx-vtx
-Step 2 (Classification): peaks + truth PVs + σ_vtx-vtx → match → Clean/Merged/Split/Fake/Missed
+Step 2 (Classification): peaks + truth histogram peaks + σ_vtx-vtx → match → Clean/Merged/Split/Fake
 ```
 
 ## Usage
@@ -16,20 +16,26 @@ Step 2 (Classification): peaks + truth PVs + σ_vtx-vtx → match → Clean/Merg
 PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
     --pvf-weights model_weights/pvf_e2e_epoch400.pyt \
     --pvf-h5 data/monte_carlo/training_data.h5 \
-    --track-h5 data/monte_carlo/track_associations.h5 \
     --n-events 2550 \
     --output-dir outputs/evaluation/pvf_e400_2550evt \
     --device 0 \
-    --threshold 0.01 --integral-threshold 0.5 --min-width 3 --prominence 0.85
+    --threshold 0.01 --integral-threshold 0.5 --min-width 3
 
-# Classify-only (reuse saved histograms):
+# Classify-only (reuse saved histograms, let sigma be fitted):
 PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
     --histograms outputs/evaluation/pvf_e400_2550evt/pvf_histograms.npy \
-    --track-h5 data/monte_carlo/track_associations.h5 \
-    --sigma-vtx-vtx 0.34 \
     --output-dir outputs/evaluation/pvf_rerun \
-    --threshold 0.01 --integral-threshold 0.5 --min-width 3 --prominence 0.85
+    --threshold 0.01 --integral-threshold 0.5 --min-width 3
+
+# Classify-only with a fixed sigma (skip resolution fit):
+PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
+    --histograms outputs/evaluation/pvf_e400_2550evt/pvf_histograms.npy \
+    --sigma-vtx-vtx 0.34 \
+    --output-dir outputs/evaluation/pvf_sigma034 \
+    --threshold 0.01 --integral-threshold 0.5 --min-width 3
 ```
+
+`--track-h5` is accepted for backwards compatibility but is no longer used.
 
 ## Peak-Finding Parameters
 
@@ -38,31 +44,55 @@ PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
 | `threshold` | 0.01 | Min bin value to start a peak |
 | `integral_threshold` | 0.5 | Min sum of bin values in a region |
 | `min_width` | 3 | Min consecutive above-threshold bins |
-| `prominence` | 0.85 | Reserved for future conjoined peak splitting |
 
 Shared algorithm: `pv_finder.utils.peak_finding.pv_locations_updated_res`.
 
+### Conjoined peak splitting
+
+`pv_locations_updated_res` includes a **conjoined-peak split**: when two nearby peaks
+overlap and the histogram never dips below `threshold` between them, a local minimum is
+detected (histogram starts rising again after having already fallen) and the region is
+split into two separate PV candidates.
+
+This is critical for the resolution plot. Without it, pairs of true vertices at
+separations of 0.3–1 mm that produce overlapping KDE peaks are merged into one predicted
+PV and never contribute a pair to the Δz histogram. The fitted σ_vtx-vtx then reflects
+the KDE overlap scale (~0.8 mm) rather than the true detector resolution (~0.34 mm).
+
 ## Resolution Fitting (Step 1)
 
-For each event, find peaks in the predicted histogram and collect all pairwise z-distances between predicted PVs. Histogram these distances in [-6, 6] mm (61 bins) and fit a sigmoid:
+For each event, find peaks in the predicted histogram and collect all pairwise
+z-distances between predicted PVs (peaks are shuffled before computing pairs so
+differences are symmetric around zero). Histogram these distances in [−6, 6] mm
+(61 bins) and fit a sigmoid:
 
 ```
 f(x) = a / (1 + exp(b * (rcc - |x|))) + c
 ```
 
-The parameter `rcc` = σ_vtx-vtx is the vertex-vertex resolution. This is then used as the matching window in Step 2.
+The parameter `rcc` = σ_vtx-vtx is the vertex-vertex resolution: the scale at which
+two nearby true vertices can be resolved into two separate predicted peaks. Used as the
+matching window in Step 2.
 
 ## Vertex Classification (Step 2)
 
-Each predicted PV is matched to truth PVs (from `track_associations.h5`, filtered to nTracks >= 2) using the fitted σ_vtx-vtx as the matching window (converted to bins):
+Truth positions come from **peak-finding on the truth KDE histograms**
+(`pvf_truth_histograms.npy`), using the same algorithm and parameters as prediction
+peak-finding. Raw MC generator-level positions (`pv_loc_z`) are not used: the model
+predicts KDE peaks, which spatially blur nearby vertices, so comparing against individual
+MC positions with a small window gives a spurious ~70% fake rate.
+
+Each predicted PV is matched to truth peaks using σ_vtx-vtx (converted to bins) as
+the matching window:
 
 | Category | Definition |
 |----------|-----------|
 | **Clean** | Exactly one truth PV within the matching window |
 | **Merged** | Multiple truth PVs within the matching window |
-| **Split** | Multiple reco PVs match the same truth PV (closest kept, others split) |
+| **Split** | Multiple reco PVs match the same truth PV (closest kept, rest become Split) |
 | **Fake** | No truth PV within the matching window |
-| **Missed** | Truth PV not matched by any reco PV |
+
+All four are reco-side quantities; bar-chart percentages sum to 100% of predicted PVs.
 
 ## Test Split
 
@@ -74,10 +104,10 @@ Subevent indices: 581400–611999 (12 subevents per event).
 ```
 outputs/evaluation/pvf_e400_2550evt/
 ├── pvf_histograms.npy          # (2550, 12000) float32 predictions
-├── pvf_truth_histograms.npy    # (2550, 12000) float32 truth
+├── pvf_truth_histograms.npy    # (2550, 12000) float32 truth KDE
 ├── deltaz_resolution.png/pdf   # Vertex distance fit plot
 ├── pvf_results.json            # Summary metrics
-├── pvf_per_event.npy           # (2550, 5) [clean, merged, split, fake, n_truth]
+├── pvf_per_event.npy           # (2550, 4) [clean, merged, split, fake]
 └── pvf_category_bar.png        # Category distribution bar chart
 ```
 

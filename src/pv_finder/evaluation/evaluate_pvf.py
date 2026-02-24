@@ -2,7 +2,8 @@
 
 Step 1 (Resolution): inference -> peak finding -> pairwise distances -> fit sigma_vtx_vtx.
 Step 2 (Classification): use sigma_vtx_vtx to match predicted peaks to truth -> categorize
-as Clean / Merged / Split / Fake / Missed.
+as Clean / Merged / Split / Fake.  Truth positions come from peak-finding on the truth
+KDE histograms (same algorithm and parameters as prediction peak-finding).
 
 Migrated from atlas_pvfinder/mattia_finder/evaluation/{test_model,evaluate_model}.py.
 """
@@ -134,7 +135,6 @@ def compute_resolution(
     threshold: float,
     integral_threshold: float,
     min_width: int,
-    min_prominence: float,  # noqa: ARG001 -- reserved for future splitting
 ) -> float:
     """Compute sigma_vtx_vtx from pairwise distances between predicted PVs.
 
@@ -180,7 +180,6 @@ def evaluate_vertices(
     threshold: float,
     integral_threshold: float,
     min_width: int,
-    min_prominence: float,  # noqa: ARG001 -- reserved for future splitting
 ) -> dict:
     """Classify predicted peaks as Clean/Merged/Split/Fake.
 
@@ -322,7 +321,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threshold", type=float, default=0.01)
     p.add_argument("--integral-threshold", type=float, default=0.5)
     p.add_argument("--min-width", type=int, default=3)
-    p.add_argument("--prominence", type=float, default=0.85)
     return p
 
 
@@ -385,7 +383,7 @@ def main() -> None:
         print(
             f"      Peak params: threshold={args.threshold}, "
             f"integral={args.integral_threshold}, "
-            f"min_width={args.min_width}, prominence={args.prominence}"
+            f"min_width={args.min_width}"
         )
         sigma = compute_resolution(
             predictions,
@@ -393,7 +391,6 @@ def main() -> None:
             threshold=args.threshold,
             integral_threshold=args.integral_threshold,
             min_width=args.min_width,
-            min_prominence=args.prominence,
         )
         print(f"      Saved: {out / 'deltaz_resolution.png'}")
 
@@ -414,7 +411,6 @@ def main() -> None:
         threshold=args.threshold,
         integral_threshold=args.integral_threshold,
         min_width=args.min_width,
-        min_prominence=args.prominence,
     )
 
     # Save outputs

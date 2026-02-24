@@ -315,3 +315,68 @@ Key details:
 - Model weights: `pvf_e2e_epoch400.pyt` (epoch 400, tracks→hist UNet).
 - Data: `training_data.h5` for inference, `track_associations.h5` for truth PVs.
 - Constants: added N_SUBEVENTS=12, BINS_PER_SUBEVENT=1000 to `utils/constants.py`.
+
+---
+
+## 2026-02-24 — PVF evaluation pipeline: three bugs found and fixed
+
+After running the initial evaluation (pvf_e2e_epoch400.pyt, 2550 events), results were
+clearly wrong: 72.8% fake rate, inflated sigma, and a spurious "Missed" category with
+inconsistent percentages. Three independent bugs were responsible.
+
+**Bug 1 — Wrong truth source (72.8% fake rate)**
+
+`evaluate_vertices` was loading truth PV positions from `pv_loc_z` in
+`track_associations.h5` (raw MC generator-level vertex positions), then matching
+predicted KDE peaks to those positions with a small sigma window. The model was trained
+to predict KDE histograms, which spatially blur and merge nearby vertices. Predicted
+peaks from the KDE systematically do not land within a small matching window of any
+individual MC vertex, so almost every predicted peak was labelled fake.
+
+Fix: use peak-finding on the saved truth KDE histograms (`pvf_truth_histograms.npy`,
+same algorithm and parameters as prediction peak-finding). The model predicts KDE peaks;
+truth should be defined the same way. Removed the `--track-h5` requirement entirely.
+
+**Bug 2 — "Missed" category computed with wrong formula**
+
+`n_missed = n_truth - n_clean_reco - n_merged_reco` conflated reco-level counts with a
+truth-level quantity. Each "merged" reco PV covers multiple truth PVs, but the formula
+only subtracted 1 per merged reco, so those extra truth PVs were falsely counted as
+missed. The `truth_classification` array returned by `compare_res_reco` (which gives the
+correct per-truth-PV classification) was discarded. Additionally, the bar chart's
+percentage denominator included Missed alongside reco-side categories, so
+Clean+Merged+Split+Fake percentages did not sum to 100%.
+
+Fix: removed the "Missed" category from evaluation output. Bar chart now shows only
+the four reco-side categories (Clean, Merged, Split, Fake) with percentages normalised
+to total reco PVs. Note: in the original mattia_finder scripts, Missed was either not
+tracked or was always zero by a latent bug (checking `tc == []` on a list that was
+always non-empty after `compare_res_reco`).
+
+**Bug 3 — Conjoined peak splitting missing from pv_locations_updated_res (inflated sigma)**
+
+The resolution plot fits a sigmoid to the distribution of pairwise distances between all
+predicted PVs. The inflection point of the sigmoid is σ_vtx-vtx. This works because
+pairs of true PVs separated by less than the resolution are merged into one predicted PV
+(no pair contributed to the histogram), creating a depletion ("notch") near Δz = 0.
+The width of the notch determines σ.
+
+The conjoined-peak splitting logic (from the original `efficiency_res_optimized_atlas.py`)
+detects two overlapping peaks that never dip below threshold — a local minimum within an
+above-threshold region where the histogram starts rising again. It splits the region into
+two separate PV candidates. This logic was removed in commit a978beb ("remove prominence
+splitting") based on per-vertex visualization F1 analysis. That analysis was valid for
+the per-vertex diagnostics use case (1-to-1 greedy matching, F1 ~0.83–0.86) but
+incorrect for the resolution use case.
+
+Without conjoined splitting, pairs of true PVs at separations of 0.3–1 mm that produce
+overlapping KDE peaks are merged into one predicted PV and their pair is never added to
+the histogram. The notch extends out to the KDE overlap scale (~0.8 mm) rather than the
+true vertex-vertex resolution (~0.34 mm). The fitted sigma was therefore inflated by ~2×.
+
+Fix: restored the `peak_passed` tracking and third flush condition in
+`pv_locations_updated_res` (`utils/peak_finding.py`). The return signature (4 values)
+is unchanged so all callers are unaffected. The conjoined splitting is required for
+correct resolution measurement; the F1 analysis should not have been applied here.
+
+Updated: `docs/evaluation/vertex_finding.md`.

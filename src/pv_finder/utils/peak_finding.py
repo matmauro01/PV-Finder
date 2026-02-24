@@ -5,6 +5,12 @@ Scans contiguous above-threshold regions in a 12000-bin histogram, recording
 a PV candidate when the region meets width and integral criteria.  Each region
 yields exactly one PV at the weighted-mean z-position.
 
+Conjoined-peak splitting: when two nearby peaks overlap and the histogram never
+dips below threshold between them, the algorithm detects the local minimum and
+splits the region into two separate PV candidates.  This restores the original
+behaviour from efficiency_res_optimized_atlas.py and is essential for correctly
+measuring the vertex-vertex resolution.
+
 Used by both evaluation and diagnostics (shared logic).
 """
 
@@ -29,7 +35,12 @@ def pv_locations_updated_res(
 
     Scans bins left-to-right, accumulating contiguous above-threshold regions.
     A region is recorded as a PV if it meets the width and integral criteria.
-    Each region produces exactly one PV at the weighted-mean position.
+
+    Conjoined-peak splitting: if the histogram starts rising again after having
+    already passed a local maximum (indicating two overlapping peaks that never
+    dip below threshold), the current region is flushed and a new one starts.
+    Without this, overlapping peaks are merged into one candidate, which inflates
+    the fitted sigma_vtx-vtx.
 
     Parameters
     ----------
@@ -59,6 +70,7 @@ def pv_locations_updated_res(
     sum_wl = 0.0  # sum of (bin_value * bin_index)
     sum_wl2 = 0.0  # sum of (bin_value * bin_index^2)
     currentmax = 0
+    peak_passed = False  # True once the histogram has started falling within a region
 
     # Pre-allocate output arrays (resized dynamically if needed)
     cap = 500
@@ -82,8 +94,17 @@ def pv_locations_updated_res(
             if targets[i] > targets[currentmax]:
                 currentmax = i
 
-        # End of region: below threshold or last bin
-        if (targets[i] < threshold or i == len(targets) - 1) and state > 0:
+            # Track whether we have passed the local maximum of this region
+            if i > 0 and targets[i - 1] > targets[i]:
+                peak_passed = True
+
+        # End of region: below threshold, last bin, or rising again after a peak.
+        # The third condition is the conjoined-peak split: two peaks that overlap
+        # without the histogram falling below threshold are separated here.
+        conjoined_split = i > 0 and (targets[i - 1] < targets[i]) and peak_passed
+        if (
+            targets[i] < threshold or i == len(targets) - 1 or conjoined_split
+        ) and state > 0:
             if state >= min_width and integral >= integral_threshold:
                 # Resize if capacity exceeded
                 if n >= cap:
@@ -110,6 +131,7 @@ def pv_locations_updated_res(
             integral = 0.0
             sum_wl = 0.0
             sum_wl2 = 0.0
+            peak_passed = False
 
     return (
         items[:n],
