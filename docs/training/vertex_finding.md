@@ -47,7 +47,7 @@ This config points to the Step 1/2 weights via `pretrained_tracks2kde` and
 `pretrained_kde2hist` keys and initializes automatically (no separate Step 3 needed).
 Alternatively, use `config_T2HIST_matmauro.yml` with a pre-built `.pth` from Step 3.
 
-### Strategy C: End-to-end without KDEs (MLP warmup)
+### Strategy B: End-to-end without KDEs (MLP warmup)
 
 No KDE supervision at all. Two-phase approach to avoid degenerate solutions.
 
@@ -74,7 +74,7 @@ spatial mapping before the UNet co-adapts.
 | `config_KDE2HIST_matmauro.yml` | A step 2 | 200 epochs, lr=0.0001, batch=128 |
 | `config_T2HIST_matmauro.yml` | A step 4 | 100 epochs, lr=0.001, MSE loss, pre-built .pth |
 | `config_T2HIST_combined_200epochs.yml` | A step 4 | 400 epochs, auto-init from step 1+2 weights |
-| `config_mlp_hist_e2e.yml` | C | 50+400 epochs, no KDE, MLP warmup |
+| `config_mlp_hist_e2e.yml` | B | 50+400 epochs, no KDE, MLP warmup |
 
 ## MLflow
 
@@ -98,5 +98,5 @@ Tracking URI: `file:<repo_root>/mlruns`
 | `train_kde_to_hist.py` | Strategy A step 2: KDE to histogram |
 | `initialize_combined_weights.py` | Strategy A step 3: combine step 1+2 weights |
 | `train_tracks_to_hist.py` | Strategy A step 4: end-to-end fine-tuning |
-| `train_mlp_hist_then_e2e.py` | Strategy C: KDE-free end-to-end with MLP warmup |
+| `train_mlp_hist_then_e2e.py` | Strategy B: KDE-free end-to-end with MLP warmup |
 | `training.py` | `trainNet()` loop, GPU selection |
