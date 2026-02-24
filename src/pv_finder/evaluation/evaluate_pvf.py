@@ -152,9 +152,12 @@ def compute_resolution(
             min_width=min_width,
         )
         total_pvs += len(z_mm)
-        for a in range(len(z_mm) - 1):
-            for b in range(a + 1, len(z_mm)):
-                all_distances.append(float(z_mm[a] - z_mm[b]))
+        # Shuffle before pairwise distances so z[a]-z[b] is symmetric around 0
+        z_shuffled = z_mm.copy()
+        np.random.shuffle(z_shuffled)
+        for a in range(len(z_shuffled) - 1):
+            for b in range(a + 1, len(z_shuffled)):
+                all_distances.append(float(z_shuffled[a] - z_shuffled[b]))
 
     print(f"      Total predicted PVs: {total_pvs}")
     print(f"      Pairwise distances: {len(all_distances)}")
