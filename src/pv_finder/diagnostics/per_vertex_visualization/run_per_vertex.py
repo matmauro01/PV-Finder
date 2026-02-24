@@ -41,6 +41,12 @@ from pv_finder.data.feature_loading import (
 from pv_finder.diagnostics.domain_shift_investigation.kde_study.analytical_kde import (
     compute_analytical_kdes_batch,
 )
+from pv_finder.diagnostics.domain_shift_investigation.kde_study.kde_model_inference import (
+    load_t2kde_model,
+)
+from pv_finder.diagnostics.domain_shift_investigation.kde_study.kde_model_inference import (
+    run_model_on_events as run_t2kde_on_events,
+)
 from pv_finder.diagnostics.per_vertex_visualization.inference import (
     load_e2e_model,
     run_e2e_on_events,
@@ -64,6 +70,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 _DEFAULT_MC_H5 = "data/monte_carlo/training_data.h5"
 _DEFAULT_RUN3_NPZ = "data/run3/cache_file3_2000ev_seed42.npz"
 _DEFAULT_MODEL = "model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130.pyt"
+_DEFAULT_T2KDE_MODEL = "model_weights/tracks2kde_KDE_A_z_epoch180.pyt"
 _VAL_START_SUB = 428400  # 70% of 612000 subevents = validation split start
 _VAL_START_EVENT = _VAL_START_SUB // N_SUBEVENTS  # 35700
 
@@ -112,6 +119,7 @@ def _process_event(
     output_dir: str,
     window_mm: float,
     hist_truth: np.ndarray | None = None,
+    hist_t2kde: np.ndarray | None = None,
 ) -> None:
     """Generate overview + per-vertex zoom plots for one event and print summary.
 
@@ -129,6 +137,7 @@ def _process_event(
         dataset_label,
         evt_dir,
         hist_truth=hist_truth,
+        hist_t2kde=hist_t2kde,
     )
 
     for vi, vz in enumerate(truth_vertices):
@@ -146,6 +155,7 @@ def _process_event(
             tracks_d0=tracks_d0,
             tracks_d0_err=tracks_d0_err,
             hist_truth=hist_truth,
+            hist_t2kde=hist_t2kde,
             all_truth_vertices=truth_vertices,
         )
 
@@ -196,6 +206,11 @@ def main() -> None:
     parser.add_argument(
         "--model-path", default=_DEFAULT_MODEL, help="e2e model weights (.pyt)"
     )
+    parser.add_argument(
+        "--t2kde-model-path",
+        default=_DEFAULT_T2KDE_MODEL,
+        help="T2KDE (tracks-to-KDE) model weights (.pyt)",
+    )
     args = parser.parse_args()
 
     n_ev = args.n_events
@@ -220,6 +235,22 @@ def main() -> None:
     mc_e2e = run_e2e_on_events(model, mc_events, "mc", device=args.device)
     print("Running e2e model on Run 3 events...")
     run3_e2e = run_e2e_on_events(model, run3_events, "run3", device=args.device)
+
+    # ---- T2KDE model ----
+    t2kde_model = None
+    mc_t2kde: list[np.ndarray] | None = None
+    run3_t2kde: list[np.ndarray] | None = None
+    if os.path.isfile(args.t2kde_model_path):
+        print(f"Loading T2KDE model: {args.t2kde_model_path}")
+        t2kde_model = load_t2kde_model(args.t2kde_model_path, device=args.device)
+        print("Running T2KDE model on MC events...")
+        mc_t2kde = run_t2kde_on_events(t2kde_model, mc_events, "mc", device=args.device)
+        print("Running T2KDE model on Run 3 events...")
+        run3_t2kde = run_t2kde_on_events(
+            t2kde_model, run3_events, "run3", device=args.device
+        )
+    else:
+        print(f"T2KDE model not found ({args.t2kde_model_path}), skipping.")
 
     # ---- Analytical KDE (CPU, may take a minute) ----
     mc_ana = compute_analytical_kdes_batch(mc_events, "mc")
@@ -249,6 +280,7 @@ def main() -> None:
             output_dir=mc_out,
             window_mm=args.window_mm,
             hist_truth=mc_truth_hists[i],
+            hist_t2kde=mc_t2kde[i] if mc_t2kde is not None else None,
         )
 
     # ---- Process Run 3 ----
@@ -266,6 +298,7 @@ def main() -> None:
             dataset_label="run3",
             output_dir=run3_out,
             window_mm=args.window_mm,
+            hist_t2kde=run3_t2kde[i] if run3_t2kde is not None else None,
         )
 
     print(f"\nOutputs written to: {args.output_dir}")

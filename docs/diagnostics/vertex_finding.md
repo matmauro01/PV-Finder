@@ -142,12 +142,15 @@ truth/AMVF vertices, full-event overviews, and track scatter panels.
 Shared dependency: `src/pv_finder/utils/peak_finding.py` (~110 lines) — peak-finding
 algorithm shared with evaluation.
 
-### Model
+### Models
 
-Uses the end-to-end tracks→histogram model (e2e_mlpHist): per-track MLP (7→1000 bins)
-+ masked sum over all tracks + UNet refinement → (1000,) histogram per subevent.
-
+**e2e (tracks→histogram):** per-track MLP (7→1000 bins) + masked sum over all tracks
++ UNet refinement → (1000,) histogram per subevent.
 Weights: `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130.pyt`
+
+**T2KDE (tracks→KDE):** MaskedDNN that predicts the analytical KDE from raw tracks.
+Weights: `model_weights/tracks2kde_KDE_A_z_epoch180.pyt`. Optional — if the model
+file is not found, the T2KDE curve is simply omitted from the plots.
 
 All tracks per subevent are fed without truncation. Batch-internal padding to max
 N_tracks per batch, maskVal = -240.0.
@@ -155,24 +158,29 @@ N_tracks per batch, maskVal = -240.0.
 ### Figures Produced
 
 **Overview figure** (per event, PNG + PDF, `event{N:04d}/event{N:04d}_overview.{png,pdf}`):
-- Two panels: full z-range histogram overlay (e2e, analytical KDE, MC truth target) + residual
+- Two panels: full z-range histogram overlay (e2e, analytical KDE, T2KDE model, MC truth target) + residual
 - ±0.5mm shaded bands around each truth/AMVF vertex
 - Filled dots = peaks within a band; open circles = peaks outside
 
 **Per-vertex zoom figure** (per vertex, PNG, `event{N:04d}/event{N:04d}_vtx{V:02d}_z{z:.1f}mm.png`):
 - Panel 1: histogram overlay ±8mm around truth vertex, ±0.5mm band, peak markers,
   all visible truth vertices (focused=black, others=grey)
+  - Red solid: e2e predicted histogram
+  - Blue dashed: analytical KDE (rescaled)
+  - Orange dash-dot: T2KDE model (rescaled)
+  - Green dotted (MC only): truth target histogram (rescaled)
 - Panel 2: residual strip (e2e − analytical KDE)
 - Panel 3: track scatter z₀ vs |d₀|/σ_d₀, coloured by log₁₀(σ_d₀)
 
 All panels share x-axis for proper alignment. Y-axis shows raw e2e histogram values;
-KDE and truth target are rescaled to the e2e global peak for shape comparison.
+KDE, T2KDE, and truth target are rescaled to the e2e global peak for shape comparison.
 
 ### Usage
 
 ```bash
 PYTHONPATH=src venv/bin/python3 -m pv_finder.diagnostics.per_vertex_visualization.run_per_vertex \
-    --n-events 3 --output-dir outputs/per_vertex [--device cpu] [--window-mm 8]
+    --n-events 3 --output-dir outputs/per_vertex [--device cpu] [--window-mm 8] \
+    [--t2kde-model-path model_weights/tracks2kde_KDE_A_z_epoch180.pyt]
 ```
 
 Output tree:

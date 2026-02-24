@@ -77,6 +77,7 @@ mpl.rcParams.update(
 # ---------------------------------------------------------------------------
 COL_E2E = "#d62728"  # red  -- e2e model output
 COL_ANALYTICAL = "#1f77b4"  # blue -- analytical KDE
+COL_T2KDE = "#ff7f0e"  # orange -- T2KDE model-computed KDE
 COL_TRUTH_HIST = "#2ca02c"  # green -- MC truth target histogram
 COL_VERTEX = "black"  # focused truth vertex line
 COL_OTHER_VTX = "gray"  # other truth vertices visible in window
@@ -171,6 +172,7 @@ def plot_vertex_zoom(
     tracks_d0: np.ndarray | None = None,
     tracks_d0_err: np.ndarray | None = None,
     hist_truth: np.ndarray | None = None,
+    hist_t2kde: np.ndarray | None = None,
     match_window_mm: float = 0.5,
     all_truth_vertices: list[float] | None = None,
 ) -> None:
@@ -180,6 +182,7 @@ def plot_vertex_zoom(
       All curves normalized to their own global peak for shape comparison.
       - Red solid  : Predicted hist. (e2e model output)
       - Blue dashed: Analytical KDE
+      - Orange dash-dot: T2KDE model-computed KDE
       - Green dotted (MC only): Truth target histogram (training target)
       - Black dashed vertical line: focused truth vertex
       - Grey dashed lines: other truth vertices visible in the window
@@ -195,6 +198,9 @@ def plot_vertex_zoom(
 
     Parameters
     ----------
+    hist_t2kde:
+        T2KDE model-computed KDE, shape ``(12, 1000)`` or ``(12000,)``.
+        If provided, plotted as an orange dash-dot line (rescaled).
     all_truth_vertices:
         Full list of truth vertex z-positions for this event.  All vertices
         falling within the zoom window are drawn as vertical lines.
@@ -243,6 +249,16 @@ def plot_vertex_zoom(
         linestyle="--",
         label="Analytical KDE (rescaled)",
     )
+    if hist_t2kde is not None:
+        t2kde_raw = _flatten_kde(hist_t2kde)
+        t2kde_scaled = _rescale_to(t2kde_raw, e2e_raw)
+        ax_hist.plot(
+            z_win,
+            t2kde_scaled[mask],
+            color=COL_T2KDE,
+            linestyle="-.",
+            label="T2KDE model (rescaled)",
+        )
     if hist_truth is not None:
         truth_raw = _flatten_kde(hist_truth)
         truth_scaled = _rescale_to(truth_raw, e2e_raw)
@@ -368,6 +384,7 @@ def plot_event_overview(
     dataset_label: str,
     output_dir: str,
     hist_truth: np.ndarray | None = None,
+    hist_t2kde: np.ndarray | None = None,
     match_window_mm: float = 0.5,
 ) -> None:
     """Full z-range 2-panel overview: normalized histogram overlay + residual.
@@ -403,6 +420,17 @@ def plot_event_overview(
         linewidth=1.2,
         label="Analytical KDE (rescaled)",
     )
+    if hist_t2kde is not None:
+        t2kde_raw = _flatten_kde(hist_t2kde)
+        t2kde_scaled = _rescale_to(t2kde_raw, e2e_raw)
+        ax_main.plot(
+            z,
+            t2kde_scaled,
+            color=COL_T2KDE,
+            linestyle="-.",
+            linewidth=1.2,
+            label="T2KDE model (rescaled)",
+        )
     if hist_truth is not None:
         truth_raw = _flatten_kde(hist_truth)
         truth_scaled = _rescale_to(truth_raw, e2e_raw)

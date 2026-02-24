@@ -451,3 +451,29 @@ corrected, nTracks ≥ 2) as truth.
   `torch.load`, matching the approach in `evaluate_pvf.py`.
 
 Updated: `docs/evaluation/vertex_finding.md` (Run 3 section added).
+
+---
+
+## 2026-02-24 — Per-vertex plots: add T2KDE model overlay
+
+Added the T2KDE (tracks-to-KDE) neural network output as a fourth curve on the
+per-vertex visualization plots, alongside e2e predicted histogram, analytical KDE,
+and MC truth target.
+
+**Changes:**
+
+- `vertex_plots.py`: New `hist_t2kde` parameter on both `plot_vertex_zoom` and
+  `plot_event_overview`. Plotted as orange dash-dot line (`COL_T2KDE = "#ff7f0e"`),
+  rescaled to e2e global peak like the other overlays.
+- `run_per_vertex.py`: Imports T2KDE model loading/inference from
+  `kde_study/kde_model_inference.py`. New `--t2kde-model-path` CLI argument
+  (default: `model_weights/tracks2kde_KDE_A_z_epoch180.pyt`). Gracefully skips
+  if model file not found. Passes T2KDE predictions through `_process_event` to
+  both plot functions.
+
+**Motivation:** Having the T2KDE model curve alongside the analytical KDE and e2e
+prediction on the same zoom plot makes it easy to visually compare all three
+representations at the vertex level — useful for diagnosing where the learned KDE
+approximation agrees or disagrees with the exact analytical computation.
+
+Updated: `docs/diagnostics/vertex_finding.md`.
