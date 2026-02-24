@@ -77,6 +77,7 @@ src/pv_finder/                   ← source code
   training/                        train scripts, trainNet loop, weight init
   evaluation/                      metrics, efficiency, comparisons
   diagnostics/                     plotting, visualization
+  scratch/                           data_exploration.ipynb
   utils/                           utilities, efficiency, jagged
 configs/vertex_finding/          ← YAML training configs
 tests/                           ← tests (coming)

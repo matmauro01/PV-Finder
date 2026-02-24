@@ -48,3 +48,78 @@ The MC H5 channels are:
 - Ch6: z_end (mm)
 
 Previous scripts had bugs decoding Ch0/2/3. This code uses the correct mapping.
+
+## KDE Model vs Analytical Comparison
+
+Compares the T2KDE neural network predictions against analytically computed KDE
+on both MC validation data and Run 3 ATLAS data. Measures how well the model
+reproduces the ground-truth KDE, and whether domain shift degrades performance.
+
+### Files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `compare_kde_model_vs_analytical.py` | 389 | Entry point: CLI, metrics, JSON export |
+| `analytical_kde.py` | 288 | Per-track 2D Gaussian KDE (numpy, no numba) |
+| `kde_model_inference.py` | 223 | Model loading (pickle alias fix) and batched inference |
+| `kde_comparison_plots.py` | 413 | All visualizations: overlays, per-vertex, summaries |
+
+### Algorithm
+
+The analytical KDE replicates the ACTS_KDE_generation.ipynb algorithm:
+1. For each z-bin (1000 bins per subevent), filter active tracks (z0 ± 3σ_z)
+2. Coarse scan: 60×60 grid in [-0.6, 0.6] mm, evaluate 2D Gaussian PDFs
+3. Fine scan: 7×7 refinement around best coarse point (step = 0.01 mm)
+4. KDE value = maximum sum of PDFs across all scan points
+
+### Model
+
+Best T2KDE model: `tracks2kde_KDE_A_z_epoch180.pyt` (MaskedDNN, 7→1000, 5×100 hidden).
+Loaded via pickle with module alias fix (`model.autoencoder_models` → `pv_finder.models.autoencoder_models`).
+
+### Outputs
+
+```
+outputs/kde_comparison/
+├── mc_event_overlays/        # Full-event KDE overlays (analytical + model + truth)
+├── run3_event_overlays/      # Full-event KDE overlays (analytical + model)
+├── mc_per_vertex/            # Per-vertex zoom plots (MC)
+├── run3_per_vertex/          # Per-vertex zoom plots (Run 3)
+├── mc_agreement_summary.*    # MC agreement scatter/histogram plots
+├── run3_agreement_summary.*  # Run 3 agreement plots
+├── mc_residual_distributions.*  # MC residual histograms and CDFs
+├── run3_residual_distributions.*
+├── mc_vs_run3_comparison.*   # Side-by-side MC vs Run 3 degradation
+└── kde_comparison_summary.json
+```
+
+### Usage
+
+```bash
+PYTHONPATH=src venv/bin/python3 -m pv_finder.diagnostics.compare_kde_model_vs_analytical \
+    --n-events 200 --n-viz-events 3 --output-dir outputs/kde_comparison
+```
+
+### Key Findings (200 events)
+
+The analytical KDE matches the pre-computed H5 truth (kde_split) to Pearson r = 1.0000,
+confirming the algorithm is correct.
+
+| Metric | MC (val) | Run 3 |
+|--------|----------|-------|
+| Pearson r (mean ± std) | 0.911 ± 0.103 | 0.912 ± 0.112 |
+| Event RMSE | 10.47 | 5.87 |
+| Integral ratio | 0.916 | 0.908 |
+| Peak matching rate | 93.3% (277/297) | 77.9% (710/911) |
+
+The model generalises well to Run 3 data (similar Pearson r), but misses more peaks
+(77.9% vs 93.3%), likely due to the domain shift in track multiplicity and errors.
+
+## Data Exploration Notebook
+
+Interactive Jupyter notebook for quick exploration of MC and Run 3 features.
+
+Location: `src/pv_finder/scratch/data_exploration.ipynb`
+
+Covers: basic stats, 1D distributions, 2D correlations, track multiplicity, beam spot,
+and direct ROOT file exploration (requires `uproot`).

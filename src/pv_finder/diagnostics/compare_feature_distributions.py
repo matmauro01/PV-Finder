@@ -2,9 +2,9 @@
 """
 Compare feature distributions between MC (training) and Run 3 (real ATLAS) data.
 
-Produces 6 publication-quality figures and a JSON summary comparing raw track
-parameters, 2D correlations, model-input tensors, distribution tails, and
-per-subevent statistics for MC vs Run 3 data.
+Produces 4 publication-quality figures and a JSON summary comparing raw track
+parameters, 2D correlations, distribution tails, and beam-spot effects for
+MC vs Run 3 data.
 
 CRITICAL: The MC H5 feature channels are decoded as:
     Channel 0: d0        (RAW transverse impact parameter, mm)
@@ -14,10 +14,6 @@ CRITICAL: The MC H5 feature channels are decoded as:
     Channel 4: d0_z0_cov (covariance between d0 and z0, mm^2)
     Channel 5: z_start   (sub-event boundary, mm)
     Channel 6: z_end     (sub-event boundary, mm)
-
-Previous scripts (investigate_domain_shift.py, compare_kde_theory_vs_model.py)
-had CRITICAL bugs decoding channels 0/2/3 as d0/2, theta/3, (phi+pi)/3.
-This script uses the CORRECT mapping confirmed by eval_run3_v2.py.
 
 Usage:
     python compare_feature_distributions.py [--n-events 200]
@@ -33,43 +29,31 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import ks_2samp
 
-# ---------------------------------------------------------------------------
-# Suppress harmless warnings during batch plot generation
-# ---------------------------------------------------------------------------
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-
-# ---------------------------------------------------------------------------
-# Imports from extracted modules
-# ---------------------------------------------------------------------------
 from pv_finder.data.feature_loading import (
-    N_FEATURES,
-    CHANNEL_SHORT,
+    collect_features,
+    feature_stats,
     load_mc_data,
     load_run3_data,
-    collect_features,
-    collect_tensor_values,
-    feature_stats,
 )
-
 from pv_finder.diagnostics.feature_plots_1 import (
-    plot_core_track_parameters,
     plot_2d_correlations,
-    plot_tensor_distributions,
+    plot_feature_distributions,
 )
-
 from pv_finder.diagnostics.feature_plots_2 import (
     plot_tails_and_quantiles,
-    plot_per_subevent_statistics,
     plot_z0_beam_spot_investigation,
 )
 
+warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 
 # ============================================================================
 # Statistical Summary
 # ============================================================================
 
-def compute_summary(mc_feats, r3_feats, ks_fig1, ks_fig3,
-                    ood_fractions, mc_ranges, run3_events):
+
+def compute_summary(
+    mc_feats, r3_feats, ks_results, ood_fractions, mc_ranges, run3_events
+):
     """Compute and return the full statistical summary dict."""
     summary = {
         "script": "compare_feature_distributions.py",
@@ -118,17 +102,12 @@ def compute_summary(mc_feats, r3_feats, ks_fig1, ks_fig3,
         "run3": feature_stats(r3_tc[r3_tc > 0].astype(float)),
     }
 
-    # KS test results from figures
-    summary["ks_tests_fig1"] = ks_fig1
-    summary["ks_tests_fig3"] = ks_fig3
+    # KS test results from figure 1
+    summary["ks_tests"] = ks_results
 
     # OOD fractions
-    summary["ood_fractions"] = {
-        CHANNEL_SHORT[ch]: ood_fractions[ch] for ch in range(N_FEATURES)
-    }
-    summary["mc_ranges_p1_p99"] = {
-        CHANNEL_SHORT[ch]: mc_ranges[ch] for ch in range(N_FEATURES)
-    }
+    summary["ood_fractions"] = ood_fractions
+    summary["mc_ranges_p1_p99"] = mc_ranges
 
     # Beam spot positions from Run3
     beam_positions = [evt["beam_z"] for evt in run3_events]
@@ -156,21 +135,27 @@ def print_summary(summary):
     print(f"\n  WARNING: {summary['WARNING']}")
 
     print("\n  Per-Feature Statistics:")
-    print(f"  {'Feature':<15s} {'Dataset':<8s} {'Mean':>10s} {'Std':>10s} "
-          f"{'Median':>10s} {'Min':>10s} {'Max':>10s} {'N':>10s}")
+    print(
+        f"  {'Feature':<15s} {'Dataset':<8s} {'Mean':>10s} {'Std':>10s} "
+        f"{'Median':>10s} {'Min':>10s} {'Max':>10s} {'N':>10s}"
+    )
     print(f"  {'-' * 73}")
 
     for key, data in summary["per_feature"].items():
         for ds_label in ["mc", "run3"]:
             s = data[ds_label]
-            print(f"  {key:<15s} {ds_label:<8s} {s['mean']:>10.4f} "
-                  f"{s['std']:>10.4f} {s['median']:>10.4f} "
-                  f"{s['min']:>10.4f} {s['max']:>10.4f} {s['n']:>10,}")
+            print(
+                f"  {key:<15s} {ds_label:<8s} {s['mean']:>10.4f} "
+                f"{s['std']:>10.4f} {s['median']:>10.4f} "
+                f"{s['min']:>10.4f} {s['max']:>10.4f} {s['n']:>10,}"
+            )
 
-    print("\n  KS Test Results (Figure 1):")
-    print(f"  {'Feature':<20s} {'Statistic':>12s} {'p-value':>15s} {'Significant?':>14s}")
+    print("\n  KS Test Results:")
+    print(
+        f"  {'Feature':<20s} {'Statistic':>12s} {'p-value':>15s} {'Significant?':>14s}"
+    )
     print(f"  {'-' * 61}")
-    for name, res in summary.get("ks_tests_fig1", {}).items():
+    for name, res in summary.get("ks_tests", {}).items():
         stat = res.get("statistic", float("nan"))
         pval = res.get("p_value", float("nan"))
         if np.isnan(pval):
@@ -186,10 +171,10 @@ def print_summary(summary):
         print(f"  {name:<20s} {stat:>12.4f} {pval:>15.4e} {sig:>14s}")
 
     print("\n  OOD Fractions (Run3 outside MC [p1, p99]):")
-    print(f"  {'Channel':<20s} {'OOD fraction':>15s}")
+    print(f"  {'Feature':<20s} {'OOD fraction':>15s}")
     print(f"  {'-' * 35}")
-    for ch_name, frac in summary.get("ood_fractions", {}).items():
-        print(f"  {ch_name:<20s} {frac:>14.1%}")
+    for feat_name, frac in summary.get("ood_fractions", {}).items():
+        print(f"  {feat_name:<20s} {frac:>14.1%}")
 
     print("\n  Run 3 Beam Spot Position:")
     bs = summary.get("run3_beam_spot", {})
@@ -202,6 +187,7 @@ def print_summary(summary):
 # ============================================================================
 # JSON serialization helper
 # ============================================================================
+
 
 def _sanitize_for_json(obj):
     """Make numpy objects JSON-serializable."""
@@ -229,6 +215,7 @@ def _sanitize_for_json(obj):
 # Main
 # ============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -253,7 +240,9 @@ def main():
         help="Output directory for plots and JSON",
     )
     parser.add_argument(
-        "--n-events", type=int, default=200,
+        "--n-events",
+        type=int,
+        default=200,
         help="Number of events per dataset",
     )
     args = parser.parse_args()
@@ -288,28 +277,26 @@ def main():
     # ===================================================================
     print("\n--- Loading data ---")
     mc_events = load_mc_data(str(mc_h5), n_events=args.n_events)
-    run3_events = load_run3_data(str(run3_cache), min_pileup=3,
-                                  max_events=args.n_events)
+    run3_events = load_run3_data(
+        str(run3_cache), min_pileup=3, max_events=args.n_events
+    )
 
     # ===================================================================
     # Collect features
     # ===================================================================
     print("\n--- Collecting features ---")
     mc_feats, r3_feats = collect_features(mc_events, run3_events)
-    mc_channels, r3_channels = collect_tensor_values(mc_events, run3_events)
 
     # ===================================================================
     # Generate figures
     # ===================================================================
     print("\n--- Generating figures ---")
 
-    ks_fig1 = plot_core_track_parameters(mc_feats, r3_feats, output_dir)
-    plot_2d_correlations(mc_feats, r3_feats, output_dir)
-    ks_fig3, ood_fractions, mc_ranges = plot_tensor_distributions(
-        mc_channels, r3_channels, output_dir
+    ks_results, ood_fractions, mc_ranges = plot_feature_distributions(
+        mc_feats, r3_feats, output_dir
     )
+    plot_2d_correlations(mc_feats, r3_feats, output_dir)
     plot_tails_and_quantiles(mc_feats, r3_feats, output_dir)
-    plot_per_subevent_statistics(mc_feats, r3_feats, output_dir)
     plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir)
 
     # ===================================================================
@@ -317,8 +304,12 @@ def main():
     # ===================================================================
     print("\n--- Computing summary ---")
     summary = compute_summary(
-        mc_feats, r3_feats, ks_fig1, ks_fig3,
-        ood_fractions, mc_ranges, run3_events,
+        mc_feats,
+        r3_feats,
+        ks_results,
+        ood_fractions,
+        mc_ranges,
+        run3_events,
     )
     print_summary(summary)
 
@@ -337,12 +328,10 @@ def main():
     print("=" * 76)
     print("  Figures:")
     for name in [
-        "fig1_core_track_parameters",
+        "fig1_feature_distributions",
         "fig2_2d_correlations",
-        "fig3_tensor_distributions",
-        "fig4_tails_and_quantiles",
-        "fig5_per_subevent_statistics",
-        "fig6_z0_beam_spot_investigation",
+        "fig3_tails_and_quantiles",
+        "fig4_z0_beam_spot_investigation",
     ]:
         for ext in ("png", "pdf"):
             p = os.path.join(output_dir, f"{name}.{ext}")

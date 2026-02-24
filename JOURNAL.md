@@ -129,3 +129,50 @@ Data files (gitignored, in `data/`):
 - `run3/file_3.root` → symlink to atlas_pvfinder (16G)
 - `run3/cache_file3_2000ev_seed42.npz` — copied (29M)
 - `monte_carlo/training_data.h5` → symlink to /share/lazy/ (48G)
+
+---
+
+## 2026-02-23 — Added data exploration notebook
+
+Created `src/pv_finder/scratch/data_exploration.ipynb` for interactive exploration
+of MC and Run 3 feature distributions. Covers basic stats, 1D/2D distributions,
+track multiplicity, beam spot analysis, and direct ROOT file browsing via uproot.
+
+Also reviewed all three diagnostics scripts (`compare_feature_distributions.py`,
+`feature_plots_1.py`, `feature_plots_2.py`). Found them functionally correct with
+only cosmetic issues: duplicated utility helpers across the two plot files, and a
+dead loop in `feature_plots_2.py` line 289-292.
+
+Updated: `docs/diagnostics/vertex_finding.md`, `CLAUDE.md` project map.
+
+---
+
+## 2026-02-23 — KDE model vs analytical comparison tool
+
+Created 4 new files under `src/pv_finder/diagnostics/` for comparing the T2KDE model
+predictions against analytically computed KDE:
+
+- `analytical_kde.py` (283 lines): Pure numpy port of the ACTS_KDE_generation.ipynb
+  algorithm. Per-track 2D Gaussian KDE with coarse (60×60) + fine (7×7) scan grid.
+  ~9 sec/event without numba.
+- `kde_model_inference.py` (229 lines): Loads pickled MaskedDNN model with sys.modules
+  alias fix, runs batched inference. Handles re-padding from MASK_VAL (-999999) to
+  model maskVal (-240.0).
+- `kde_comparison_plots.py` (449 lines): Full-event overlays, per-vertex zoom plots,
+  agreement summaries, residual distributions, MC vs Run 3 comparison.
+- `compare_kde_model_vs_analytical.py` (389 lines): Entry point with CLI. Orchestrates
+  data loading → inference → analytical computation → metrics → plots → JSON summary.
+
+Key findings (200 validation events each):
+- Analytical KDE matches H5 truth (kde_split) to Pearson r = 1.0000 (algorithm correct)
+- Model Pearson r: 0.911 ± 0.103 (MC), 0.912 ± 0.112 (Run 3)
+- Peak matching rate: 93.3% MC, 77.9% Run 3
+- Integral ratio: 0.916 MC, 0.908 Run 3
+- Model generalises well to Run 3 on Pearson r, but misses more peaks (domain shift)
+
+Model used: `tracks2kde_KDE_A_z_epoch180.pyt` copied to `model_weights/`.
+
+Critical bug avoided: The old compare_kde_theory_vs_model.py in atlas_pvfinder used
+POCA pair-based KDE (wrong algorithm) and wrong feature encoding (d0/2, theta/3,
+(phi+pi)/3). This new tool uses the correct per-track Gaussian KDE and correct
+feature mapping.

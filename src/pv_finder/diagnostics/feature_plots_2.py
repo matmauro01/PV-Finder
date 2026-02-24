@@ -1,54 +1,44 @@
 """
 Plotting functions for MC vs Run 3 feature distribution comparison -- Part 2.
 
-Contains Figures 4--6:
-    - plot_tails_and_quantiles()           (Figure 4)
-    - plot_per_subevent_statistics()        (Figure 5)
-    - plot_z0_beam_spot_investigation()     (Figure 6)
-
-Extracted verbatim from compare_feature_distributions.py.
+Contains Figures 3--4:
+    - plot_tails_and_quantiles()           (Figure 3)
+    - plot_z0_beam_spot_investigation()     (Figure 4)
 """
 
 import os
 
+import matplotlib
 import numpy as np
 
-import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import matplotlib as mpl
-
+import matplotlib.pyplot as plt
 from scipy.stats import ks_2samp
 
-from pv_finder.data.feature_loading import (
-    Z_MIN,
-    Z_MAX,
-    N_SUBEVENTS,
-    CHANNEL_NAMES,
-    CHANNEL_SHORT,
-    N_FEATURES,
-    safe_percentile,
-)
+from pv_finder.data.feature_loading import N_SUBEVENTS
 
 # ---------------------------------------------------------------------------
 # Matplotlib configuration (publication-quality)
 # ---------------------------------------------------------------------------
-mpl.rcParams.update({
-    "figure.dpi": 150,
-    "savefig.dpi": 150,
-    "font.family": "sans-serif",
-    "font.sans-serif": ["DejaVu Sans", "Arial", "Helvetica"],
-    "font.size": 12,
-    "axes.labelsize": 14,
-    "axes.titlesize": 15,
-    "xtick.labelsize": 12,
-    "ytick.labelsize": 12,
-    "legend.fontsize": 11,
-    "lines.linewidth": 1.5,
-    "axes.linewidth": 1.2,
-    "grid.alpha": 0.3,
-    "grid.linestyle": "--",
-})
+mpl.rcParams.update(
+    {
+        "figure.dpi": 150,
+        "savefig.dpi": 150,
+        "font.family": "sans-serif",
+        "font.sans-serif": ["DejaVu Sans", "Arial", "Helvetica"],
+        "font.size": 12,
+        "axes.labelsize": 14,
+        "axes.titlesize": 15,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 11,
+        "lines.linewidth": 1.5,
+        "axes.linewidth": 1.2,
+        "grid.alpha": 0.3,
+        "grid.linestyle": "--",
+    }
+)
 
 # Colour palette
 COL_MC = "#4c72b0"
@@ -58,6 +48,7 @@ COL_R3 = "#dd8452"
 # ============================================================================
 # Utility helpers
 # ============================================================================
+
 
 def save_fig(fig, output_dir, name):
     """Save figure as both PNG and PDF."""
@@ -76,7 +67,8 @@ def ks_annotation(ax, mc_vals, r3_vals, x=0.03, y=0.95):
         return np.nan, np.nan
     stat, pval = ks_2samp(mc_vals, r3_vals)
     ax.text(
-        x, y,
+        x,
+        y,
         f"KS = {stat:.3f}\np = {pval:.2e}",
         transform=ax.transAxes,
         fontsize=9,
@@ -87,18 +79,23 @@ def ks_annotation(ax, mc_vals, r3_vals, x=0.03, y=0.95):
 
 
 # ============================================================================
-# Figure 4: Distribution Tails & Quantiles (2x3)
+# Figure 3: Distribution Tails & Quantiles (2x3)
 # ============================================================================
 
+
 def plot_tails_and_quantiles(mc_feats, r3_feats, output_dir):
-    """Figure 4: CDF comparisons for 5 features + QQ plot for d0_err."""
-    print("\n  [Figure 4] Distribution Tails & Quantiles ...")
+    """Figure 3: CDF comparisons for 5 features + QQ plot for d0_err."""
+    print("\n  [Figure 3] Distribution Tails & Quantiles ...")
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 11))
 
     feature_keys = ["d0", "z0", "d0_err", "z0_err", "d0_z0_cov"]
     feature_labels = [
-        "d0 [mm]", "z0 [mm]", "d0_err [mm]", "z0_err [mm]", "d0_z0_cov [mm^2]"
+        "d0 [mm]",
+        "z0 [mm]",
+        "d0_err [mm]",
+        "z0_err [mm]",
+        "d0_z0_cov [mm^2]",
     ]
 
     # Row 0 + (1,0) and (1,1): CDF comparisons
@@ -110,8 +107,9 @@ def plot_tails_and_quantiles(mc_feats, r3_feats, output_dir):
         r3_v = r3_feats[key]
 
         if len(mc_v) == 0 or len(r3_v) == 0:
-            ax.text(0.5, 0.5, "No data", transform=ax.transAxes,
-                    ha="center", va="center")
+            ax.text(
+                0.5, 0.5, "No data", transform=ax.transAxes, ha="center", va="center"
+            )
             continue
 
         # Subsample for performance if needed
@@ -158,90 +156,28 @@ def plot_tails_and_quantiles(mc_feats, r3_feats, output_dir):
         ax.legend(fontsize=11)
         ax.grid(True, alpha=0.3, linestyle="--")
     else:
-        ax.text(0.5, 0.5, "No data", transform=ax.transAxes,
-                ha="center", va="center")
+        ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center", va="center")
 
-    fig.suptitle("Figure 4: Distribution Tails & Quantiles (MC vs Run 3)",
-                 fontsize=16, y=1.01)
+    fig.suptitle(
+        "Figure 3: Distribution Tails & Quantiles (MC vs Run 3)", fontsize=16, y=1.01
+    )
     fig.tight_layout()
-    save_fig(fig, output_dir, "fig4_tails_and_quantiles")
-    print("    Saved: fig4_tails_and_quantiles.png/.pdf")
+    save_fig(fig, output_dir, "fig3_tails_and_quantiles")
+    print("    Saved: fig3_tails_and_quantiles.png/.pdf")
 
 
 # ============================================================================
-# Figure 5: Per-Subevent Statistics (2x2)
+# Figure 4: Z0 Beam-Spot Investigation (2x2)
 # ============================================================================
 
-def plot_per_subevent_statistics(mc_feats, r3_feats, output_dir):
-    """Figure 5: binned statistics vs subevent z-position."""
-    print("\n  [Figure 5] Per-Subevent Statistics ...")
-
-    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
-
-    # Aggregate per z_center
-    def _aggregate_by_z(per_subevent, key):
-        """Group subevent records by z_center, return means per z bin."""
-        z_vals = {}
-        for rec in per_subevent:
-            if rec["n_tracks"] == 0:
-                continue
-            z_c = rec["z_center"]
-            if z_c not in z_vals:
-                z_vals[z_c] = []
-            z_vals[z_c].append(rec[key])
-        z_centers = sorted(z_vals.keys())
-        means = [np.mean(z_vals[z]) for z in z_centers]
-        stds = [np.std(z_vals[z]) for z in z_centers]
-        return np.array(z_centers), np.array(means), np.array(stds)
-
-    # Panel definitions: (key, ylabel, title)
-    panels = [
-        ("mean_d0",     "Mean d0 [mm]",       "Mean d0 per sub-event z-position"),
-        ("mean_d0_err", "Mean d0_err [mm]",    "Mean d0_err per sub-event z-position"),
-        ("n_tracks",    "Track count",         "Track count vs sub-event z-position"),
-        ("std_d0",      "Std(d0) [mm]",        "Std(d0) vs sub-event z-position"),
-    ]
-
-    for idx, (key, ylabel, title) in enumerate(panels):
-        row, col = divmod(idx, 2)
-        ax = axes[row, col]
-
-        mc_z, mc_mean, mc_std = _aggregate_by_z(mc_feats["per_subevent"], key)
-        r3_z, r3_mean, r3_std = _aggregate_by_z(r3_feats["per_subevent"], key)
-
-        if len(mc_z) > 0:
-            ax.errorbar(mc_z, mc_mean, yerr=mc_std, fmt="o-", color=COL_MC,
-                        markersize=5, linewidth=1.5, capsize=3, label="MC",
-                        alpha=0.8)
-        if len(r3_z) > 0:
-            ax.errorbar(r3_z, r3_mean, yerr=r3_std, fmt="s-", color=COL_R3,
-                        markersize=5, linewidth=1.5, capsize=3, label="Run3",
-                        alpha=0.8)
-
-        ax.set_xlabel("Sub-event z center [mm]", fontsize=14)
-        ax.set_ylabel(ylabel, fontsize=14)
-        ax.set_title(title, fontsize=15)
-        ax.legend(fontsize=11)
-        ax.grid(True, alpha=0.3, linestyle="--")
-
-    fig.suptitle("Figure 5: Per-Subevent Statistics (MC vs Run 3)",
-                 fontsize=16, y=1.01)
-    fig.tight_layout()
-    save_fig(fig, output_dir, "fig5_per_subevent_statistics")
-    print("    Saved: fig5_per_subevent_statistics.png/.pdf")
-
-
-# ============================================================================
-# Figure 6: Z0 Beam-Spot Investigation (2x2)
-# ============================================================================
 
 def plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir):
-    """Figure 6: Investigate the z0 mean shift between MC and Run3.
+    """Figure 4: Investigate the z0 mean shift between MC and Run3.
 
     MC z0 is relative to (0,0,0).  Run3 z0 is in detector coordinates.
     The Run3 beam spot z is ~-1.4 mm, explaining part of the shift.
     """
-    print("\n  [Figure 6] Z0 Beam-Spot Investigation ...")
+    print("\n  [Figure 4] Z0 Beam-Spot Investigation ...")
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 11))
 
@@ -254,10 +190,24 @@ def plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir)
     ax = axes[0, 0]
     lo, hi = -15, 15  # zoom to +-15 mm
     bins = np.linspace(lo, hi, 100)
-    ax.hist(mc_z0, bins=bins, alpha=0.6, color=COL_MC, density=True,
-            label=f"MC (mean={np.mean(mc_z0):.2f} mm)", edgecolor="none")
-    ax.hist(r3_z0, bins=bins, alpha=0.6, color=COL_R3, density=True,
-            label=f"Run3 (mean={np.mean(r3_z0):.2f} mm)", edgecolor="none")
+    ax.hist(
+        mc_z0,
+        bins=bins,
+        alpha=0.6,
+        color=COL_MC,
+        density=True,
+        label=f"MC (mean={np.mean(mc_z0):.2f} mm)",
+        edgecolor="none",
+    )
+    ax.hist(
+        r3_z0,
+        bins=bins,
+        alpha=0.6,
+        color=COL_R3,
+        density=True,
+        label=f"Run3 (mean={np.mean(r3_z0):.2f} mm)",
+        edgecolor="none",
+    )
     ax.axvline(np.mean(mc_z0), color=COL_MC, linestyle="--", linewidth=1.5, alpha=0.8)
     ax.axvline(np.mean(r3_z0), color=COL_R3, linestyle="--", linewidth=1.5, alpha=0.8)
     ax.set_xlabel("z0 [mm]", fontsize=14)
@@ -268,15 +218,23 @@ def plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir)
 
     # --- (0,1): Beam spot z distribution ---
     ax = axes[0, 1]
-    bins_bs = np.linspace(
-        min(beam_z_vals) - 0.5, max(beam_z_vals) + 0.5, 50
+    bins_bs = np.linspace(min(beam_z_vals) - 0.5, max(beam_z_vals) + 0.5, 50)
+    ax.hist(
+        beam_z_vals,
+        bins=bins_bs,
+        alpha=0.7,
+        color="#6a3d9a",
+        edgecolor="white",
+        label=f"Beam z (mean={mean_beam_z:.3f} mm)",
     )
-    ax.hist(beam_z_vals, bins=bins_bs, alpha=0.7, color="#6a3d9a",
-            edgecolor="white", label=f"Beam z (mean={mean_beam_z:.3f} mm)")
-    ax.axvline(mean_beam_z, color="red", linestyle="--", linewidth=2,
-               label=f"Mean = {mean_beam_z:.3f} mm")
-    ax.axvline(0.0, color="gray", linestyle=":", linewidth=1.5,
-               label="MC origin (z=0)")
+    ax.axvline(
+        mean_beam_z,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label=f"Mean = {mean_beam_z:.3f} mm",
+    )
+    ax.axvline(0.0, color="gray", linestyle=":", linewidth=1.5, label="MC origin (z=0)")
     ax.set_xlabel("BeamPosZ [mm]", fontsize=14)
     ax.set_ylabel("Count", fontsize=14)
     ax.set_title("Run 3 Beam Spot Z Position", fontsize=15)
@@ -285,18 +243,13 @@ def plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir)
 
     # --- (1,0): Per-event mean z0 distributions ---
     ax = axes[1, 0]
-    # Compute per-event mean z0
-    mc_event_z0_means = []
-    for evt in mc_feats["per_subevent"]:
-        # We need per-event mean z0, approximate from central subevents
-        pass
-    # Use per-subevent z_center-weighted approach
+    # Per-subevent z_center-weighted approach
     mc_per_se = mc_feats["per_subevent"]
     r3_per_se = r3_feats["per_subevent"]
     # Group by event (every 12 subevents = 1 event)
     mc_evt_means = []
     for i in range(0, len(mc_per_se), N_SUBEVENTS):
-        evt_recs = mc_per_se[i:i + N_SUBEVENTS]
+        evt_recs = mc_per_se[i : i + N_SUBEVENTS]
         total_trk = sum(r["n_tracks"] for r in evt_recs)
         if total_trk > 0:
             # weighted mean z0 of all subevents (approximate by z_center * n_tracks)
@@ -304,7 +257,7 @@ def plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir)
             mc_evt_means.append(weighted / total_trk)
     r3_evt_means = []
     for i in range(0, len(r3_per_se), N_SUBEVENTS):
-        evt_recs = r3_per_se[i:i + N_SUBEVENTS]
+        evt_recs = r3_per_se[i : i + N_SUBEVENTS]
         total_trk = sum(r["n_tracks"] for r in evt_recs)
         if total_trk > 0:
             weighted = sum(r["z_center"] * r["n_tracks"] for r in evt_recs)
@@ -316,10 +269,22 @@ def plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir)
         lo = min(mc_evt_means.min(), r3_evt_means.min()) - 5
         hi = max(mc_evt_means.max(), r3_evt_means.max()) + 5
         bins = np.linspace(lo, hi, 50)
-        ax.hist(mc_evt_means, bins=bins, alpha=0.6, color=COL_MC, density=True,
-                label=f"MC (mean={np.mean(mc_evt_means):.2f})")
-        ax.hist(r3_evt_means, bins=bins, alpha=0.6, color=COL_R3, density=True,
-                label=f"Run3 (mean={np.mean(r3_evt_means):.2f})")
+        ax.hist(
+            mc_evt_means,
+            bins=bins,
+            alpha=0.6,
+            color=COL_MC,
+            density=True,
+            label=f"MC (mean={np.mean(mc_evt_means):.2f})",
+        )
+        ax.hist(
+            r3_evt_means,
+            bins=bins,
+            alpha=0.6,
+            color=COL_R3,
+            density=True,
+            label=f"Run3 (mean={np.mean(r3_evt_means):.2f})",
+        )
     ax.set_xlabel("Per-event weighted mean z [mm]", fontsize=14)
     ax.set_ylabel("Density", fontsize=14)
     ax.set_title("Per-event track-weighted mean z position", fontsize=15)
@@ -352,18 +317,25 @@ def plot_z0_beam_spot_investigation(mc_feats, r3_feats, run3_events, output_dir)
         "  difference, NOT a physics difference.\n"
         "\n"
         "• For the NN model, this shift is negligible:\n"
-        f"  shift/std(z0) = {abs(shift)/np.std(mc_z0):.4f}\n"
+        f"  shift/std(z0) = {abs(shift) / np.std(mc_z0):.4f}\n"
         "  (z0 ranges from -200 to +200 mm)"
     )
-    ax.text(0.05, 0.95, text, transform=ax.transAxes, fontsize=12,
-            verticalalignment="top", fontfamily="monospace",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="lightyellow",
-                      alpha=0.9))
+    ax.text(
+        0.05,
+        0.95,
+        text,
+        transform=ax.transAxes,
+        fontsize=12,
+        verticalalignment="top",
+        fontfamily="monospace",
+        bbox=dict(boxstyle="round,pad=0.5", facecolor="lightyellow", alpha=0.9),
+    )
 
     fig.suptitle(
-        "Figure 6: Z0 Mean Shift Investigation -- Beam Spot Effect",
-        fontsize=16, y=1.01,
+        "Figure 4: Z0 Mean Shift Investigation -- Beam Spot Effect",
+        fontsize=16,
+        y=1.01,
     )
     fig.tight_layout()
-    save_fig(fig, output_dir, "fig6_z0_beam_spot_investigation")
-    print("    Saved: fig6_z0_beam_spot_investigation.png/.pdf")
+    save_fig(fig, output_dir, "fig4_z0_beam_spot_investigation")
+    print("    Saved: fig4_z0_beam_spot_investigation.png/.pdf")
