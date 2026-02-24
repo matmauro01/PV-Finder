@@ -134,52 +134,61 @@ truth/AMVF vertices, full-event overviews, and track scatter panels.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `per_vertex_visualization/run_per_vertex.py` | 260 | Entry point: CLI, orchestration |
-| `per_vertex_visualization/inference.py` | 169 | Load e2e model, run batched inference (all tracks, no truncation) |
-| `per_vertex_visualization/peak_matching.py` | 121 | Peak finding, vertex-window matching, truth vertex loading |
-| `per_vertex_visualization/vertex_plots.py` | 346 | Two-panel overview and three-panel per-vertex zoom figures |
+| `per_vertex_visualization/run_per_vertex.py` | ~275 | Entry point: CLI, orchestration |
+| `per_vertex_visualization/inference.py` | ~163 | Load e2e model, run batched inference (all tracks, no truncation) |
+| `per_vertex_visualization/peak_matching.py` | ~127 | Peak finding (shared algorithm), vertex-window matching, truth vertex loading |
+| `per_vertex_visualization/vertex_plots.py` | ~464 | Two-panel overview and three-panel per-vertex zoom figures |
+
+Shared dependency: `src/pv_finder/utils/peak_finding.py` (~166 lines) — peak-finding
+algorithm shared with evaluation.
 
 ### Model
 
-Uses `trackstoHists_UNet_1000` (e2e_mlpHist), the end-to-end tracks→histogram model:
-per-track MLP (7→1000 bins) + masked sum over all tracks + UNet refinement → (1000,)
-histogram per subevent.
+Uses the end-to-end tracks→histogram model (e2e_mlpHist): per-track MLP (7→1000 bins)
++ masked sum over all tracks + UNet refinement → (1000,) histogram per subevent.
 
 Weights: `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130.pyt`
 
-All tracks per subevent are fed to the model without truncation (Run 3 can have up to
-290 tracks). Batch-internal padding to max N_tracks in each batch, using maskVal = -240.0.
+All tracks per subevent are fed without truncation. Batch-internal padding to max
+N_tracks per batch, maskVal = -240.0.
 
 ### Figures Produced
 
-**Overview figure** (per event, PNG + PDF, `event{N:04d}_overview.{png,pdf}`):
-- Two panels: full z-range histogram overlay (e2e model, analytical KDE, MC truth if available) + residual strip
+**Overview figure** (per event, PNG + PDF, `event{N:04d}/event{N:04d}_overview.{png,pdf}`):
+- Two panels: full z-range histogram overlay (e2e, analytical KDE, MC truth target) + residual
 - ±0.5mm shaded bands around each truth/AMVF vertex
-- Filled dots = histogram peaks within a band; open circles = peaks outside all bands
+- Filled dots = peaks within a band; open circles = peaks outside
 
-**Per-vertex zoom figure** (per vertex, PNG only, `event{N:04d}_vtx{V:02d}_z{z:.1f}mm.png`):
-- Panel 1: histogram overlay zoomed to ±8mm around truth vertex, with ±0.5mm band and peak markers
+**Per-vertex zoom figure** (per vertex, PNG, `event{N:04d}/event{N:04d}_vtx{V:02d}_z{z:.1f}mm.png`):
+- Panel 1: histogram overlay ±8mm around truth vertex, ±0.5mm band, peak markers,
+  all visible truth vertices (focused=black, others=grey)
 - Panel 2: residual strip (e2e − analytical KDE)
-- Panel 3: track scatter z₀ vs |d₀|/σ_d₀ (±24mm window, coloured by log₁₀(σ_d₀))
+- Panel 3: track scatter z₀ vs |d₀|/σ_d₀, coloured by log₁₀(σ_d₀)
+
+All panels share x-axis for proper alignment. Curves normalized to their own global
+maximum (across all 12000 bins) before plotting.
 
 ### Usage
 
 ```bash
 PYTHONPATH=src venv/bin/python3 -m pv_finder.diagnostics.per_vertex_visualization.run_per_vertex \
-    --n-events 3 --output-dir outputs/per_vertex
+    --n-events 3 --output-dir outputs/per_vertex [--device cpu] [--window-mm 8]
 ```
 
 Output tree:
 ```
 outputs/per_vertex/
 ├── mc/
-│   ├── event0000_overview.{png,pdf}
-│   ├── event0000_vtx00_z-42.9mm.png
-│   └── ...
+│   ├── event0000/
+│   │   ├── event0000_overview.{png,pdf}
+│   │   ├── event0000_vtx00_z-42.9mm.png
+│   │   └── ...
+│   └── event0001/
 └── run3/
-    ├── event0000_overview.{png,pdf}
-    ├── event0000_vtx00_z-83.5mm.png
-    └── ...
+    ├── event0000/
+    │   ├── event0000_overview.{png,pdf}
+    │   └── ...
+    └── event0001/
 ```
 
 ### Truth Vertex Sources
@@ -187,11 +196,17 @@ outputs/per_vertex/
 - **MC**: generator-level z-positions from H5 `pv` dataset (shape (51000, 92), filter ≤ −500 padding)
 - **Run 3**: beam-corrected AMVF vertices: `RecoVertex_z − BeamPosZ`, filter `nTracks ≥ 2`
 
+Note: Run 3 track z0 values are in the detector frame while AMVF vertices are
+beam-corrected. The offset is typically O(1 mm) and within the ±0.5mm matching window.
+
 ### Peak Finding
 
-`scipy.signal.find_peaks` on the concatenated 12000-bin histogram with:
-- `height ≥ 0.05 × max` (threshold_frac)
-- `distance ≥ 5 bins` (min_distance_bins)
+Uses `pv_locations_updated_res` from `src/pv_finder/utils/peak_finding.py` — the same
+algorithm used by evaluation metrics. Scans contiguous above-threshold regions with
+integral, width, and prominence criteria:
+- `threshold = 0.02` (minimum bin value)
+- `integral_threshold = 0.4` (minimum region integral)
+- `min_width = 2` (minimum consecutive bins)
 
 A vertex is considered "matched" if at least one histogram peak falls within ±0.5mm.
 

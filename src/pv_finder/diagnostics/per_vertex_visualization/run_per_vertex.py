@@ -2,8 +2,20 @@
 """
 Per-vertex histogram visualization for MC and Run 3 data.
 
-Runs the e2e trackstoHists_UNet_1000 model on MC and Run 3 events and
-produces per-vertex zoom plots plus full-event overview figures.
+Runs the e2e model on MC and Run 3 events and produces per-vertex zoom plots
+plus full-event overview figures.  Output is organised as::
+
+    <output-dir>/
+        mc/event0000/    -- overview + per-vertex plots for MC event 0
+        mc/event0001/    -- ...
+        run3/event0000/  -- overview + per-vertex plots for Run 3 event 0
+
+Coordinate frame note (Run 3):
+    Track z0 values are in the *detector* frame (from load_run3_data).
+    AMVF vertex z-positions are *beam-corrected* (RecoVertex_z - BeamPosZ).
+    The offset is typically O(1 mm) and is within the default 0.5 mm matching
+    window.  Both the e2e histogram and analytical KDE operate on raw z0, so
+    histogram peaks are in the detector frame.
 
 Usage:
     PYTHONPATH=src venv/bin/python3 -m \\
@@ -101,7 +113,11 @@ def _process_event(
     window_mm: float,
     hist_truth: np.ndarray | None = None,
 ) -> None:
-    """Generate overview + per-vertex zoom plots for one event and print summary."""
+    """Generate overview + per-vertex zoom plots for one event and print summary.
+
+    Plots are written to ``output_dir/event{event_idx:04d}/``.
+    """
+    evt_dir = os.path.join(output_dir, f"event{event_idx:04d}")
     pred_peaks = find_histogram_peaks(hist_e2e.reshape(-1))
 
     plot_event_overview(
@@ -111,7 +127,7 @@ def _process_event(
         pred_peaks,
         event_idx,
         dataset_label,
-        output_dir,
+        evt_dir,
         hist_truth=hist_truth,
     )
 
@@ -124,12 +140,13 @@ def _process_event(
             event_idx,
             vi,
             dataset_label,
-            output_dir,
+            evt_dir,
             window_mm=window_mm,
             tracks_z0=tracks_z0,
             tracks_d0=tracks_d0,
             tracks_d0_err=tracks_d0_err,
             hist_truth=hist_truth,
+            all_truth_vertices=truth_vertices,
         )
 
     # Compact per-event summary

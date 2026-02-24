@@ -200,30 +200,36 @@ No bugs found in the new code.
 
 ---
 
-## 2026-02-24 — Per-vertex histogram visualization tool
+## 2026-02-24 — Per-vertex visualization: audit and rewrite
 
-Created `src/pv_finder/diagnostics/per_vertex_visualization/` subpackage (4 files):
+Thorough audit of `src/pv_finder/diagnostics/per_vertex_visualization/` (5 files).
+Found and fixed bugs, documentation errors, and structural issues.
 
-- `inference.py` (169 lines): Loads `trackstoHists_UNet_1000` (e2e_mlpHist epoch 130)
-  via `torch.load`. Feeds ALL tracks per subevent without truncation (Run 3 max: 290
-  tracks). Batch-internal padding to max N_tracks in each batch, maskVal = -240.0.
-  MC padding (-999999) converted via `_repad` before inference.
-- `peak_matching.py` (121 lines): Peak finding with `scipy.signal.find_peaks`
-  (threshold_frac=0.05, min_distance=5 bins). MC truth vertices from H5 `pv` dataset
-  (val_start_event=35700). Run 3 AMVF vertices beam-corrected and nTracks-filtered.
-- `vertex_plots.py` (346 lines): Two public functions: `plot_event_overview` (full
-  z-range, 2 panels) and `plot_vertex_zoom` (3 panels: histogram, residual, track
-  scatter). Dots for peak markers: filled = within ±0.5mm band, open = outside.
-- `run_per_vertex.py` (260 lines): CLI entry point, orchestrates loading → inference
-  → analytical KDE → peak finding → plotting for MC and Run 3.
+**Bugs fixed:**
+- xlabel "z [mm]" appeared on middle residual panel instead of bottom track panel
+  when 3 panels were present (vertex_plots.py)
+- Redundant `import numpy as np` inside `load_run3_amvf_vertices` (peak_matching.py)
 
-Verified on 3 MC + 3 Run 3 events (exit code 0). Example results:
-- MC Event 0 (6 truth vtx): 4/6 matched (67%); isolated vertices at ±40mm well matched
-- MC Event 1 (71 truth vtx, high pile-up): 47 peaks, most clusters resolved
-- Run 3 Event 0 (21 AMVF vtx): 20/21 matched (95%), very good performance
+**Critical: shared peak-finding algorithm (new file)**
 
-Decision: use dots (not triangles) for peak markers for clarity. No truncation to 100
-tracks — UNet architecture handles arbitrary track count via masked sum.
+Created `src/pv_finder/utils/peak_finding.py` — ported `pv_locations_updated_res`
+from atlas_pvfinder. This is the same algorithm used by evaluation metrics: scans
+contiguous above-threshold regions with integral/width/prominence cuts. Replaced
+scipy `find_peaks` (which used a different algorithm with relative threshold + distance)
+in `peak_matching.py`. Peak finding is now consistent across evaluation and diagnostics.
+
+**Plot improvements (vertex_plots.py):**
+- All panels now use `sharex=True` for proper x-axis alignment
+- Colorbar uses `fig.colorbar(ax=list(axes))` to take space equally from all panels
+- Removed axis tick marks (spines.top/right=False, all tick sizes=0)
+- All truth/AMVF vertices visible in zoom window are drawn (focused=black, others=grey)
+- Reduced hspace from 0.35 to 0.12
+
+**Other changes:**
+- Per-event output subdirectories: `mc/event0000/`, `run3/event0000/`
+- Removed unused `SUBEVENT_CENTERS` constant from inference.py
+- Documented Run 3 coordinate frame approximation (track z0 in detector frame,
+  AMVF vertices beam-corrected; offset ~O(1mm), within matching window)
 
 ---
 

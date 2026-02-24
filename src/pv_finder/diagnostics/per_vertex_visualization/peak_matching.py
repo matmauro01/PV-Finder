@@ -1,49 +1,55 @@
 """Peak finding in histograms and truth vertex loading.
 
-Supports matching predicted histogram peaks to ground-truth vertex positions
-for both MC (generator-level) and Run 3 (AMVF reconstructed) data.
+Uses the same peak-finding algorithm as evaluation (pv_locations_updated_res)
+to ensure consistent PV detection across the project. Supports matching
+predicted peaks to ground-truth vertex positions for both MC (generator-level)
+and Run 3 (AMVF reconstructed) data.
 """
 
 from __future__ import annotations
 
 import numpy as np
-from scipy.signal import find_peaks
 
-from pv_finder.data.feature_loading import Z_MAX, Z_MIN
+from pv_finder.data.feature_loading import N_SUBEVENTS, Z_MAX, Z_MIN
+from pv_finder.utils.peak_finding import pv_locations_updated_res
 
-# N_BINS_FULL is not exported from feature_loading; defined here per spec.
-N_BINS_FULL = 12000  # 12 sub-events × 1000 bins
+# 12 sub-events x 1000 bins per sub-event
+N_BINS_FULL = N_SUBEVENTS * 1000
 
 
 def _bin_to_z_mm(bin_idx: int | float) -> float:
-    """Convert a 0-based bin index to z in mm."""
+    """Convert a 0-based bin index to z in mm (bin centre)."""
     return Z_MIN + (bin_idx + 0.5) / N_BINS_FULL * (Z_MAX - Z_MIN)
 
 
 def find_histogram_peaks(
     hist_flat: np.ndarray,
-    threshold_frac: float = 0.05,
-    min_distance_bins: int = 5,
+    threshold: float = 0.02,
+    integral_threshold: float = 0.4,
+    min_width: int = 2,
+    min_prominence: float = 0.0,
 ) -> list[tuple[float, float]]:
-    """Find peaks in a 12000-bin histogram.
+    """Find peaks in a 12000-bin histogram using the standard PV-Finder algorithm.
 
-    Uses scipy.signal.find_peaks with:
-        height    = threshold_frac * max(hist_flat)
-        distance  = min_distance_bins
+    Delegates to ``pv_locations_updated_res`` (shared with evaluation) which
+    scans contiguous above-threshold regions, applies integral and width cuts,
+    and optionally splits conjoined peaks via prominence gating.
+
     Returns list of (z_mm, height) sorted by z_mm.
-    Returns empty list when max(hist_flat) == 0.
+    Returns empty list when the histogram is all zeros.
     """
-    global_max = float(np.max(hist_flat))
-    if global_max == 0.0:
+    if float(np.max(np.abs(hist_flat))) == 0.0:
         return []
 
-    peak_indices, _ = find_peaks(
+    z_pos, heights, *_ = pv_locations_updated_res(
         hist_flat,
-        height=threshold_frac * global_max,
-        distance=min_distance_bins,
+        threshold=threshold,
+        integral_threshold=integral_threshold,
+        min_width=min_width,
+        min_prominence=min_prominence,
     )
 
-    peaks = [(_bin_to_z_mm(idx), float(hist_flat[idx])) for idx in peak_indices]
+    peaks = [(float(z), float(h)) for z, h in zip(z_pos, heights)]
     peaks.sort(key=lambda p: p[0])
     return peaks
 
@@ -62,7 +68,7 @@ def load_mc_truth_vertices(
     n_events: int,
     val_start_event: int = 35700,  # = 428400 // 12
 ) -> list[list[float]]:
-    """Load generator-level truth vertex z-positions from H5 'pv' dataset.
+    """Load generator-level truth vertex z-positions from H5 ``pv`` dataset.
 
     H5 pv dataset shape: (51000, 92), dtype float64.
     Indexed by event: pv[val_start_event : val_start_event + n_events].
@@ -99,10 +105,12 @@ def load_run3_amvf_vertices(
         3. keep vertices where RecoVertex_nTracks[event_idx] >= min_ntracks
         4. sort by z value
 
+    Note: beam correction shifts vertices to the beam frame while track z0
+    values (from load_run3_data) remain in the detector frame.  The offset
+    is typically O(1 mm) or less and is within the default matching window.
+
     Returns list of lists (same length as event_indices).
     """
-    import numpy as np  # noqa: PLC0415
-
     data = np.load(cache_path, allow_pickle=True)
     reco_z = data["RecoVertex_z"]
     reco_n = data["RecoVertex_nTracks"]

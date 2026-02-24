@@ -1,7 +1,9 @@
-"""Load and run the e2e trackstoHists_UNet_1000 model on MC and Run 3 events.
+"""Load and run the e2e model on MC and Run 3 events.
 
-Feeds ALL tracks per subevent without truncation. Padding uses -240.0 so that
-padded entries are masked out by the model's z0 threshold (maskVal = -240.0).
+Feeds ALL tracks per subevent without truncation.  Padding uses -240.0 so
+that padded entries are masked out by the model's z0 threshold (maskVal =
+-240.0).  The model class name in the .pyt file may differ from the weight
+filename (e.g. trackstoHists_UNet_1000 vs e2e_mlpHist50_...).
 """
 
 from __future__ import annotations
@@ -13,8 +15,6 @@ from tqdm import tqdm
 from pv_finder.data.feature_loading import (
     MASK_VAL,
     N_SUBEVENTS,
-    SUBEVENT_STARTS,
-    SUBEVENT_WIDTH,
     build_run3_subevent_tensor,
 )
 
@@ -160,9 +160,3 @@ def run_e2e_on_events(
                 results[ev_i][si] = out_np[bi]
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Convenience: subevent z-centres (useful for callers)
-# ---------------------------------------------------------------------------
-SUBEVENT_CENTERS: list[float] = [z + SUBEVENT_WIDTH / 2.0 for z in SUBEVENT_STARTS]
