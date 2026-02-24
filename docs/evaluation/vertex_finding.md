@@ -113,6 +113,89 @@ outputs/evaluation/pvf_e400_2550evt/
 
 ## Code
 
-- Evaluation script: `src/pv_finder/evaluation/evaluate_pvf.py`
+- MC evaluation script: `src/pv_finder/evaluation/evaluate_pvf.py`
+- Run 3 evaluation script: `src/pv_finder/evaluation/evaluate_pvf_run3.py`
 - Vertex matching: `src/pv_finder/evaluation/vertex_matching.py`
 - Peak finding: `src/pv_finder/utils/peak_finding.py`
+
+---
+
+# Run 3 Evaluation
+
+Evaluation of the PVF UNet on real Run 3 proton–proton collision data.
+Unlike the MC pipeline, there are no truth KDE histograms; truth comes from
+AMVF reconstructed vertices (beam-spot-corrected).
+
+## Pipeline
+
+```
+Step 1 (Resolution): ROOT tracks → inference → peak finding → PVF pairwise Δz  ┐
+                     AMVF reco vertices → AMVF pairwise Δz                      ├ overlay plot
+                     Fit sigmoid to each → σ_PVF, σ_AMVF                       ┘
+Step 2 (Classification): PVF peaks + AMVF truth + σ_PVF → match → Clean/Merged/Split/Fake
+```
+
+## Usage
+
+```bash
+PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf_run3 \
+    --model model_weights/pvf_e2e_epoch400.pyt \
+    --root-file data/run3/pvfinder_data.root \
+    --output-dir outputs/evaluation/pvf_run3_e400 \
+    --n-events 2000 \
+    --device 0 \
+    --threshold 0.01 --integral-threshold 0.5 --min-width 3
+
+# Skip resolution fit (use known sigma):
+PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf_run3 \
+    --model model_weights/pvf_e2e_epoch400.pyt \
+    --root-file data/run3/pvfinder_data.root \
+    --output-dir outputs/evaluation/pvf_run3_sigma034 \
+    --sigma-vtx-vtx 0.34 \
+    --n-events 2000
+```
+
+## Key Differences from MC Evaluation
+
+| Aspect | MC (`evaluate_pvf.py`) | Run 3 (`evaluate_pvf_run3.py`) |
+|--------|----------------------|-------------------------------|
+| Input format | H5 subevents | ROOT file via `uproot` |
+| Truth source | KDE histogram peaks | AMVF reco vertices (nTracks ≥ 2) |
+| Track loading | Pre-batched subevents | Built on-the-fly from raw branches |
+| Resolution plot | PVF only | PVF + AMVF overlaid |
+| Efficiency metric | LHCb-style (S, MT, FP) | AMVF efficiency (clean+merged)/n_amvf |
+
+## ROOT Branches Used
+
+| Branch | Description |
+|--------|-------------|
+| `RecoTrack_z0` | Track z₀ impact parameter |
+| `RecoTrack_d0` | Track d₀ impact parameter |
+| `RecoTrack_ErrD0` | d₀ error |
+| `RecoTrack_ErrZ0` | z₀ error |
+| `RecoTrack_ErrD0Z0` | d₀–z₀ covariance |
+| `RecoVertex_z` | AMVF vertex z position |
+| `RecoVertex_nTracks` | Tracks per AMVF vertex |
+| `BeamPosZ` | Beam-spot z (subtracted from vertex z) |
+
+## Output Files
+
+```
+outputs/evaluation/pvf_run3_e400/
+├── deltaz_resolution.png/pdf   # PVF + AMVF pairwise distance overlay
+├── pvf_run3_results.json       # Summary metrics
+└── pvf_category_bar.png        # Category distribution bar chart
+```
+
+### `pvf_run3_results.json` fields
+
+| Field | Description |
+|-------|-------------|
+| `n_events` | Events with valid AMVF truth |
+| `n_amvf_truth` | Total AMVF vertices used as truth |
+| `avg_amvf_per_event` | Mean AMVF vertices per event |
+| `clean/merged/split/fake` | PVF reco-side category counts |
+| `n_reco` | Total predicted PVs |
+| `amvf_efficiency` | (clean + merged) / n_amvf_truth |
+| `sigma_pvf_mm` | Fitted PVF resolution σ |
+| `sigma_amvf_mm` | Fitted AMVF resolution σ |

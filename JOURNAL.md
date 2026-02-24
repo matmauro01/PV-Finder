@@ -420,3 +420,34 @@ and a JSON summary.
   by the `meshgrid(indexing="ij")` in `create_inference_graph`.
 
 Updated: `docs/diagnostics/vertex_association.md`.
+
+---
+
+## 2026-02-24 — Run 3 PVF evaluation script
+
+Added `src/pv_finder/evaluation/evaluate_pvf_run3.py`.
+
+Implements end-to-end PV-Finder evaluation on real Run 3 proton–proton collision data
+loaded from a ROOT file via `uproot`, using AMVF reconstructed vertices (beam-spot-
+corrected, nTracks ≥ 2) as truth.
+
+**Key design decisions:**
+
+- **ROOT input, on-the-fly subevent building:** Unlike the MC pipeline which reads
+  pre-batched H5 subevents, this script reads raw track branches
+  (`RecoTrack_z0/d0/ErrD0/ErrZ0/ErrD0Z0`) and builds the 12×100-track subevent
+  tensors on the fly, matching the geometry used during training.
+
+- **AMVF truth:** `RecoVertex_z - BeamPosZ` (nTracks ≥ 2). No truth KDE histograms
+  exist for real data, so the LHCb-style efficiency metric is replaced by
+  `(clean + merged) / n_amvf`.
+
+- **Overlay resolution plot:** The pairwise Δz plot shows PVF and AMVF distributions
+  side by side with separate sigmoid fits, giving σ_PVF and σ_AMVF. This lets us
+  compare the model's resolution against the baseline algorithm on the same data.
+
+- **Legacy model loading:** Checkpoints pickled from the old `model.autoencoder_models`
+  namespace are handled by inserting a shim module into `sys.modules` before
+  `torch.load`, matching the approach in `evaluate_pvf.py`.
+
+Updated: `docs/evaluation/vertex_finding.md` (Run 3 section added).
