@@ -282,3 +282,36 @@ Key decisions:
 
 Proofreading: All 4 code files verified against source by dedicated smart-coder agents.
 Weight loading verified against existing checkpoint.
+
+---
+
+## 2026-02-24 — PVF vertex-finding evaluation pipeline
+
+Added two-step PVF evaluation pipeline, ported from atlas_pvfinder/mattia_finder:
+
+**Step 1 (Resolution):** Run PVF model inference on test events → peak finding →
+collect pairwise vertex distances → fit sigmoid to extract σ_vtx-vtx.
+
+**Step 2 (Classification):** Use σ_vtx-vtx as matching window to categorize predicted
+PVs as Clean/Merged/Split/Fake/Missed against truth (from track_associations.h5,
+nTracks ≥ 2).
+
+New files (2):
+
+- `src/pv_finder/evaluation/vertex_matching.py` (397 lines): Resolution fitting
+  (sigmoid fit for σ_vtx-vtx, FWHM-based per-peak resolution), vertex categorization
+  (Clean/Merged/Split/Fake), S/MT/FP matching. Fixed if/elif/else bug in original
+  conjoined peak logic.
+- `src/pv_finder/evaluation/evaluate_pvf.py` (462 lines): Two-step CLI with tqdm.
+  Full mode (inference + resolution + classification) and classify-only mode.
+  Handles old checkpoint namespace (`model` → `pv_finder.models`).
+
+Key details:
+
+- Test split: events 48450-50999 (2,550 events), subevent indices 581400-611999.
+  Sequential, never seen during training (unlike old qibin_test_main_indices_v2.p
+  which had random indices including training events).
+- Peak finding: reuses `utils/peak_finding.pv_locations_updated_res` (shared code).
+- Model weights: `pvf_e2e_epoch400.pyt` (epoch 400, tracks→hist UNet).
+- Data: `training_data.h5` for inference, `track_associations.h5` for truth PVs.
+- Constants: added N_SUBEVENTS=12, BINS_PER_SUBEVENT=1000 to `utils/constants.py`.

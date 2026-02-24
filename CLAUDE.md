@@ -77,7 +77,7 @@ src/pv_finder/                   ← source code
   models/                          autoencoder_models, alt_loss_A, ttva_gnn
   data/                            collectdata_poca_KDE, h5_dataset, graph_construction
   training/                        train scripts, trainNet loop, training_gnn, weight init
-  evaluation/                      metrics, efficiency, evaluate_gnn_ttva
+  evaluation/                      evaluate_pvf, vertex_matching, evaluate_gnn_ttva
   diagnostics/                     plotting, visualization
     domain_shift_investigation/      MC vs Run 3 analysis
       feature_distribution/          feature comparison
