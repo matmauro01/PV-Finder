@@ -3,11 +3,11 @@
 Source: `src/pv_finder/training/`
 Configs: `configs/vertex_finding/`
 
-## Two Training Strategies
+## Training Strategies
 
-### Strategy A: Two-phase (separate)
+### Strategy A: Two-phase (separate), then fine-tune
 
-Train Phase 1 and Phase 2 independently, then combine.
+Train MaskedDNN and UNet independently, combine weights, then fine-tune end-to-end.
 
 ```
 1. Train MaskedDNN:   tracks → KDE_A_z         (train_tracks_to_kde.py)
@@ -16,14 +16,36 @@ Train Phase 1 and Phase 2 independently, then combine.
 4. Fine-tune end-to-end                         (train_tracks_to_hist.py)
 ```
 
-### Strategy B: End-to-end with pretrained init
-
-Train trackstoHists_UNet_1000 directly, initialized from Strategy A weights.
-
+**Step 1 — Tracks to KDE** (MaskedDNN, 200 epochs):
+```bash
+python -m pv_finder.training.train_tracks_to_kde \
+    -c configs/vertex_finding/config_T2KDE_A_z_reproduction.yml
 ```
-1. (Optional) Initialize from pretrained weights
-2. Train end-to-end: tracks → histogram         (train_tracks_to_hist.py)
+
+**Step 2 — KDE to Histogram** (UNet, 200 epochs, independent of Step 1):
+```bash
+python -m pv_finder.training.train_kde_to_hist \
+    -c configs/vertex_finding/config_KDE2HIST_matmauro.yml
 ```
+
+**Step 3 — Initialize combined model** from Step 1 + 2 weights:
+```bash
+python src/pv_finder/training/initialize_combined_weights.py \
+    --t2kde model_weights/<best_t2kde>.pyt \
+    --kde2hist model_weights/<best_kde2hist>.pyt \
+    --output model_weights/initialized_t2hist.pth \
+    --n-latent 1 --n-features 7 --dropout 0.25
+```
+
+**Step 4 — Fine-tune end-to-end** (400 epochs, MSE loss):
+```bash
+python -m pv_finder.training.train_tracks_to_hist \
+    -c configs/vertex_finding/config_T2HIST_combined_200epochs.yml
+```
+
+This config points to the Step 1/2 weights via `pretrained_tracks2kde` and
+`pretrained_kde2hist` keys and initializes automatically (no separate Step 3 needed).
+Alternatively, use `config_T2HIST_matmauro.yml` with a pre-built `.pth` from Step 3.
 
 ### Strategy C: End-to-end without KDEs (MLP warmup)
 
@@ -34,12 +56,9 @@ No KDE supervision at all. Two-phase approach to avoid degenerate solutions.
 2. Phase 2: Train MLP + UNet end-to-end on histograms         (400 epochs)
 ```
 
-Script: `train_mlp_hist_then_e2e.py`
-Config: `config_mlp_hist_e2e.yml`
-
 Run:
 ```bash
-python src/pv_finder/training/train_mlp_hist_then_e2e.py \
+python -m pv_finder.training.train_mlp_hist_then_e2e \
     -c configs/vertex_finding/config_mlp_hist_e2e.yml
 ```
 
@@ -49,12 +68,12 @@ spatial mapping before the UNet co-adapts.
 
 ## Configs
 
-| Config | Phase | Key settings |
-|--------|-------|-------------|
-| `config_T2KDE_A_z_reproduction.yml` | 1 | 200 epochs, lr=0.001, batch=128 |
-| `config_KDE2HIST_matmauro.yml` | 2 | 200 epochs, lr=0.0001, batch=128 |
-| `config_T2HIST_matmauro.yml` | 3 | 100 epochs, lr=0.001, MSE loss |
-| `config_T2HIST_combined_200epochs.yml` | 3 | 400 epochs, initialized from Phase 1+2 |
+| Config | Strategy | Key settings |
+|--------|----------|-------------|
+| `config_T2KDE_A_z_reproduction.yml` | A step 1 | 200 epochs, lr=0.001, batch=128 |
+| `config_KDE2HIST_matmauro.yml` | A step 2 | 200 epochs, lr=0.0001, batch=128 |
+| `config_T2HIST_matmauro.yml` | A step 4 | 100 epochs, lr=0.001, MSE loss, pre-built .pth |
+| `config_T2HIST_combined_200epochs.yml` | A step 4 | 400 epochs, auto-init from step 1+2 weights |
 | `config_mlp_hist_e2e.yml` | C | 50+400 epochs, no KDE, MLP warmup |
 
 ## MLflow
@@ -75,9 +94,9 @@ Tracking URI: `file:<repo_root>/mlruns`
 
 | File | Purpose |
 |------|---------|
-| `train_tracks_to_kde.py` | Phase 1 training script |
-| `train_kde_to_hist.py` | Phase 2 training script |
-| `train_tracks_to_hist.py` | Phase 3 / end-to-end training script |
-| `initialize_combined_weights.py` | Combines Phase 1 + 2 weights |
+| `train_tracks_to_kde.py` | Strategy A step 1: tracks to KDE |
+| `train_kde_to_hist.py` | Strategy A step 2: KDE to histogram |
+| `initialize_combined_weights.py` | Strategy A step 3: combine step 1+2 weights |
+| `train_tracks_to_hist.py` | Strategy A step 4: end-to-end fine-tuning |
 | `train_mlp_hist_then_e2e.py` | Strategy C: KDE-free end-to-end with MLP warmup |
 | `training.py` | `trainNet()` loop, GPU selection |
