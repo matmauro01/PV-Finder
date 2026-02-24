@@ -2,8 +2,7 @@
 
 Step 1 (Resolution): inference -> peak finding -> pairwise distances -> fit sigma_vtx_vtx.
 Step 2 (Classification): use sigma_vtx_vtx to match predicted peaks to truth -> categorize
-as Clean / Merged / Split / Fake.  Truth positions come from peak-finding on the truth
-KDE histograms (same algorithm and parameters as prediction peak-finding).
+as Clean / Merged / Split / Fake against MC truth vertices (pv_loc_z, nTracks >= 2).
 
 Migrated from atlas_pvfinder/mattia_finder/evaluation/{test_model,evaluate_model}.py.
 """
@@ -14,6 +13,7 @@ import argparse
 import json
 from pathlib import Path
 
+import h5py
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -175,16 +175,19 @@ def compute_resolution(
 
 def evaluate_vertices(
     predictions: np.ndarray,
-    truth_histograms: np.ndarray,
+    track_h5_path: str | Path,
+    event_indices: np.ndarray,
     sigma_vtx_vtx: float,
     threshold: float,
     integral_threshold: float,
     min_width: int,
+    truth_histograms: np.ndarray | None = None,
 ) -> dict:
     """Classify predicted peaks as Clean/Merged/Split/Fake.
 
-    Truth positions come from peak-finding on the truth histograms (KDE labels),
-    matching how the model was trained.
+    Truth positions come from pv_loc_z in track_associations.h5 (MC generator-level
+    vertices, nTracks >= 2), matching the original mattia_finder evaluation.
+    truth_histograms, if provided, is used only for the LHCb-style efficiency metric.
 
     Returns a dict with per-event arrays and aggregate summary.
     """
@@ -194,48 +197,54 @@ def evaluate_vertices(
     per_event = np.zeros((n_events, 4), dtype=int)  # clean, merged, split, fake
     total_s, total_sp, total_mt, total_fp = 0, 0, 0, 0
     total_truth = 0
+    n_reco = 0
 
-    for i in tqdm(range(n_events), desc="Classifying"):
-        # Peak finding on prediction
-        pred_z_mm, _, _, _ = pv_locations_updated_res(
-            predictions[i],
-            threshold=threshold,
-            integral_threshold=integral_threshold,
-            min_width=min_width,
-        )
+    with h5py.File(str(track_h5_path), "r") as h5:
+        pv_loc_z_grp = h5["pv_loc_z"]
+        pv_ntracks_grp = h5["pv_ntracks"]
 
-        # Truth: peak-find on truth histogram (same algorithm, same params)
-        truth_z_mm, _, _, _ = pv_locations_updated_res(
-            truth_histograms[i],
-            threshold=threshold,
-            integral_threshold=integral_threshold,
-            min_width=min_width,
-        )
-        total_truth += len(truth_z_mm)
+        for i in tqdm(range(n_events), desc="Classifying"):
+            # Peak finding on prediction
+            pred_z_mm, _, _, _ = pv_locations_updated_res(
+                predictions[i],
+                threshold=threshold,
+                integral_threshold=integral_threshold,
+                min_width=min_width,
+            )
 
-        # Convert mm -> bins
-        pred_bins = (pred_z_mm - Z_MIN) / BIN_WIDTH_MM
-        truth_bins = (truth_z_mm - Z_MIN) / BIN_WIDTH_MM
-        reco_res = sigma_bins * np.ones(len(pred_bins))
+            # Truth: load from h5 (MC generator-level, nTracks >= 2)
+            event_key = f"Event{int(event_indices[i])}"
+            truth_z_mm = np.asarray(pv_loc_z_grp[event_key][:], dtype=float)
+            truth_ntracks = np.asarray(pv_ntracks_grp[event_key][:], dtype=int)
+            truth_z_mm = truth_z_mm[truth_ntracks >= 2]
+            total_truth += len(truth_z_mm)
 
-        perf, _truth_cls, _density = compare_res_reco(truth_bins, pred_bins, reco_res)
-        per_event[i] = [
-            perf.reco_clean,
-            perf.reco_merged,
-            perf.reco_split,
-            perf.reco_fake,
-        ]
+            # Convert mm -> bins
+            pred_bins = (pred_z_mm - Z_MIN) / BIN_WIDTH_MM
+            truth_bins = (truth_z_mm - Z_MIN) / BIN_WIDTH_MM
+            reco_res = sigma_bins * np.ones(len(pred_bins))
 
-        # LHCb-style efficiency (operates on raw histograms)
-        eff = efficiency(
-            truth_histograms[i].astype(np.float32),
-            predictions[i].astype(np.float32),
-            **_EFF_PARAMS,
-        )
-        total_s += eff.S
-        total_sp += eff.Sp
-        total_mt += eff.MT
-        total_fp += eff.FP
+            perf, _truth_cls, _density = compare_res_reco(
+                truth_bins, pred_bins, reco_res
+            )
+            per_event[i] = [
+                perf.reco_clean,
+                perf.reco_merged,
+                perf.reco_split,
+                perf.reco_fake,
+            ]
+
+            # LHCb-style efficiency (operates on raw histograms, optional)
+            if truth_histograms is not None:
+                eff = efficiency(
+                    truth_histograms[i].astype(np.float32),
+                    predictions[i].astype(np.float32),
+                    **_EFF_PARAMS,
+                )
+                total_s += eff.S
+                total_sp += eff.Sp
+                total_mt += eff.MT
+                total_fp += eff.FP
 
     totals = per_event.sum(axis=0)
     n_reco = int(totals.sum())
@@ -248,6 +257,8 @@ def evaluate_vertices(
         "fake": int(totals[3]),
         "n_reco": n_reco,
         "n_truth": total_truth,
+        "avg_reco_per_event": n_reco / max(n_events, 1),
+        "avg_truth_per_event": total_truth / max(n_events, 1),
         "lhcb_S": total_s,
         "lhcb_Sp": total_sp,
         "lhcb_MT": total_mt,
@@ -268,20 +279,29 @@ def _make_category_bar(summary: dict, output_dir: Path) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    cats = ["Clean", "Merged", "Split", "Fake"]
-    keys = ["clean", "merged", "split", "fake"]
-    counts = [summary[k] for k in keys]
-    total = summary.get("n_reco", sum(counts)) or 1
-    colors = ["#2ecc71", "#f39c12", "#e74c3c", "#9b59b6"]
+    cats = ["Total", "Clean", "Merged", "Split", "Fake"]
+    counts = [
+        summary["n_reco"],
+        summary["clean"],
+        summary["merged"],
+        summary["split"],
+        summary["fake"],
+    ]
+    total = summary.get("n_reco", sum(counts[1:])) or 1
+    colors = ["#7f8c8d", "#2ecc71", "#f39c12", "#e74c3c", "#9b59b6"]
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
     bars = ax.bar(cats, counts, color=colors, edgecolor="black", linewidth=0.8)
-    for bar, count in zip(bars, counts):
-        pct = 100.0 * count / total
+    for idx, (bar, count) in enumerate(zip(bars, counts)):
+        if idx == 0:
+            label = f"{count}\n(100%)"
+        else:
+            pct = 100.0 * count / total
+            label = f"{count}\n({pct:.1f}%)"
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + max(counts) * 0.01,
-            f"{count}\n({pct:.1f}%)",
+            label,
             ha="center",
             va="bottom",
             fontsize=11,
@@ -309,7 +329,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--pvf-h5", type=str, help="Training H5 file (for inference)")
     p.add_argument("--histograms", type=str, help="Pre-computed histograms .npy")
     p.add_argument(
-        "--track-h5", type=str, help="Track associations H5 (unused, kept for compat)"
+        "--track-h5",
+        type=str,
+        required=True,
+        help="Track associations H5 (pv_loc_z, pv_ntracks for truth PVs)",
     )
     p.add_argument(
         "--sigma-vtx-vtx", type=float, default=None, help="Pre-computed sigma (mm)"
@@ -395,22 +418,23 @@ def main() -> None:
         print(f"      Saved: {out / 'deltaz_resolution.png'}")
 
     # -- Classification --
-    if truth_histograms is None:
-        print("\nError: truth histograms required for classification.")
-        print("       Re-run in full mode or ensure pvf_truth_histograms.npy exists.")
-        raise SystemExit(1)
-
     print("\n[3/4] Classifying vertices...")
-    print("      Truth source: peak-finding on truth histograms (KDE labels)")
+    print(f"      Truth: {Path(args.track_h5).name} (nTracks >= 2)")
     print(f"      Resolution: sigma = {sigma:.2f} mm ({sigma / BIN_WIDTH_MM:.1f} bins)")
+
+    event_indices = np.arange(
+        _TEST_MAIN_EVENT_OFFSET, _TEST_MAIN_EVENT_OFFSET + n_events
+    )
 
     results = evaluate_vertices(
         predictions,
-        truth_histograms,
+        args.track_h5,
+        event_indices,
         sigma_vtx_vtx=sigma,
         threshold=args.threshold,
         integral_threshold=args.integral_threshold,
         min_width=args.min_width,
+        truth_histograms=truth_histograms,
     )
 
     # Save outputs
@@ -423,8 +447,12 @@ def main() -> None:
     s = results["summary"]
     print("\n[4/4] Results")
     print(f"      Events evaluated:  {s['n_events']}")
-    print(f"      Truth PVs:         {s['n_truth']}")
-    print(f"      Reco PVs:          {s['n_reco']}")
+    print(
+        f"      Truth PVs:         {s['n_truth']}  ({s['avg_truth_per_event']:.1f}/event)"
+    )
+    print(
+        f"      Reco PVs:          {s['n_reco']}  ({s['avg_reco_per_event']:.1f}/event)"
+    )
     print("      ---")
     print(
         f"      Clean:   {s['clean']:>6d}  ({100 * s['clean'] / max(s['n_reco'], 1):.1f}%)"
@@ -438,11 +466,11 @@ def main() -> None:
     print(
         f"      Fake:    {s['fake']:>6d}  ({100 * s['fake'] / max(s['n_reco'], 1):.1f}%)"
     )
-    print("      ---")
     real = s["lhcb_S"] + s["lhcb_MT"]
     if real > 0:
+        print("      ---")
         print(f"      LHCb eff:   {s['lhcb_S'] / real:.4f}")
-    print(f"      LHCb FP/ev: {s['lhcb_FP'] / max(s['n_events'], 1):.3f}")
+        print(f"      LHCb FP/ev: {s['lhcb_FP'] / max(s['n_events'], 1):.3f}")
     print("\n      Saved: pvf_results.json, pvf_per_event.npy, pvf_category_bar.png")
 
 
