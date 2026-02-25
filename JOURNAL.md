@@ -477,3 +477,53 @@ representations at the vertex level — useful for diagnosing where the learned 
 approximation agrees or disagrees with the exact analytical computation.
 
 Updated: `docs/diagnostics/vertex_finding.md`.
+
+---
+
+## 2026-02-24 — Rebuilt evaluation pipeline from mattia_finder
+
+Deleted and rewrote all three evaluation files from scratch, porting faithfully from
+`atlas_pvfinder/mattia_finder/`. The previous versions produced wrong results due to
+accumulated bugs from incremental refactoring.
+
+**Files replaced:**
+
+- `src/pv_finder/evaluation/vertex_matching.py` (755 lines) — from
+  `model/efficiency_res_optimized_atlas.py`. Contains `_pv_locations_updated_res`
+  (6-tuple return with conjoined flags), `filter_nans_res`, `get_reco_resolution`,
+  `compare_res_reco`, `compare_res_reco2`, plus resolution fitting functions
+  (`fit_sigma_vtx_vtx`, `make_resolution_plot`).
+
+- `src/pv_finder/evaluation/evaluate_pvf.py` (387 lines) — from
+  `evaluation/evaluate_model.py`. MC evaluation: loads pickled inputs/labels/outputs
+  from TestModel.py, reads truth from ROOT file, classifies vertices, computes
+  LHCb-style efficiency.
+
+- `src/pv_finder/evaluation/evaluate_pvf_run3.py` (803 lines) — from
+  `evaluation/run3_infer_compare_amvf.py`. Run 3 evaluation: builds subevent tensors
+  from ROOT tracks, runs PVF inference on GPU, matches against AMVF truth, generates
+  resolution plot (PVF + AMVF overlay) and category bar chart.
+
+**Bugs fixed during port:**
+
+1. `[[]]*n` shallow copy in `compare_res_reco` — created n references to the SAME
+   list, causing all vertices to share classifications. Fixed to
+   `[[] for _ in range(n)]`.
+
+2. `MT_total += eff[3]` in evaluate_model.py — the efficiency tuple is
+   `(S, Sp, MT, FP)`, so index 3 is FP, not MT. Fixed to `FP_total += eff[3]`.
+
+**Peak-finding strategy:** Kept `utils/peak_finding.py` untouched (4-tuple return,
+used by `diagnostics/run3_track_probability.py` and `per_vertex_visualization/`).
+The 6-tuple version lives as `_pv_locations_updated_res` in `vertex_matching.py`.
+Will unify after testing.
+
+**Known issue:** `evaluate_pvf_run3.py` uses wrong feature engineering from
+mattia_finder (d0/2, theta/3, (phi+pi)/3 instead of d0, d0_err, z0_err, d0_z0_cov).
+Copied as-is to test matching/classification logic first; features will be fixed as
+follow-up.
+
+**Note:** Files exceed 500-line pre-commit limit (755 and 803 lines). Will be split
+after validation against known-good mattia_finder results.
+
+Updated: `docs/evaluation/vertex_finding.md`.

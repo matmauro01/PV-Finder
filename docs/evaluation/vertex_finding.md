@@ -1,201 +1,220 @@
 # Evaluation — Vertex Finding
 
-Two-step evaluation of the PV-Finder UNet on MC test data.
+Evaluation of PV-Finder vertex finding on MC and Run 3 data.
+Ported from `atlas_pvfinder/mattia_finder` (Feb 2026).
 
-## Pipeline
+## Code
 
-```
-Step 1 (Resolution): PVF model → inference → peak finding → pairwise distances → fit σ_vtx-vtx
-Step 2 (Classification): peaks + truth histogram peaks + σ_vtx-vtx → match → Clean/Merged/Split/Fake
-```
+| File | Description |
+|------|-------------|
+| `src/pv_finder/evaluation/vertex_matching.py` | Peak finding (6-tuple), vertex categorization, resolution fitting |
+| `src/pv_finder/evaluation/evaluate_pvf.py` | MC evaluation (pre-computed pickles + ROOT truth) |
+| `src/pv_finder/evaluation/evaluate_pvf_run3.py` | Run 3 evaluation (ROOT input, AMVF truth, on-the-fly inference) |
+| `src/pv_finder/utils/peak_finding.py` | Shared peak finding (4-tuple), used by diagnostics |
 
-## Usage
+### Peak finding: two versions
+
+The eval pipeline uses `_pv_locations_updated_res` from `vertex_matching.py`, which
+returns a 6-tuple `(z_positions, peak_values, peak_bins, conjoined_left, conjoined_right, sigmas)`.
+The diagnostics code uses `pv_locations_updated_res` from `utils/peak_finding.py`, which
+returns a 4-tuple `(z_positions, peak_heights, peak_bins, sigmas)`. Both implement
+conjoined-peak splitting. They will be unified after testing.
+
+---
+
+## MC Evaluation (`evaluate_pvf.py`)
+
+Classifies pre-computed PV-Finder outputs against MC truth from ROOT files.
+
+**Prerequisites:** Run `TestModel.py` first to generate pickled inputs, labels, and outputs.
+
+### Usage
 
 ```bash
-# Full run (inference + resolution + classification):
 PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
-    --pvf-weights model_weights/pvf_e2e_epoch400.pyt \
-    --pvf-h5 data/monte_carlo/training_data.h5 \
-    --n-events 2550 \
-    --output-dir outputs/evaluation/pvf_e400_2550evt \
-    --device 0 \
-    --threshold 0.01 --integral-threshold 0.5 --min-width 3
-
-# Classify-only (reuse saved histograms, let sigma be fitted):
-PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
-    --histograms outputs/evaluation/pvf_e400_2550evt/pvf_histograms.npy \
-    --output-dir outputs/evaluation/pvf_rerun \
-    --threshold 0.01 --integral-threshold 0.5 --min-width 3
-
-# Classify-only with a fixed sigma (skip resolution fit):
-PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
-    --histograms outputs/evaluation/pvf_e400_2550evt/pvf_histograms.npy \
-    --sigma-vtx-vtx 0.34 \
-    --output-dir outputs/evaluation/pvf_sigma034 \
-    --threshold 0.01 --integral-threshold 0.5 --min-width 3
+    -o outputs/evaluation/pvf_results \
+    -m unet \
+    -f data/monte_carlo/training_data.h5 \
+    -r data/monte_carlo/pvfinder_data.root \
+    -i test_indices.p \
+    -s 0.34
 ```
 
-`--track-h5` is accepted for backwards compatibility but is no longer used.
+### CLI Arguments
 
-## Peak-Finding Parameters
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `-o`, `--dirname` | yes | — | Directory with pickled PVF outputs |
+| `-m`, `--modelname` | yes | — | Model name (e.g. `unet`, `unetplusplus`) |
+| `-f`, `--path_hdf5` | yes | — | Path to input H5 file |
+| `-r`, `--path_root` | yes | — | Path to ROOT file (same data as H5) |
+| `-i`, `--indices` | yes | — | Pickled index array for train/test split |
+| `-s`, `--sigma` | yes | — | σ_vtx-vtx matching window (mm) |
+| `-n`, `--nevents` | no | 51000 | Total events in input |
+| `--use_label_truth` | no | off | Use KDE label peaks instead of ROOT truth |
+| `--label_peak_thresh` | no | 0.1 | Peak height threshold for label truth |
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
+### Truth Sources
+
+- **Default (ROOT):** Reads `TruthVertex_x/y/z/nTracks` from the ROOT file,
+  filtered to nTracks ≥ 2.
+- **Label-based (`--use_label_truth`):** Finds peaks in the KDE labels using
+  `scipy.signal.find_peaks`. All peaks are valid (dummy nTracks = 10).
+
+### Peak-Finding Parameters (hardcoded)
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
 | `threshold` | 0.01 | Min bin value to start a peak |
-| `integral_threshold` | 0.5 | Min sum of bin values in a region |
+| `integral_threshold` | 0.2 | Min integral for a valid peak |
 | `min_width` | 3 | Min consecutive above-threshold bins |
 
-Shared algorithm: `pv_finder.utils.peak_finding.pv_locations_updated_res`.
+### Efficiency Metrics
 
-### Conjoined peak splitting
+Two metrics are computed:
 
-`pv_locations_updated_res` includes a **conjoined-peak split**: when two nearby peaks
-overlap and the histogram never dips below `threshold` between them, a local minimum is
-detected (histogram starts rising again after having already fallen) and the region is
-split into two separate PV candidates.
+1. **Custom efficiency:** fraction of truth vertices (nTracks ≥ 2) classified
+   as "clean" or "merged" by `compare_res_reco`.
 
-This is critical for the resolution plot. Without it, pairs of true vertices at
-separations of 0.3–1 mm that produce overlapping KDE peaks are merged into one predicted
-PV and never contribute a pair to the Δz histogram. The fitted σ_vtx-vtx then reflects
-the KDE overlap scale (~0.8 mm) rather than the true detector resolution (~0.34 mm).
+2. **LHCb-style efficiency:** computed by `pv_finder.utils.efficiency.efficiency`
+   with parameters `difference=5.0`, `threshold=1e-2`, `integral_threshold=0.2`,
+   `min_width=3`. Returns (S, Sp, MT, FP).
 
-## Resolution Fitting (Step 1)
+### Output Files
 
-For each event, find peaks in the predicted histogram and collect all pairwise
-z-distances between predicted PVs (peaks are shuffled before computing pairs so
-differences are symmetric around zero). Histogram these distances in [−6, 6] mm
+Pickled dictionaries keyed by pileup (rounded `ActualNumOfInt`):
+
+```
+{dirname}/
+├── separated_all_pvf_{model}.p      # total reco per event by pileup
+├── separated_clean_pvf_{model}.p
+├── separated_merged_pvf_{model}.p
+├── separated_split_pvf_{model}.p
+├── separated_fake_pvf_{model}.p
+├── separated_eff_pvf_{model}.p      # per-event efficiency by pileup
+├── truth_correct_pvf_{model}.p      # per-truth-PV correct flag
+├── truth_ntrks_pvf_{model}.p        # per-truth-PV nTracks
+├── total_reco_z_{model}.p           # all reco z positions (mm)
+└── predicted_pv_distances_pvf_{model}.p  # all pairwise Δz
+```
+
+---
+
+## Run 3 Evaluation (`evaluate_pvf_run3.py`)
+
+End-to-end evaluation on real Run 3 data. Builds subevent tensors from ROOT
+tracks, runs the PVF model, and classifies against AMVF reconstructed vertices.
+
+### Usage
+
+```bash
+PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf_run3 \
+    --model model_weights/pvf_e2e_epoch400.pyt \
+    --input data/run3/pvfinder_data.root \
+    --output-dir outputs/evaluation/pvf_run3 \
+    --nevents 2000 \
+    --device 0
+```
+
+### CLI Arguments
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--model` | yes | — | Path to trained model (.pyt) |
+| `--input` | yes | — | Input file (.pkl or .root) |
+| `--output-dir` | yes | — | Output directory |
+| `--nevents` | no | 1000 | Number of events to process |
+| `--seed` | no | 42 | Random seed |
+| `--sigma-vtx-vtx` | no | 0.34 | Resolution for matching (mm) |
+| `--threshold` | no | 0.02 | Peak finding threshold |
+| `--integral-threshold` | no | 0.4 | Integral threshold |
+| `--min-width` | no | 2 | Min peak width (bins) |
+| `--device` | no | 0 | GPU device (-1 for CPU) |
+| `--batch-size` | no | 600 | GPU batch size (sub-events) |
+
+### Pipeline
+
+1. Load tracks from ROOT/pkl (`Track_z0/d0/theta/phi/ErrD0Z0/ErrZ0`)
+2. Build 12 subevent tensors (7 features, 100 tracks each, padded to -999999)
+3. Run PVF model on GPU in batches
+4. Stitch 12 subevent outputs into full 12000-bin histogram
+5. Peak-find with conjoined splitting
+6. Match against AMVF truth (beam-corrected, nTracks ≥ 2) using `compare_res_reco`
+7. Generate resolution plot (PVF + AMVF overlay) and category bar chart
+
+### Known Issue: Feature Engineering
+
+The current code uses the **mattia_finder feature mapping** which is known to
+be wrong for the PV-Finder training setup:
+
+| Channel | Current (wrong) | Correct |
+|---------|----------------|---------|
+| 0 | d0 / 2 | d0 |
+| 1 | z0 | z0 |
+| 2 | theta / 3 | d0_err |
+| 3 | (phi + π) / 3 | z0_err |
+| 4 | sig_d0_z0 | d0_z0_cov |
+
+This will be fixed as a follow-up after testing the matching/classification logic.
+
+### Output Files
+
+```
+{output-dir}/
+├── run3_eval_summary.json
+├── pvfinder_deltaz_resolution.png/pdf   # PVF + AMVF overlay
+├── pvfinder_vs_amvf_bar.png/pdf         # Category bar chart
+├── run3_eval_separated_clean.p
+├── run3_eval_separated_merged.p
+├── run3_eval_separated_split.p
+├── run3_eval_separated_fake.p
+├── run3_eval_truth_ntrks.p
+├── run3_eval_truth_correct.p
+├── run3_eval_total_reco_z.p
+└── run3_eval_all_pred_hists.p
+```
+
+---
+
+## Vertex Matching (`vertex_matching.py`)
+
+Core matching logic, ported from `efficiency_res_optimized_atlas.py`.
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `_pv_locations_updated_res` | Peak finding with conjoined splitting (6-tuple return) |
+| `filter_nans_res` | Filter predicted peaks that land on NaN regions in labels |
+| `get_reco_resolution` | Per-peak FWHM-based resolution measurement |
+| `compare_res_reco` | Classify predicted PVs as Clean/Merged/Split/Fake |
+| `compare_res_reco2` | Extended version with per-peak resolution support |
+| `fit_sigma_vtx_vtx` | Fit sigmoid to pairwise Δz distribution |
+| `make_resolution_plot` | Generate Δz histogram + sigmoid fit plot |
+
+### Vertex Categories
+
+| Category | Definition |
+|----------|-----------|
+| **Clean** | Exactly one truth PV within the σ_vtx-vtx matching window |
+| **Merged** | Multiple truth PVs within the matching window |
+| **Split** | Multiple reco PVs match the same truth PV (closest kept, rest = Split) |
+| **Fake** | No truth PV within the matching window |
+
+### Resolution Fitting
+
+Histogram all pairwise z-distances between predicted PVs in [−6, 6] mm
 (61 bins) and fit a sigmoid:
 
 ```
 f(x) = a / (1 + exp(b * (rcc - |x|))) + c
 ```
 
-The parameter `rcc` = σ_vtx-vtx is the vertex-vertex resolution: the scale at which
-two nearby true vertices can be resolved into two separate predicted peaks. Used as the
-matching window in Step 2.
+The parameter `rcc` = σ_vtx-vtx is the vertex-vertex resolution.
 
-## Vertex Classification (Step 2)
+### Bugs Fixed During Port
 
-Truth positions come from **peak-finding on the truth KDE histograms**
-(`pvf_truth_histograms.npy`), using the same algorithm and parameters as prediction
-peak-finding. Raw MC generator-level positions (`pv_loc_z`) are not used: the model
-predicts KDE peaks, which spatially blur nearby vertices, so comparing against individual
-MC positions with a small window gives a spurious ~70% fake rate.
-
-Each predicted PV is matched to truth peaks using σ_vtx-vtx (converted to bins) as
-the matching window:
-
-| Category | Definition |
-|----------|-----------|
-| **Clean** | Exactly one truth PV within the matching window |
-| **Merged** | Multiple truth PVs within the matching window |
-| **Split** | Multiple reco PVs match the same truth PV (closest kept, rest become Split) |
-| **Fake** | No truth PV within the matching window |
-
-All four are reco-side quantities; bar-chart percentages sum to 100% of predicted PVs.
-
-## Test Split
-
-Events 48450–50999 (2,550 events, never seen during training).
-Subevent indices: 581400–611999 (12 subevents per event).
-
-## Output Files
-
-```
-outputs/evaluation/pvf_e400_2550evt/
-├── pvf_histograms.npy          # (2550, 12000) float32 predictions
-├── pvf_truth_histograms.npy    # (2550, 12000) float32 truth KDE
-├── deltaz_resolution.png/pdf   # Vertex distance fit plot
-├── pvf_results.json            # Summary metrics
-├── pvf_per_event.npy           # (2550, 4) [clean, merged, split, fake]
-└── pvf_category_bar.png        # Category distribution bar chart
-```
-
-## Code
-
-- MC evaluation script: `src/pv_finder/evaluation/evaluate_pvf.py`
-- Run 3 evaluation script: `src/pv_finder/evaluation/evaluate_pvf_run3.py`
-- Vertex matching: `src/pv_finder/evaluation/vertex_matching.py`
-- Peak finding: `src/pv_finder/utils/peak_finding.py`
-
----
-
-# Run 3 Evaluation
-
-Evaluation of the PVF UNet on real Run 3 proton–proton collision data.
-Unlike the MC pipeline, there are no truth KDE histograms; truth comes from
-AMVF reconstructed vertices (beam-spot-corrected).
-
-## Pipeline
-
-```
-Step 1 (Resolution): ROOT tracks → inference → peak finding → PVF pairwise Δz  ┐
-                     AMVF reco vertices → AMVF pairwise Δz                      ├ overlay plot
-                     Fit sigmoid to each → σ_PVF, σ_AMVF                       ┘
-Step 2 (Classification): PVF peaks + AMVF truth + σ_PVF → match → Clean/Merged/Split/Fake
-```
-
-## Usage
-
-```bash
-PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf_run3 \
-    --model model_weights/pvf_e2e_epoch400.pyt \
-    --root-file data/run3/pvfinder_data.root \
-    --output-dir outputs/evaluation/pvf_run3_e400 \
-    --n-events 2000 \
-    --device 0 \
-    --threshold 0.01 --integral-threshold 0.5 --min-width 3
-
-# Skip resolution fit (use known sigma):
-PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf_run3 \
-    --model model_weights/pvf_e2e_epoch400.pyt \
-    --root-file data/run3/pvfinder_data.root \
-    --output-dir outputs/evaluation/pvf_run3_sigma034 \
-    --sigma-vtx-vtx 0.34 \
-    --n-events 2000
-```
-
-## Key Differences from MC Evaluation
-
-| Aspect | MC (`evaluate_pvf.py`) | Run 3 (`evaluate_pvf_run3.py`) |
-|--------|----------------------|-------------------------------|
-| Input format | H5 subevents | ROOT file via `uproot` |
-| Truth source | KDE histogram peaks | AMVF reco vertices (nTracks ≥ 2) |
-| Track loading | Pre-batched subevents | Built on-the-fly from raw branches |
-| Resolution plot | PVF only | PVF + AMVF overlaid |
-| Efficiency metric | LHCb-style (S, MT, FP) | AMVF efficiency (clean+merged)/n_amvf |
-
-## ROOT Branches Used
-
-| Branch | Description |
-|--------|-------------|
-| `RecoTrack_z0` | Track z₀ impact parameter |
-| `RecoTrack_d0` | Track d₀ impact parameter |
-| `RecoTrack_ErrD0` | d₀ error |
-| `RecoTrack_ErrZ0` | z₀ error |
-| `RecoTrack_ErrD0Z0` | d₀–z₀ covariance |
-| `RecoVertex_z` | AMVF vertex z position |
-| `RecoVertex_nTracks` | Tracks per AMVF vertex |
-| `BeamPosZ` | Beam-spot z (subtracted from vertex z) |
-
-## Output Files
-
-```
-outputs/evaluation/pvf_run3_e400/
-├── deltaz_resolution.png/pdf   # PVF + AMVF pairwise distance overlay
-├── pvf_run3_results.json       # Summary metrics
-└── pvf_category_bar.png        # Category distribution bar chart
-```
-
-### `pvf_run3_results.json` fields
-
-| Field | Description |
-|-------|-------------|
-| `n_events` | Events with valid AMVF truth |
-| `n_amvf_truth` | Total AMVF vertices used as truth |
-| `avg_amvf_per_event` | Mean AMVF vertices per event |
-| `clean/merged/split/fake` | PVF reco-side category counts |
-| `n_reco` | Total predicted PVs |
-| `amvf_efficiency` | (clean + merged) / n_amvf_truth |
-| `sigma_pvf_mm` | Fitted PVF resolution σ |
-| `sigma_amvf_mm` | Fitted AMVF resolution σ |
+| Bug | Location | Fix |
+|-----|----------|-----|
+| `[[]]*n` shallow copy | `compare_res_reco` | `[[] for _ in range(n)]` |
+| `MT_total+=eff[3]` | `evaluate_pvf.py` | `FP_total+=eff[3]` (index 3 is FP, not MT) |

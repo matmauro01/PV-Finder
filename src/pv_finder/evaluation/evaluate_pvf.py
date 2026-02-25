@@ -1,478 +1,386 @@
-"""Two-step PV-Finder vertex-finding evaluation.
-
-Step 1 (Resolution): inference -> peak finding -> pairwise distances -> fit sigma_vtx_vtx.
-Step 2 (Classification): use sigma_vtx_vtx to match predicted peaks to truth -> categorize
-as Clean / Merged / Split / Fake against MC truth vertices (pv_loc_z, nTracks >= 2).
-
-Migrated from atlas_pvfinder/mattia_finder/evaluation/{test_model,evaluate_model}.py.
-"""
-
-from __future__ import annotations
-
+# gets info from pv-finder output needed to generate performance plots
 import argparse
-import json
-from pathlib import Path
+import pickle
 
-import h5py
 import numpy as np
-import torch
-from tqdm import tqdm
+import uproot
+from scipy.signal import find_peaks
 
-from pv_finder.data.h5_dataset import H5Dataset_tracksHists
+from pv_finder.evaluation.vertex_matching import (
+    _pv_locations_updated_res as pv_locations_updated_res,
+)
 from pv_finder.evaluation.vertex_matching import (
     compare_res_reco,
-    make_resolution_plot,
-)
-from pv_finder.utils.constants import (
-    BIN_WIDTH_MM,
-    BINS_PER_SUBEVENT,
-    N_SUBEVENTS,
-    Z_MIN,
+    filter_nans_res,
 )
 from pv_finder.utils.efficiency import efficiency
-from pv_finder.utils.peak_finding import pv_locations_updated_res
 
-# LHCb-style efficiency parameters (fixed; separate from peak-finding params)
-_EFF_PARAMS = {
-    "difference": 5.0,
-    "threshold": 1e-2,
-    "integral_threshold": 0.2,
-    "min_width": 3,
+# parameters for LHCb-style efficiency
+PARAM_EFF = {
+    "difference": 5.0,  # maximum # bins between truth and predicted
+    "threshold": 1e-2,  # start counting towards reconstructed PV when over this value
+    "integral_threshold": 0.2,  # integral of reconstructed PV distribution must be over this value to be valid
+    "min_width": 3,  # number of bins required for reconstructed PV to be valid
 }
 
-# Test split constants
-_TEST_START_SUBEVENT = 581_400
-_TEST_MAIN_EVENT_OFFSET = 48_450
-_DEFAULT_N_EVENTS = 2550
 
+def main(
+    dir_name,
+    which_model,
+    path_hdf5,
+    path_root,
+    nevents,
+    index_path,
+    sigma_vtx_vtx,
+    use_label_truth=False,
+    label_peak_thresh=0.1,
+):
+    # get indices (use same shuffle as when running TestModel.py)
+    indices = pickle.load(open(index_path, "rb"))
+    nevents = len(indices)
+    start = 0
+    end = nevents
 
-# ---------------------------------------------------------------------------
-# Step 0 -- Inference
-# ---------------------------------------------------------------------------
+    # get truth pv information
+    if not use_label_truth:
+        print("Loading truth from ROOT file...")
+        from collections import namedtuple
 
+        import awkward
 
-def run_pvf_inference(
-    model_weights_path: str | Path,
-    h5_path: str | Path,
-    subevent_indices: np.ndarray,
-    device: torch.device,
-    batch_size: int = 600,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Run PVF model on test data and return aggregated 12000-bin histograms.
+        VertexInfo = namedtuple("VertexInfo", ("x", "y", "z", "n"))
+        root_file = uproot.open(path_root)
+        tree = root_file["PVFinderData"]
+        all_x = tree["TruthVertex_x"].array()
+        all_y = tree["TruthVertex_y"].array()
+        all_z = tree["TruthVertex_z"].array()
+        all_n = tree["TruthVertex_nTracks"].array()
+        x_list = awkward.Array([all_x[i] for i in indices])
+        y_list = awkward.Array([all_y[i] for i in indices])
+        z_list = awkward.Array([all_z[i] for i in indices])
+        n_list = awkward.Array([all_n[i] for i in indices])
+        truth = VertexInfo(x_list, y_list, z_list, n_list)
+        print("truth collected from ROOT file")
+    else:
+        print("Will use label-based truth (peaks from KDE labels)")
+        truth = None  # Will extract truth from labels per-event
 
-    Returns (predictions, truth) each shaped (N_events, 12000).
-    """
-    # Old checkpoints were saved from the 'model' namespace; alias to our module
-    import sys
-    import types
+    # load inputs, labels, outputs obtained from running TestModel.py
+    inputs = pickle.load(open(f"{dir_name}/inputs_pvf_fullcov_{which_model}.p", "rb"))
+    labels = pickle.load(open(f"{dir_name}/labels_pvf_fullcov_{which_model}.p", "rb"))
+    outputs = pickle.load(open(f"{dir_name}/outputs_pvf_fullcov_{which_model}.p", "rb"))
 
-    import pv_finder.models.autoencoder_models as _ae
+    # Handle multi-channel labels (select first channel only)
+    labels = np.array(labels)
+    if labels.ndim == 3 and labels.shape[1] > 1:
+        print(f"Labels have {labels.shape[1]} channels, selecting first channel only")
+        labels = labels[:, 0, :]  # Select first channel
+    elif labels.ndim == 3:
+        labels = labels.squeeze(1)  # Remove channel dimension if only 1 channel
 
-    if "model" not in sys.modules:
-        _m = types.ModuleType("model")
-        _m.autoencoder_models = _ae  # type: ignore[attr-defined]
-        sys.modules["model"] = _m
-        sys.modules["model.autoencoder_models"] = _ae
+    # Ensure consistent dtypes
+    labels = labels.astype(np.float32)
+    outputs = np.array(outputs, dtype=np.float32)
 
-    model = torch.load(str(model_weights_path), map_location="cpu", weights_only=False)
-    model = model.to(device)
-    model.eval()
+    # binning info
+    totalNumBins = 12000
+    zMax = 240
+    zMin = -240
+    binwidth = (zMax - zMin) / totalNumBins
+    np.linspace(zMin, zMax, totalNumBins, endpoint=False) + binwidth / 2
+    np.linspace(zMin, zMax, totalNumBins)
+    totalNumBins / (zMax - zMin)
 
-    dataset = H5Dataset_tracksHists(str(h5_path))
-    subset = torch.utils.data.Subset(dataset, subevent_indices.tolist())
-    loader = torch.utils.data.DataLoader(subset, batch_size=1, shuffle=False)
-
-    n_subevents = len(subevent_indices)
-    all_preds: list[np.ndarray] = []
-    all_truth: list[np.ndarray] = []
-
-    # Process in memory-friendly chunks
-    chunk_preds: list[np.ndarray] = []
-    chunk_truth: list[np.ndarray] = []
-
-    with torch.no_grad():
-        for idx, (inputs, labels) in enumerate(tqdm(loader, total=n_subevents)):
-            inputs = inputs.float().to(device)
-            output = model(inputs).cpu().numpy()
-            chunk_preds.append(output)
-            # target_y_split has shape (batch, 2, 1000); channel 0 is the target hist
-            truth_arr = labels.cpu().numpy()
-            if truth_arr.ndim >= 2 and truth_arr.shape[-2] == 2:
-                truth_arr = truth_arr[..., 0, :]
-            chunk_truth.append(truth_arr)
-
-            # Flush chunk when batch_size reached or at end
-            if len(chunk_preds) >= batch_size or idx == n_subevents - 1:
-                all_preds.extend(chunk_preds)
-                all_truth.extend(chunk_truth)
-                chunk_preds = []
-                chunk_truth = []
-
-    # Stack and reshape: (N_subevents, 1000) -> (N_events, 12000)
-    preds_flat = np.concatenate(all_preds, axis=0).squeeze()
-    truth_flat = np.concatenate(all_truth, axis=0).squeeze()
-
-    if preds_flat.ndim == 1:
-        preds_flat = preds_flat.reshape(-1, BINS_PER_SUBEVENT)
-    if truth_flat.ndim == 1:
-        truth_flat = truth_flat.reshape(-1, BINS_PER_SUBEVENT)
-
-    n_events = n_subevents // N_SUBEVENTS
-    preds_agg = preds_flat.reshape(n_events, N_SUBEVENTS * BINS_PER_SUBEVENT)
-    truth_agg = truth_flat.reshape(n_events, N_SUBEVENTS * BINS_PER_SUBEVENT)
-
-    return preds_agg.astype(np.float32), truth_agg.astype(np.float32)
-
-
-# ---------------------------------------------------------------------------
-# Step 1 -- Resolution
-# ---------------------------------------------------------------------------
-
-
-def compute_resolution(
-    predictions: np.ndarray,
-    output_dir: str | Path,
-    threshold: float,
-    integral_threshold: float,
-    min_width: int,
-) -> float:
-    """Compute sigma_vtx_vtx from pairwise distances between predicted PVs.
-
-    Returns the fitted sigma in mm.
-    """
-    all_distances: list[float] = []
-    total_pvs = 0
-
-    for i in tqdm(range(len(predictions)), desc="Resolution"):
-        z_mm, _, _, _ = pv_locations_updated_res(
-            predictions[i],
-            threshold=threshold,
-            integral_threshold=integral_threshold,
-            min_width=min_width,
-        )
-        total_pvs += len(z_mm)
-        # Shuffle before pairwise distances so z[a]-z[b] is symmetric around 0
-        z_shuffled = z_mm.copy()
-        np.random.shuffle(z_shuffled)
-        for a in range(len(z_shuffled) - 1):
-            for b in range(a + 1, len(z_shuffled)):
-                all_distances.append(float(z_shuffled[a] - z_shuffled[b]))
-
-    print(f"      Total predicted PVs: {total_pvs}")
-    print(f"      Pairwise distances: {len(all_distances)}")
-
-    sigma_mm, sigma_err = make_resolution_plot(
-        all_distances, output_dir, label="PV-Finder"
+    ####### define efficiency parameters #######
+    threshold = 1e-2  # above this value, start calculating predicted PV
+    integral_threshold = (
+        0.2  # require this integral or above when finding predicted PV (Qi Bin's value)
     )
-    print(f"      sigma_vtx-vtx = {sigma_mm:.2f} +/- {sigma_err:.2f} mm")
-    return sigma_mm
+    min_width = 3  # require predicted PV to be at least this number of bins wide
 
+    nevts = end - start
 
-# ---------------------------------------------------------------------------
-# Step 2 -- Classification
-# ---------------------------------------------------------------------------
+    # initialize arrays to keep number of reconstructed vertices in
+    reco_merged = np.zeros(nevts)
+    reco_split = np.zeros(nevts)
+    reco_clean = np.zeros(nevts)
+    reco_fake = np.zeros(nevts)
+    event_efficiency = np.zeros(nevts)
 
+    # list to contain distances between reconstructed PVs
+    predicted_pv_distances = []
 
-def evaluate_vertices(
-    predictions: np.ndarray,
-    track_h5_path: str | Path,
-    event_indices: np.ndarray,
-    sigma_vtx_vtx: float,
-    threshold: float,
-    integral_threshold: float,
-    min_width: int,
-    truth_histograms: np.ndarray | None = None,
-) -> dict:
-    """Classify predicted peaks as Clean/Merged/Split/Fake.
+    # for calculating efficiency as a function of ntrks
+    truth_correct = []
+    truth_ntrks = []
 
-    Truth positions come from pv_loc_z in track_associations.h5 (MC generator-level
-    vertices, nTracks >= 2), matching the original mattia_finder evaluation.
-    truth_histograms, if provided, is used only for the LHCb-style efficiency metric.
+    # for lhcb-style efficiency
+    S_total = 0
+    Sp_total = 0
+    MT_total = 0
+    FP_total = 0
 
-    Returns a dict with per-event arrays and aggregate summary.
-    """
-    n_events = len(predictions)
-    sigma_bins = sigma_vtx_vtx / BIN_WIDTH_MM
+    total_reco_z = []
+    for iEvt in range(nevts):
+        print("iEvt = ", iEvt)
 
-    per_event = np.zeros((n_events, 4), dtype=int)  # clean, merged, split, fake
-    total_s, total_sp, total_mt, total_fp = 0, 0, 0, 0
-    total_truth = 0
-    n_reco = 0
+        # get current neural network info
+        outputs_current = outputs[iEvt]
+        inputs[iEvt]
+        labels_current = labels[iEvt]
 
-    with h5py.File(str(track_h5_path), "r") as h5:
-        pv_loc_z_grp = h5["pv_loc_z"]
-        pv_ntracks_grp = h5["pv_ntracks"]
-
-        for i in tqdm(range(n_events), desc="Classifying"):
-            # Peak finding on prediction
-            pred_z_mm, _, _, _ = pv_locations_updated_res(
-                predictions[i],
-                threshold=threshold,
-                integral_threshold=integral_threshold,
-                min_width=min_width,
-            )
-
-            # Truth: load from h5 (MC generator-level, nTracks >= 2)
-            event_key = f"Event{int(event_indices[i])}"
-            truth_z_mm = np.asarray(pv_loc_z_grp[event_key][:], dtype=float)
-            truth_ntracks = np.asarray(pv_ntracks_grp[event_key][:], dtype=int)
-            truth_z_mm = truth_z_mm[truth_ntracks >= 2]
-            total_truth += len(truth_z_mm)
-
-            # Convert mm -> bins
-            pred_bins = (pred_z_mm - Z_MIN) / BIN_WIDTH_MM
-            truth_bins = (truth_z_mm - Z_MIN) / BIN_WIDTH_MM
-            reco_res = sigma_bins * np.ones(len(pred_bins))
-
-            perf, _truth_cls, _density = compare_res_reco(
-                truth_bins, pred_bins, reco_res
-            )
-            per_event[i] = [
-                perf.reco_clean,
-                perf.reco_merged,
-                perf.reco_split,
-                perf.reco_fake,
-            ]
-
-            # LHCb-style efficiency (operates on raw histograms, optional)
-            if truth_histograms is not None:
-                eff = efficiency(
-                    truth_histograms[i].astype(np.float32),
-                    predictions[i].astype(np.float32),
-                    **_EFF_PARAMS,
-                )
-                total_s += eff.S
-                total_sp += eff.Sp
-                total_mt += eff.MT
-                total_fp += eff.FP
-
-    totals = per_event.sum(axis=0)
-    n_reco = int(totals.sum())
-
-    summary = {
-        "n_events": n_events,
-        "clean": int(totals[0]),
-        "merged": int(totals[1]),
-        "split": int(totals[2]),
-        "fake": int(totals[3]),
-        "n_reco": n_reco,
-        "n_truth": total_truth,
-        "avg_reco_per_event": n_reco / max(n_events, 1),
-        "avg_truth_per_event": total_truth / max(n_events, 1),
-        "lhcb_S": total_s,
-        "lhcb_Sp": total_sp,
-        "lhcb_MT": total_mt,
-        "lhcb_FP": total_fp,
-    }
-    return {"per_event": per_event, "summary": summary}
-
-
-# ---------------------------------------------------------------------------
-# Plotting helper
-# ---------------------------------------------------------------------------
-
-
-def _make_category_bar(summary: dict, output_dir: Path) -> None:
-    """Bar chart of vertex categories with counts and percentages."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    cats = ["Total", "Clean", "Merged", "Split", "Fake"]
-    counts = [
-        summary["n_reco"],
-        summary["clean"],
-        summary["merged"],
-        summary["split"],
-        summary["fake"],
-    ]
-    total = summary.get("n_reco", sum(counts[1:])) or 1
-    colors = ["#7f8c8d", "#2ecc71", "#f39c12", "#e74c3c", "#9b59b6"]
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-    bars = ax.bar(cats, counts, color=colors, edgecolor="black", linewidth=0.8)
-    for idx, (bar, count) in enumerate(zip(bars, counts)):
-        if idx == 0:
-            label = f"{count}\n(100%)"
+        # get current truth info
+        if use_label_truth:
+            # Extract truth from label peaks
+            peaks, _ = find_peaks(labels_current, height=label_peak_thresh)
+            truth_z_bins_current = peaks.astype(float)  # Already in bins
+            truth_n_current = np.ones(len(peaks)) * 10  # Dummy nTracks (all valid)
+            truth_z_current = (
+                truth_z_bins_current * binwidth + zMin
+            )  # Convert to mm for compatibility
         else:
-            pct = 100.0 * count / total
-            label = f"{count}\n({pct:.1f}%)"
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + max(counts) * 0.01,
-            label,
-            ha="center",
-            va="bottom",
-            fontsize=11,
-            fontweight="bold",
+            sortind = np.argsort(truth.z[iEvt])
+            truth_n_current = truth.n[iEvt][sortind]
+            truth.x[iEvt][sortind]
+            truth.y[iEvt][sortind]
+            truth_z_current = truth.z[iEvt][sortind]
+
+        # get locations of predited PVs
+        (
+            predict_loc,
+            predict_peakval,
+            predict_peakpos,
+            predict_cleft,
+            predict_cright,
+            predict_sigma,
+        ) = pv_locations_updated_res(
+            outputs_current, threshold, integral_threshold, min_width
         )
-    ax.set_ylabel("Count", fontsize=14)
-    ax.set_title("PVF Vertex Classification", fontsize=16, pad=15)
-    ax.grid(axis="y", alpha=0.3, linestyle="--")
-    plt.tight_layout()
-    fig.savefig(output_dir / "pvf_category_bar.png", dpi=300, bbox_inches="tight")
-    plt.close(fig)
 
+        # predict_loc is in mm from pv_locations_updated_res
+        # Store for distance calculation
+        total_reco_z.extend(predict_loc)
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+        # get distances between nearby vertices (using mm)
+        predict_loc_mm = predict_loc.copy()
+        np.random.shuffle(predict_loc_mm)
+        for i in range(len(predict_loc_mm) - 1):
+            for j in range(i + 1, len(predict_loc_mm)):
+                predicted_pv_distances.append(predict_loc_mm[i] - predict_loc_mm[j])
 
+        # Convert to bins for filtering and comparison
+        predict_loc_bins = (predict_loc - zMin) / binwidth
 
-def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        description="PV-Finder vertex-finding evaluation (resolution + classification)"
-    )
-    # Mode selectors
-    p.add_argument("--pvf-weights", type=str, help="PVF model weights (full mode)")
-    p.add_argument("--pvf-h5", type=str, help="Training H5 file (for inference)")
-    p.add_argument("--histograms", type=str, help="Pre-computed histograms .npy")
-    p.add_argument(
-        "--track-h5",
-        type=str,
-        required=True,
-        help="Track associations H5 (pv_loc_z, pv_ntracks for truth PVs)",
-    )
-    p.add_argument(
-        "--sigma-vtx-vtx", type=float, default=None, help="Pre-computed sigma (mm)"
-    )
-    p.add_argument("--n-events", type=int, default=_DEFAULT_N_EVENTS)
-    p.add_argument("--output-dir", type=str, required=True)
-    p.add_argument("--device", type=int, default=0, help="-1 for CPU")
-    # Peak finding
-    p.add_argument("--threshold", type=float, default=0.01)
-    p.add_argument("--integral-threshold", type=float, default=0.5)
-    p.add_argument("--min-width", type=int, default=3)
-    return p
+        # whether each predicted PV is valid (masked == False)
+        # filter_nans_res expects locations in bins
+        validinds = filter_nans_res(predict_loc_bins, labels_current)
+        validinds = list(
+            range(len(predict_loc))
+        )  # uncomment if you do not want to filter
 
+        # update predicted PV list (keep in bins for compare_res_reco)
+        filtered_predict_loc_bins = predict_loc_bins[validinds]
+        predict_peakpos[validinds]
+        predict_cleft[validinds]
+        predict_cright[validinds]
 
-def main() -> None:
-    """CLI entry point with verbose step-by-step output."""
-    args = _build_parser().parse_args()
-    out = Path(args.output_dir)
-    out.mkdir(parents=True, exist_ok=True)
+        # constant resolution (convert mm to bins for comparison)
+        sigma_vtx_vtx_bins = sigma_vtx_vtx / binwidth
+        reco_res = sigma_vtx_vtx_bins * np.ones(len(filtered_predict_loc_bins))
 
-    if args.device < 0:
-        device = torch.device("cpu")
-    else:
-        device = torch.device(f"cuda:{args.device}")
+        # consider truth vertices with more than 1 associated track
+        if use_label_truth:
+            truth_z_bins_valid = truth_z_bins_current  # Already in bins, all valid
+        else:
+            truth_z_bins_valid = (
+                truth_z_current[truth_n_current >= 2] - zMin
+            ) / binwidth
 
-    n_events = args.n_events
-    n_subevents = n_events * N_SUBEVENTS
-
-    truth_histograms: np.ndarray | None = None
-
-    # -- Determine mode --
-    if args.histograms:
-        # Classify-only mode
-        print(f"[1/4] Loading pre-computed histograms: {args.histograms}")
-        predictions = np.load(args.histograms)
-        n_events = len(predictions)
-        # Try loading truth histograms from same directory
-        truth_path = Path(args.histograms).parent / "pvf_truth_histograms.npy"
-        if truth_path.exists():
-            truth_histograms = np.load(str(truth_path))
-            print(f"      Truth histograms: {truth_path.name}")
-        print(f"      Events: {n_events}")
-        step_offset = 2  # skip resolution if sigma provided
-    elif args.pvf_weights:
-        # Full mode
-        print("[1/4] Loading PVF model and running inference...")
-        print(f"      Model: {Path(args.pvf_weights).name}")
-        print(f"      Events: {n_events} ({n_subevents} subevents)")
-
-        sub_indices = np.arange(
-            _TEST_START_SUBEVENT, _TEST_START_SUBEVENT + n_subevents
+        # count reconstructed vertices and return related info
+        current_result, truth_classification, localdensity = compare_res_reco(
+            truth_z_bins_valid, filtered_predict_loc_bins, reco_res, 0
         )
-        predictions, truth_histograms = run_pvf_inference(
-            args.pvf_weights, args.pvf_h5, sub_indices, device
+
+        # calculate lhcb-style efficiency
+        eff = efficiency(labels_current, outputs_current, **PARAM_EFF)
+        S_total += eff[0]
+        Sp_total += eff[1]
+        MT_total += eff[2]
+        FP_total += eff[3]
+
+        # truth efficiency info
+        truth_correct_event = []
+        if use_label_truth:
+            truth_n_current_filtered = (
+                truth_n_current  # All valid for label-based truth
+            )
+        else:
+            truth_n_current_filtered = truth_n_current[truth_n_current >= 2]
+        for i in range(len(truth_classification)):
+            truth_ntrks.append(truth_n_current_filtered[i])
+            if (
+                "clean" in truth_classification[i]
+                or "merged" in truth_classification[i]
+            ):
+                truth_correct.append(1)
+                truth_correct_event.append(1)
+            else:
+                truth_correct.append(0)
+                truth_correct_event.append(0)
+
+        print(current_result)
+
+        reco_merged[iEvt] = current_result.reco_merged
+        reco_split[iEvt] = current_result.reco_split
+        reco_clean[iEvt] = current_result.reco_clean
+        reco_fake[iEvt] = current_result.reco_fake
+        event_efficiency[iEvt] = sum(truth_correct_event) / len(truth_correct_event)
+
+    # load pileup information from ROOT tree. be careful to ensure that the indices correspond to the data loaded above
+    PVFinderData = uproot.open(path_root)["PVFinderData"]
+    ActualNumOfInt = list(PVFinderData["ActualNumOfInt"].array()[indices])
+
+    # dictionaries with key corresponding to pileup and values = lists of numbers of clean/split/merged/fake from different events
+    separated_clean = {}
+    separated_merged = {}
+    separated_split = {}
+    separated_fake = {}
+    separated_all = {}
+    separated_eff = {}
+
+    for i in range(len(reco_clean)):
+        if np.rint(ActualNumOfInt[i]) not in separated_clean.keys():
+            separated_clean[np.rint(ActualNumOfInt[i])] = []
+        separated_clean[np.rint(ActualNumOfInt[i])].append(reco_clean[i])
+
+        if np.rint(ActualNumOfInt[i]) not in separated_merged.keys():
+            separated_merged[np.rint(ActualNumOfInt[i])] = []
+        separated_merged[np.rint(ActualNumOfInt[i])].append(reco_merged[i])
+
+        if np.rint(ActualNumOfInt[i]) not in separated_split.keys():
+            separated_split[np.rint(ActualNumOfInt[i])] = []
+        separated_split[np.rint(ActualNumOfInt[i])].append(reco_split[i])
+
+        if np.rint(ActualNumOfInt[i]) not in separated_fake.keys():
+            separated_fake[np.rint(ActualNumOfInt[i])] = []
+        separated_fake[np.rint(ActualNumOfInt[i])].append(reco_fake[i])
+
+        if np.rint(ActualNumOfInt[i]) not in separated_all.keys():
+            separated_all[np.rint(ActualNumOfInt[i])] = []
+        separated_all[np.rint(ActualNumOfInt[i])].append(
+            reco_fake[i] + reco_clean[i] + reco_merged[i] + reco_split[i]
         )
-        print(f"      Aggregating -> {len(predictions)} events")
-        np.save(out / "pvf_histograms.npy", predictions)
-        np.save(out / "pvf_truth_histograms.npy", truth_histograms)
-        print(f"      Saved: {out / 'pvf_histograms.npy'}")
-        step_offset = 2
-    else:
-        print("Error: provide either --pvf-weights or --histograms")
-        raise SystemExit(1)
 
-    # -- Resolution --
-    if args.sigma_vtx_vtx is not None:
-        sigma = args.sigma_vtx_vtx
-        print(f"\n[{step_offset}/4] Using provided sigma_vtx-vtx = {sigma:.2f} mm")
-    else:
-        print(f"\n[{step_offset}/4] Computing vertex-vertex resolution...")
-        print(
-            f"      Peak params: threshold={args.threshold}, "
-            f"integral={args.integral_threshold}, "
-            f"min_width={args.min_width}"
-        )
-        sigma = compute_resolution(
-            predictions,
-            out,
-            threshold=args.threshold,
-            integral_threshold=args.integral_threshold,
-            min_width=args.min_width,
-        )
-        print(f"      Saved: {out / 'deltaz_resolution.png'}")
+        if np.rint(ActualNumOfInt[i]) not in separated_eff.keys():
+            separated_eff[np.rint(ActualNumOfInt[i])] = []
+        separated_eff[np.rint(ActualNumOfInt[i])].append(event_efficiency[i])
 
-    # -- Classification --
-    print("\n[3/4] Classifying vertices...")
-    print(f"      Truth: {Path(args.track_h5).name} (nTracks >= 2)")
-    print(f"      Resolution: sigma = {sigma:.2f} mm ({sigma / BIN_WIDTH_MM:.1f} bins)")
-
-    event_indices = np.arange(
-        _TEST_MAIN_EVENT_OFFSET, _TEST_MAIN_EVENT_OFFSET + n_events
+    # save these dictionaries
+    pickle.dump(
+        separated_all, open(f"{dir_name}/separated_all_pvf_{which_model}.p", "wb")
+    )
+    pickle.dump(
+        separated_clean, open(f"{dir_name}/separated_clean_pvf_{which_model}.p", "wb")
+    )
+    pickle.dump(
+        separated_merged, open(f"{dir_name}/separated_merged_pvf_{which_model}.p", "wb")
+    )
+    pickle.dump(
+        separated_split, open(f"{dir_name}/separated_split_pvf_{which_model}.p", "wb")
+    )
+    pickle.dump(
+        separated_fake, open(f"{dir_name}/separated_fake_pvf_{which_model}.p", "wb")
+    )
+    pickle.dump(
+        separated_eff, open(f"{dir_name}/separated_eff_pvf_{which_model}.p", "wb")
     )
 
-    results = evaluate_vertices(
-        predictions,
-        args.track_h5,
-        event_indices,
-        sigma_vtx_vtx=sigma,
-        threshold=args.threshold,
-        integral_threshold=args.integral_threshold,
-        min_width=args.min_width,
-        truth_histograms=truth_histograms,
-    )
+    print("Efficiency = ", sum(truth_correct) / len(truth_correct))
+    print("FPR = ", np.average(reco_fake))
+    print("Total Length = ", len(truth_correct))
 
-    # Save outputs
-    np.save(out / "pvf_per_event.npy", results["per_event"])
-    with open(out / "pvf_results.json", "w") as f:
-        json.dump(results["summary"], f, indent=2)
-    _make_category_bar(results["summary"], out)
+    print("LHCb-style Efficiency = ", S_total / (S_total + MT_total))
+    print("LHCb-style FalsePos = ", FP_total / len(indices))
 
-    # -- Print summary --
-    s = results["summary"]
-    print("\n[4/4] Results")
-    print(f"      Events evaluated:  {s['n_events']}")
-    print(
-        f"      Truth PVs:         {s['n_truth']}  ({s['avg_truth_per_event']:.1f}/event)"
+    # save predicted truth efficiency and ntrk info
+    pickle.dump(
+        truth_correct, open(f"{dir_name}/truth_correct_pvf_{which_model}.p", "wb")
     )
-    print(
-        f"      Reco PVs:          {s['n_reco']}  ({s['avg_reco_per_event']:.1f}/event)"
+    pickle.dump(truth_ntrks, open(f"{dir_name}/truth_ntrks_pvf_{which_model}.p", "wb"))
+    pickle.dump(total_reco_z, open(f"{dir_name}/total_reco_z_{which_model}.p", "wb"))
+
+    pickle.dump(
+        predicted_pv_distances,
+        open(f"{dir_name}/predicted_pv_distances_pvf_{which_model}.p", "wb"),
     )
-    print("      ---")
-    print(
-        f"      Clean:   {s['clean']:>6d}  ({100 * s['clean'] / max(s['n_reco'], 1):.1f}%)"
-    )
-    print(
-        f"      Merged:  {s['merged']:>6d}  ({100 * s['merged'] / max(s['n_reco'], 1):.1f}%)"
-    )
-    print(
-        f"      Split:   {s['split']:>6d}  ({100 * s['split'] / max(s['n_reco'], 1):.1f}%)"
-    )
-    print(
-        f"      Fake:    {s['fake']:>6d}  ({100 * s['fake'] / max(s['n_reco'], 1):.1f}%)"
-    )
-    real = s["lhcb_S"] + s["lhcb_MT"]
-    if real > 0:
-        print("      ---")
-        print(f"      LHCb eff:   {s['lhcb_S'] / real:.4f}")
-        print(f"      LHCb FP/ev: {s['lhcb_FP'] / max(s['n_events'], 1):.3f}")
-    print("\n      Saved: pvf_results.json, pvf_per_event.npy, pvf_category_bar.png")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="This program finds the number of reconstructed vertices in each category for a PV-Finder model and saves the outputs"
+    )
+    parser.add_argument(
+        "-n",
+        "--nevents",
+        help="Number of events in input file (95% of these are used for training)",
+        default=51000,
+        type=int,
+    )
+    parser.add_argument(
+        "-i",
+        "--indices",
+        help="Pickled numpy array containing the indices to use for consistent train/test split (use same file as for training)",
+        required=True,
+    )
+    parser.add_argument(
+        "-o",
+        "--dirname",
+        help="directory to load pv-finder results from",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "-m",
+        "--modelname",
+        help="name of model architecture (i.e. unet or unetplusplus)",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "-f", "--path_hdf5", help="path to input hdf5 file", type=str, required=True
+    )
+    parser.add_argument(
+        "-r",
+        "--path_root",
+        help="path to input root file (the same file used to generate the hdf5 file)",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "-s", "--sigma", help="value of sigma_vtx_vtx to use", type=float, required=True
+    )
+    parser.add_argument(
+        "--use_label_truth",
+        help="Use peaks from KDE labels as truth instead of ROOT file",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--label_peak_thresh",
+        help="Height threshold for finding peaks in labels (default: 0.1)",
+        type=float,
+        default=0.1,
+    )
+
+    args = parser.parse_args()
+
+    main(
+        args.dirname,
+        args.modelname,
+        args.path_hdf5,
+        args.path_root,
+        args.nevents,
+        args.indices,
+        args.sigma,
+        args.use_label_truth,
+        args.label_peak_thresh,
+    )

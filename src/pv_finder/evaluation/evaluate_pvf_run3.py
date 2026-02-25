@@ -1,499 +1,802 @@
-"""PV-Finder evaluation on Run 3 data (ROOT input, AMVF truth).
-
-Unlike the MC evaluation (evaluate_pvf.py), this script:
-1. Loads raw tracks from a ROOT file via uproot (no H5 subevents).
-2. Runs inference event-by-event, building subevent tensors on the fly.
-3. Uses AMVF reconstructed vertices as truth (beam-spot-corrected).
-4. Overlays PVF and AMVF pairwise distances on the resolution plot.
+#!/usr/bin/env python3
 """
+Run3 AMVF Evaluation Script
 
-from __future__ import annotations
+Evaluates a PV-Finder model on Run3 ATLAS data, using AMVF reconstructed vertices
+as the reference ("ground truth"). Generates resolution plots and category bar charts.
+
+Reproduces the exact working version that generated run3_results_highpileup_2000evt
+"""
 
 import argparse
 import json
-import sys
-import types
-from pathlib import Path
+import os
+import pickle
+import random
 
+import matplotlib
 import numpy as np
 import torch
 from scipy.optimize import curve_fit
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from pv_finder.evaluation.vertex_matching import compare_res_reco, fit_func_resolution
-from pv_finder.utils.constants import (
-    BIN_WIDTH_MM,
-    BINS_PER_SUBEVENT,
-    N_SUBEVENTS,
-    Z_MIN,
+from pv_finder.evaluation.vertex_matching import (
+    _pv_locations_updated_res as pv_locations_updated_res,
 )
-from pv_finder.utils.peak_finding import pv_locations_updated_res
-
-# ─── Subevent geometry (must match training) ──────────────────────────────────
-_SUBEVENT_WIDTH_MM: float = 40.0
-_N_FEATURES: int = 7
-_N_TRACKS_PER_SUB: int = 100
-_MASK_VAL: float = -999999.0
-_SUBEVENT_STARTS: list[float] = [
-    Z_MIN + i * _SUBEVENT_WIDTH_MM for i in range(N_SUBEVENTS)
-]
+from pv_finder.evaluation.vertex_matching import (
+    compare_res_reco,
+)
 
 
-# ─── Model loading ────────────────────────────────────────────────────────────
+def select_gpu(device_id):
+    """Select GPU or CPU device."""
+    if device_id >= 0 and torch.cuda.is_available():
+        return torch.device(f"cuda:{device_id}")
+    return torch.device("cpu")
 
 
-def _load_model(model_path: str | Path, device: torch.device) -> torch.nn.Module:
-    """Load a PVF model, handling old 'model' namespace checkpoints."""
-    import pv_finder.models.autoencoder_models as _ae
+# Global binning info (must match model training)
+TOTAL_NUM_BINS = 12000
+Z_MAX = 240
+Z_MIN = -240
+BIN_WIDTH = (Z_MAX - Z_MIN) / TOTAL_NUM_BINS  # 0.04 mm
 
-    if "model" not in sys.modules:
-        _m = types.ModuleType("model")
-        _m.autoencoder_models = _ae  # type: ignore[attr-defined]
-        sys.modules["model"] = _m
-        sys.modules["model.autoencoder_models"] = _ae
+# Sub-event parameters (12 overlapping 40mm windows)
+N_SUBEVENTS = 12
+SUBEVENT_WIDTH = 40.0  # mm
+SUBEVENT_BINS = 1000
+SUBEVENT_STARTS = np.array([-240 + i * 40 for i in range(12)])  # [-240, -200, ..., 200]
 
-    model = torch.load(str(model_path), map_location="cpu", weights_only=False)
-    model = model.to(device)
-    model.eval()
-    return model
-
-
-# ─── ROOT helpers ─────────────────────────────────────────────────────────────
-
-
-def _open_tree(root_path: str | Path) -> object:
-    """Open PVFinderData tree, trying primary then fallback name."""
-    import uproot
-
-    f = uproot.open(str(root_path))
-    for name in ("PVFinderData;1", "PVFinderData"):
-        if name in f:
-            return f[name]
-    raise KeyError(f"Tree not found in {root_path}. Keys: {list(f.keys())}")
+# Model input parameters
+N_FEATURES = 7
+N_TRACKS_PER_SUBEVENT = 100
+MASK_VAL = -999999.0  # Padding value from training
 
 
-def _extract_beam_z(raw: object) -> float:
-    """Extract scalar BeamPosZ from a scalar or 1-element array."""
-    arr = np.atleast_1d(np.asarray(raw, dtype=np.float64))
-    return float(arr[0]) if len(arr) > 0 else 0.0
-
-
-# ─── Subevent tensor building ─────────────────────────────────────────────────
-
-
-def _build_subevent_tensors(
-    z0: np.ndarray,
-    d0: np.ndarray,
-    d0_err: np.ndarray,
-    z0_err: np.ndarray,
-    d0_z0_cov: np.ndarray,
-) -> list[tuple[int, np.ndarray]]:
-    """Build (sub_idx, tensor) pairs from raw event track arrays.
-
-    Each subevent yields one tensor per 100-track chunk (padded with _MASK_VAL).
-    Chunks share the same sub_idx; their model outputs are summed.
+def build_subevent_tensors(
+    tracks_z0, tracks_d0, tracks_theta, tracks_phi, tracks_sig_d0_z0, tracks_err_z0=None
+):
     """
-    _empty = np.full((_N_FEATURES, _N_TRACKS_PER_SUB), _MASK_VAL, dtype=np.float32)
-    result: list[tuple[int, np.ndarray]] = []
-    for si in range(N_SUBEVENTS):
-        z_start = _SUBEVENT_STARTS[si]
-        z_end = z_start + _SUBEVENT_WIDTH_MM
-        mask = (z0 >= z_start) & (z0 < z_end)
-        n_trk = int(np.sum(mask))
-        if n_trk == 0:
-            result.append((si, _empty.copy()))
-            continue
-        srt = np.argsort(z0[mask])
-        z0_s = z0[mask][srt]
-        d0_s = d0[mask][srt]
-        d0e_s = d0_err[mask][srt]
-        z0e_s = z0_err[mask][srt]
-        cv_s = d0_z0_cov[mask][srt]
-        for cs in range(0, n_trk, _N_TRACKS_PER_SUB):
-            ce = min(cs + _N_TRACKS_PER_SUB, n_trk)
-            nc = ce - cs
-            t = np.full((_N_FEATURES, _N_TRACKS_PER_SUB), _MASK_VAL, dtype=np.float32)
-            t[0, :nc] = d0_s[cs:ce]
-            t[1, :nc] = z0_s[cs:ce]
-            t[2, :nc] = d0e_s[cs:ce]
-            t[3, :nc] = z0e_s[cs:ce]
-            t[4, :nc] = cv_s[cs:ce]
-            t[5, :] = z_start
-            t[6, :] = z_end
-            result.append((si, t))
-    return result
+    Build sub-event tensors from track arrays.
 
+    Uses STRICT boundaries (track z0 must be in [z_start, z_end)) to match training.
+    Tracks are SORTED by z0 before chunking.
+    If more than 100 tracks, creates MULTIPLE chunks and outputs are summed.
 
-# ─── Inference ────────────────────────────────────────────────────────────────
+    Feature order (from training H5 analysis):
+    - 0: d0 / 2
+    - 1: z0 RAW (mm)
+    - 2: theta / 3
+    - 3: (phi + π) / 3
+    - 4: sig_d0_z0 (raw)
+    - 5: interval_start (raw mm)
+    - 6: interval_end (raw mm)
 
-
-def run_inference_event(
-    model: torch.nn.Module,
-    tensors: list[tuple[int, np.ndarray]],
-    device: torch.device,
-) -> np.ndarray:
-    """Run model on one event; return 12000-bin histogram.
-
-    Chunk outputs for the same subevent are summed.
+    Returns:
+        List of (sub_idx, tensor) tuples. Multiple tensors per sub_idx if > 100 tracks.
     """
-    sub_out: dict[int, np.ndarray] = {
-        si: np.zeros(BINS_PER_SUBEVENT, dtype=np.float32) for si in range(N_SUBEVENTS)
-    }
-    with torch.no_grad():
-        for si, t in tensors:
-            inp = torch.from_numpy(t).unsqueeze(0).float().to(device)
-            out = model(inp).cpu().numpy().squeeze()
-            if out.shape == ():
-                out = out.reshape(BINS_PER_SUBEVENT)
-            sub_out[si] += out[:BINS_PER_SUBEVENT]
-    return np.concatenate([sub_out[si] for si in range(N_SUBEVENTS)], axis=0)
+    tensors_with_idx = []
 
+    for sub_idx in range(N_SUBEVENTS):
+        z_start = SUBEVENT_STARTS[sub_idx]
+        z_end = z_start + SUBEVENT_WIDTH
 
-# ─── Resolution helpers ───────────────────────────────────────────────────────
+        # STRICT boundaries (matches training data creation)
+        mask = (tracks_z0 >= z_start) & (tracks_z0 < z_end)
+        n_tracks = np.sum(mask)
 
-
-def _pairwise_distances(z_arr: np.ndarray) -> list[float]:
-    """Shuffled pairwise distances between all elements of z_arr."""
-    z = z_arr.copy()
-    np.random.shuffle(z)
-    return [float(z[a] - z[b]) for a in range(len(z) - 1) for b in range(a + 1, len(z))]
-
-
-def _fit_sigma(distances: np.ndarray) -> tuple[float, float]:
-    """Fit sigmoid to histogram; fallback to std of |d|<2 mm."""
-    if len(distances) < 10:
-        return 0.0, 0.0
-    counts, edges = np.histogram(distances, bins=61, range=(-6.0, 6.0))
-    centers = 0.5 * (edges[:-1] + edges[1:])
-    cf = counts.astype(float)
-    try:
-        p0 = [float(np.max(cf)), 10.0, float(np.min(cf)), 0.5]
-        popt, pcov = curve_fit(
-            fit_func_resolution, centers[1:], cf[1:], p0=p0, maxfev=10_000
-        )
-        return float(abs(popt[3])), float(np.sqrt(np.diag(pcov))[3])
-    except RuntimeError:
-        close = distances[np.abs(distances) < 2.0]
-        return (float(np.std(close)) if len(close) > 0 else 0.0), 0.0
-
-
-# ─── Resolution plot (overlays PVF and AMVF) ──────────────────────────────────
-
-
-def make_run3_resolution_plot(
-    pvf_distances: list[float],
-    amvf_distances: list[float],
-    output_dir: Path,
-) -> tuple[float, float, float, float]:
-    """Overlay PVF/AMVF pairwise-distance histograms with sigmoid fits.
-
-    Returns (sigma_pvf, sigma_pvf_err, sigma_amvf, sigma_amvf_err) in mm.
-    """
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    pvf_arr = np.asarray(pvf_distances, dtype=float)
-    amvf_arr = np.asarray(amvf_distances, dtype=float)
-    fig, ax = plt.subplots(figsize=(12, 8))
-    x_fit = np.linspace(-6.0, 6.0, 1000)
-    results = []
-
-    for arr, color, edge, fit_color, lbl in (
-        (pvf_arr, "steelblue", "darkblue", "navy", "PV-Finder"),
-        (amvf_arr, "orange", "darkorange", "darkorange", "AMVF"),
-    ):
-        counts, edges, _ = ax.hist(
-            arr,
-            bins=61,
-            range=(-6.0, 6.0),
-            color=color,
-            alpha=0.5,
-            edgecolor=edge,
-            linewidth=0.8,
-            label=lbl,
-        )
-        centers = 0.5 * (edges[:-1] + edges[1:])
-        cf = counts.astype(float)
-        try:
-            p0 = [float(np.max(cf)), 10.0, float(np.min(cf)), 0.5]
-            popt, pcov = curve_fit(
-                fit_func_resolution, centers[1:], cf[1:], p0=p0, maxfev=10_000
+        if n_tracks == 0:
+            # Empty tensor
+            tensor = np.full(
+                (N_FEATURES, N_TRACKS_PER_SUBEVENT), MASK_VAL, dtype=np.float32
             )
-            sigma, sigma_err = float(abs(popt[3])), float(np.sqrt(np.diag(pcov))[3])
+            tensors_with_idx.append((sub_idx, tensor))
+        else:
+            # Get all tracks for this sub-event
+            z0_sub = tracks_z0[mask]
+            d0_sub = tracks_d0[mask]
+            theta_sub = tracks_theta[mask]
+            phi_sub = tracks_phi[mask]
+            sig_d0_z0_sub = tracks_sig_d0_z0[mask]
+
+            # Sort by z0 (matches training data ordering)
+            sort_idx = np.argsort(z0_sub)
+            z0_sorted = z0_sub[sort_idx]
+            d0_sorted = d0_sub[sort_idx]
+            theta_sorted = theta_sub[sort_idx]
+            phi_sorted = phi_sub[sort_idx]
+            sig_d0_z0_sorted = sig_d0_z0_sub[sort_idx]
+
+            # Process in chunks of 100 tracks
+            n_chunks = (n_tracks + N_TRACKS_PER_SUBEVENT - 1) // N_TRACKS_PER_SUBEVENT
+
+            for chunk_idx in range(n_chunks):
+                start_idx = chunk_idx * N_TRACKS_PER_SUBEVENT
+                end_idx = min(start_idx + N_TRACKS_PER_SUBEVENT, n_tracks)
+                n_fill = end_idx - start_idx
+
+                tensor = np.full(
+                    (N_FEATURES, N_TRACKS_PER_SUBEVENT), MASK_VAL, dtype=np.float32
+                )
+
+                tensor[0, :n_fill] = d0_sorted[start_idx:end_idx] / 2.0
+                tensor[1, :n_fill] = z0_sorted[start_idx:end_idx]
+                tensor[2, :n_fill] = theta_sorted[start_idx:end_idx] / 3.0
+                tensor[3, :n_fill] = (phi_sorted[start_idx:end_idx] + np.pi) / 3.0
+                tensor[4, :n_fill] = sig_d0_z0_sorted[start_idx:end_idx]
+                tensor[5, :n_fill] = z_start
+                tensor[6, :n_fill] = z_end
+
+                tensors_with_idx.append((sub_idx, tensor))
+
+    return tensors_with_idx
+
+
+def stitch_histograms(sub_histograms):
+    """Stitch 12 sub-histograms (each 1000 bins) into one 12000-bin histogram.
+
+    Args:
+        sub_histograms: Either shape (12, 1000) or flattened (12000,)
+    """
+    # Handle both 2D and flattened input
+    if sub_histograms.ndim == 2:
+        # Shape is (12, 1000) - concatenate
+        return sub_histograms.flatten()
+    elif len(sub_histograms) == TOTAL_NUM_BINS:
+        # Already flattened to 12000
+        return sub_histograms.astype(np.float32)
+    else:
+        # Reshape from flat (12*1000,) assuming correct order
+        full_hist = np.zeros(TOTAL_NUM_BINS, dtype=np.float32)
+        for sub_idx in range(N_SUBEVENTS):
+            start_bin = sub_idx * SUBEVENT_BINS
+            end_bin = start_bin + SUBEVENT_BINS
+            src_start = sub_idx * SUBEVENT_BINS
+            src_end = src_start + SUBEVENT_BINS
+            full_hist[start_bin:end_bin] = sub_histograms[src_start:src_end]
+        return full_hist
+
+
+def fit_func_resolution(x, a, b, c, rcc):
+    """Fit function for resolution plot (same as ground truth)
+    Sigmoid-like function with notch at x=0
+    rcc is the resolution (sigma)
+    """
+    return a / (1 + np.exp(b * (rcc - np.abs(x)))) + c
+
+
+def make_resolution_plot(
+    all_pv_distances, output_dir, label="PV-Finder (Run3)", amvf_distances=None
+):
+    """Create vertex-vertex resolution plot comparing PV-Finder and AMVF."""
+    if len(all_pv_distances) < 10:
+        print("Warning: Not enough distances for resolution plot")
+        return None, None
+
+    distances = np.array(all_pv_distances)
+    print(f"Number of PV-Finder vertex pairs: {len(distances)}")
+
+    if amvf_distances is not None:
+        amvf_dist = np.array(amvf_distances)
+        print(f"Number of AMVF vertex pairs: {len(amvf_dist)}")
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Plot PV-Finder histogram
+    counts_pvf, bins, _ = ax.hist(
+        distances,
+        bins=61,
+        range=(-6, 6),
+        color="steelblue",
+        alpha=0.6,
+        edgecolor="darkblue",
+        linewidth=0.8,
+        label=f"{label}",
+    )
+
+    # Bin centers
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
+    # PV-Finder errors
+    errors_pvf = np.sqrt(counts_pvf + 1)
+    ax.errorbar(
+        bin_centers,
+        counts_pvf,
+        yerr=errors_pvf,
+        fmt="none",
+        ecolor="darkblue",
+        elinewidth=1.5,
+        capsize=2,
+        alpha=0.6,
+    )
+
+    # Plot AMVF histogram if provided
+    sigma_amvf = None
+    if amvf_distances is not None and len(amvf_distances) > 10:
+        counts_amvf, _, _ = ax.hist(
+            amvf_dist,
+            bins=61,
+            range=(-6, 6),
+            color="orange",
+            alpha=0.5,
+            edgecolor="darkorange",
+            linewidth=0.8,
+            label="AMVF",
+        )
+        errors_amvf = np.sqrt(counts_amvf + 1)
+        ax.errorbar(
+            bin_centers,
+            counts_amvf,
+            yerr=errors_amvf,
+            fmt="none",
+            ecolor="darkorange",
+            elinewidth=1.5,
+            capsize=2,
+            alpha=0.6,
+        )
+
+        # Fit AMVF
+        try:
+            p0_amvf = [max(counts_amvf), 10, min(counts_amvf), 0.5]
+            popt_amvf, pcov_amvf = curve_fit(
+                fit_func_resolution,
+                bin_centers[1:],
+                counts_amvf[1:],
+                p0=p0_amvf,
+                maxfev=10000,
+            )
+            perr_amvf = np.sqrt(np.diag(pcov_amvf))
+            sigma_amvf = abs(popt_amvf[3])
+
+            print("\nAMVF Fit Results:")
+            print(f"  Resolution: σ = {sigma_amvf:.3f} ± {perr_amvf[3]:.3f} mm")
+
+            # Plot AMVF fit
+            x_fit = np.linspace(-6, 6, 1000)
+            y_fit_amvf = fit_func_resolution(x_fit, *popt_amvf)
             ax.plot(
                 x_fit,
-                fit_func_resolution(x_fit, *popt),
-                color=fit_color,
-                linestyle="-",
+                y_fit_amvf,
+                "darkorange",
                 linewidth=2.5,
-                label=f"{lbl} fit: σ = {sigma:.2f} mm",
-                zorder=10,
+                linestyle="--",
+                label=f"AMVF Fit: σ = {sigma_amvf:.2f} mm",
+                zorder=9,
             )
-        except RuntimeError:
-            close = arr[np.abs(arr) < 2.0]
-            sigma = float(np.std(close)) if len(close) > 0 else 0.0
-            sigma_err = 0.0
-        results.extend([sigma, sigma_err])
+        except Exception as e:
+            print(f"Warning: Could not fit AMVF resolution curve: {e}")
 
+    # Fit PV-Finder
+    sigma_fit = None
+    sigma_err = None
+    try:
+        p0 = [max(counts_pvf), 10, min(counts_pvf), 0.5]
+        popt, pcov = curve_fit(
+            fit_func_resolution, bin_centers[1:], counts_pvf[1:], p0=p0, maxfev=10000
+        )
+        perr = np.sqrt(np.diag(pcov))
+        sigma_fit = abs(popt[3])
+        sigma_err = perr[3]
+
+        print("\nPV-Finder Fit Results:")
+        print(f"  Resolution: σ = {sigma_fit:.3f} ± {sigma_err:.3f} mm")
+
+        # Plot PV-Finder fit
+        x_fit = np.linspace(-6, 6, 1000)
+        y_fit = fit_func_resolution(x_fit, *popt)
+        ax.plot(
+            x_fit,
+            y_fit,
+            "r-",
+            linewidth=2.5,
+            label=f"PV-Finder Fit: σ = {sigma_fit:.2f} mm",
+            zorder=10,
+        )
+
+    except Exception as e:
+        print(f"Warning: Could not fit PV-Finder resolution curve: {e}")
+        close_distances = distances[np.abs(distances) < 2]
+        if len(close_distances) > 0:
+            sigma_fit = np.std(close_distances)
+            sigma_err = 0
+
+    # Formatting
     ax.set_xlabel(r"$\Delta z_{\mathrm{vtx-vtx}}$ [mm]", fontsize=18)
     ax.set_ylabel("Counts", fontsize=18)
-    ax.set_title("Pairwise Vertex Distances — PVF vs AMVF (Run 3)", fontsize=16, pad=15)
+    ax.set_title(
+        "Distance Between Pairs of Nearby Reconstructed Vertices", fontsize=16, pad=15
+    )
     ax.legend(loc="upper right", frameon=True, fancybox=True, shadow=True, fontsize=12)
     ax.grid(True, alpha=0.3, linestyle="--")
     ax.set_ylim(bottom=-50)
+
     plt.tight_layout()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for fmt in ("png", "pdf"):
-        fig.savefig(
-            output_dir / f"deltaz_resolution.{fmt}", dpi=300, bbox_inches="tight"
-        )
+
+    for fmt in ["png", "pdf"]:
+        outpath = os.path.join(output_dir, f"deltaz_resolution.{fmt}")
+        fig.savefig(outpath, dpi=300, bbox_inches="tight")
+        print(f"  Saved: {outpath}")
     plt.close(fig)
-    return results[0], results[1], results[2], results[3]
+
+    return sigma_fit, sigma_err
 
 
-# ─── Bar chart ────────────────────────────────────────────────────────────────
+def plot_category_bar_chart(clean, merged, split, fake, missed, output_dir):
+    """Create bar chart of PV categories."""
+    categories = ["Clean", "Merged", "Split", "Fake", "Missed"]
+    values = [clean, merged, split, fake, missed]
+    colors = ["#2ecc71", "#3498db", "#f39c12", "#e74c3c", "#95a5a6"]
 
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.bar(categories, values, color=colors, edgecolor="black", linewidth=1.2)
 
-def _make_category_bar(summary: dict, output_dir: Path) -> None:
-    """Bar chart of PVF vertex categories with percentages + AMVF efficiency."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    cats = ["Total", "Clean", "Merged", "Split", "Fake"]
-    counts = [
-        summary["n_reco"],
-        summary["clean"],
-        summary["merged"],
-        summary["split"],
-        summary["fake"],
-    ]
-    total = summary.get("n_reco", 1) or 1
-    colors = ["#7f8c8d", "#2ecc71", "#f39c12", "#e74c3c", "#9b59b6"]
-    fig, ax = plt.subplots(figsize=(12, 6))
-    bars = ax.bar(cats, counts, color=colors, edgecolor="black", linewidth=0.8)
-    for idx, (bar, count) in enumerate(zip(bars, counts)):
-        label = (
-            f"{count}\n(100%)"
-            if idx == 0
-            else f"{count}\n({100.0 * count / total:.1f}%)"
-        )
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + max(counts) * 0.01,
-            label,
+    # Add value labels
+    for bar, val in zip(bars, values):
+        height = bar.get_height()
+        ax.annotate(
+            f"{val:,}",
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 5),
+            textcoords="offset points",
             ha="center",
             va="bottom",
-            fontsize=11,
+            fontsize=12,
             fontweight="bold",
         )
-    amvf_eff = summary.get("amvf_efficiency", 0.0)
-    n_amvf = summary.get("n_amvf_truth", 0)
-    ax.text(
-        0.5,
-        1.04,
-        f"AMVF efficiency (clean+merged)/n_amvf: {amvf_eff:.3f}  (n_amvf={n_amvf})",
-        ha="center",
-        va="bottom",
-        transform=ax.transAxes,
-        fontsize=11,
-    )
-    ax.set_ylabel("Count", fontsize=14)
-    ax.set_title("PVF Vertex Classification (Run 3)", fontsize=16, pad=25)
-    ax.grid(axis="y", alpha=0.3, linestyle="--")
-    plt.tight_layout()
-    fig.savefig(output_dir / "pvf_category_bar.png", dpi=300, bbox_inches="tight")
+
+    ax.set_ylabel("Number of Vertices", fontsize=14)
+    ax.set_title("PV-Finder vs AMVF: Vertex Categories", fontsize=14)
+    ax.tick_params(axis="x", labelsize=12)
+    ax.tick_params(axis="y", labelsize=11)
+
+    for fmt in ["png", "pdf"]:
+        outpath = os.path.join(output_dir, f"pvfinder_vs_amvf_bar.{fmt}")
+        fig.savefig(outpath, dpi=150, bbox_inches="tight")
+        print(f"  Saved: {outpath}")
     plt.close(fig)
 
 
-# ─── Main evaluation logic ────────────────────────────────────────────────────
-
-
-def evaluate_run3(
-    model_path: str | Path,
-    root_file: str | Path,
-    output_dir: str | Path,
-    n_events: int = 2000,
-    device: torch.device | None = None,
-    sigma_vtx_vtx: float | None = None,
-    threshold: float = 0.01,
-    integral_threshold: float = 0.5,
-    min_width: int = 3,
-) -> dict:
-    """End-to-end Run 3 evaluation. Returns the summary dict."""
-    if device is None:
-        device = torch.device("cpu")
-    out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-
-    print("[1/4] Loading model...")
-    model = _load_model(model_path, device)
-
-    print("[2/4] Running inference on ROOT data...")
-    tree = _open_tree(root_file)
-    n_events = min(n_events, tree.num_entries)
-    print(f"      Using {n_events} events")
-
-    all_preds: list[np.ndarray] = []
-    all_amvf: list[np.ndarray] = []
-    _br = [
-        "RecoTrack_z0",
-        "RecoTrack_d0",
-        "RecoTrack_ErrD0",
-        "RecoTrack_ErrZ0",
-        "RecoTrack_ErrD0Z0",
-        "RecoVertex_z",
-        "RecoVertex_nTracks",
-        "BeamPosZ",
-    ]
-    event_data = next(
-        iter(tree.iterate(_br, step_size=n_events, entry_stop=n_events, library="np"))
+def main():
+    parser = argparse.ArgumentParser(
+        description="Evaluate PV-Finder on Run3 data against AMVF"
     )
+    parser.add_argument("--model", required=True, help="Path to trained model (.pyt)")
+    parser.add_argument(
+        "--input", required=True, help="Path to input file (.pkl or .root)"
+    )
+    parser.add_argument("--output-dir", required=True, help="Output directory")
+    parser.add_argument(
+        "--nevents", type=int, default=1000, help="Number of events to process"
+    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--sigma-vtx-vtx", type=float, default=0.34, help="Resolution for matching (mm)"
+    )
+    parser.add_argument(
+        "--threshold", type=float, default=0.02, help="Threshold for peak finding"
+    )
+    parser.add_argument(
+        "--integral-threshold", type=float, default=0.4, help="Integral threshold"
+    )
+    parser.add_argument(
+        "--min-width", type=int, default=2, help="Minimum peak width in bins"
+    )
+    parser.add_argument("--device", type=int, default=0, help="GPU device (-1 for CPU)")
+    parser.add_argument(
+        "--batch-size", type=int, default=600, help="GPU batch size (sub-events)"
+    )
+    args = parser.parse_args()
 
-    for i in tqdm(range(n_events), desc="Inference"):
-        z0 = np.asarray(event_data["RecoTrack_z0"][i], dtype=np.float32)
-        d0 = np.asarray(event_data["RecoTrack_d0"][i], dtype=np.float32)
-        d0_err = np.asarray(event_data["RecoTrack_ErrD0"][i], dtype=np.float32)
-        z0_err = np.asarray(event_data["RecoTrack_ErrZ0"][i], dtype=np.float32)
-        cov = np.asarray(event_data["RecoTrack_ErrD0Z0"][i], dtype=np.float32)
-        beam_z = _extract_beam_z(event_data["BeamPosZ"][i])
-        amvf_ntracks = np.asarray(event_data["RecoVertex_nTracks"][i], dtype=int)
-        amvf_z = (np.asarray(event_data["RecoVertex_z"][i], dtype=np.float64) - beam_z)[
-            amvf_ntracks >= 2
-        ]
-        if len(amvf_z) == 0:
-            continue
-        tensors = _build_subevent_tensors(z0, d0, d0_err, z0_err, cov)
-        all_preds.append(run_inference_event(model, tensors, device))
-        all_amvf.append(amvf_z.astype(np.float32))
+    random.seed(args.seed)
+    np.random.seed(args.seed)
 
-    n_used = len(all_preds)
-    print(f"      Events with valid AMVF truth: {n_used}")
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    print("[3/4] Computing resolution...")
-    pvf_dists: list[float] = []
-    amvf_dists: list[float] = []
-    peak_kwargs = {
-        "threshold": threshold,
-        "integral_threshold": integral_threshold,
-        "min_width": min_width,
-    }
-    for pred, amvf_z in tqdm(zip(all_preds, all_amvf), total=n_used, desc="Distances"):
-        z_mm, _, _, _ = pv_locations_updated_res(pred, **peak_kwargs)
-        pvf_dists.extend(_pairwise_distances(z_mm))
-        amvf_dists.extend(_pairwise_distances(amvf_z))
+    # Select device
+    device = select_gpu(args.device)
+    print(f"Using device: {device}")
 
-    if sigma_vtx_vtx is not None:
-        sigma_pvf = sigma_vtx_vtx
-        sigma_amvf, _ = _fit_sigma(np.asarray(amvf_dists))
-        print(f"      Using provided sigma = {sigma_pvf:.2f} mm")
+    # Load model
+    print(f"Loading model: {args.model}")
+    model = torch.load(args.model, map_location="cpu")
+    model = model.to(device)
+    model.eval()
+
+    # Load data
+    input_path = args.input
+    print(f"Opening data file: {input_path}")
+
+    if input_path.endswith(".pkl"):
+        print("Loading from pickle (fast mode)...")
+        with open(input_path, "rb") as f:
+            events_data = pickle.load(f)
+        # Try both branch name conventions
+        if "Track_z0" in events_data:
+            n_available = len(events_data["Track_z0"])
+            track_prefix = "Track_"
+        else:
+            n_available = len(events_data["RecoTrack_z0"])
+            track_prefix = "RecoTrack_"
     else:
-        sigma_pvf, pvf_err, sigma_amvf, amvf_err = make_run3_resolution_plot(
-            pvf_dists, amvf_dists, out
-        )
-        print(f"      sigma_PVF  = {sigma_pvf:.2f} +/- {pvf_err:.2f} mm")
-        print(f"      sigma_AMVF = {sigma_amvf:.2f} +/- {amvf_err:.2f} mm")
+        # ROOT file handling
+        import uproot
 
-    print("[4/4] Classifying vertices...")
-    sigma_bins = sigma_pvf / BIN_WIDTH_MM
-    totals = np.zeros(4, dtype=int)
-    n_amvf_truth = 0
-    for pred, amvf_z in tqdm(
-        zip(all_preds, all_amvf), total=n_used, desc="Classifying"
-    ):
-        pred_z, _, _, _ = pv_locations_updated_res(pred, **peak_kwargs)
-        n_amvf_truth += len(amvf_z)
-        pred_bins = (pred_z - Z_MIN) / BIN_WIDTH_MM
-        truth_bins = (amvf_z - Z_MIN) / BIN_WIDTH_MM
-        perf, _, _ = compare_res_reco(
-            truth_bins, pred_bins, sigma_bins * np.ones(len(pred_bins))
-        )
-        totals += [perf.reco_clean, perf.reco_merged, perf.reco_split, perf.reco_fake]
+        print("Loading from ROOT file...")
+        root_file = uproot.open(input_path)
+        tree = root_file["ntuple;1"]
+        events_data = tree.arrays(library="np")
+        if "Track_z0" in events_data:
+            n_available = len(events_data["Track_z0"])
+            track_prefix = "Track_"
+        else:
+            n_available = len(events_data["RecoTrack_z0"])
+            track_prefix = "RecoTrack_"
 
-    n_reco = int(totals.sum())
-    clean, merged, split, fake = (
-        int(totals[0]),
-        int(totals[1]),
-        int(totals[2]),
-        int(totals[3]),
+    print(
+        f"Loaded {n_available} events from {'pickle' if input_path.endswith('.pkl') else 'ROOT'}"
     )
-    amvf_eff = (clean + merged) / max(n_amvf_truth, 1)
 
-    summary: dict = {
-        "n_events": n_used,
-        "n_amvf_truth": n_amvf_truth,
-        "avg_amvf_per_event": n_amvf_truth / max(n_used, 1),
-        "clean": clean,
-        "merged": merged,
-        "split": split,
-        "fake": fake,
-        "n_reco": n_reco,
-        "avg_reco_per_event": n_reco / max(n_used, 1),
-        "amvf_efficiency": amvf_eff,
-        "sigma_pvf_mm": sigma_pvf,
-        "sigma_amvf_mm": sigma_amvf,
+    n_events = min(args.nevents, n_available)
+
+    # Print transformation info
+    print("\n--- TRANSFORMATIONS (from training H5 analysis) ---")
+    print("  Feature 0: d0 / 2")
+    print("  Feature 1: z0 RAW (mm)")
+    print("  Feature 2: theta / 3")
+    print("  Feature 3: (phi + π) / 3")
+    print("  Feature 4: sig_d0_z0 (raw)")
+    print("  Feature 5: interval_start (raw mm)")
+    print("  Feature 6: interval_end (raw mm)")
+    print("  7 features, padding = -999999, pT NOT used")
+    print("  Track selection: 3*sigma_z extension")
+    print(f"Resolution: {args.sigma_vtx_vtx:.3f} mm\n")
+
+    # Select random events
+    if n_events < n_available:
+        selected_indices = sorted(random.sample(range(n_available), n_events))
+    else:
+        selected_indices = list(range(n_available))
+
+    # Resolution in bins for matching
+    sigma_bins = args.sigma_vtx_vtx / BIN_WIDTH
+
+    # Accumulators
+    all_clean = []
+    all_merged = []
+    all_split = []
+    all_fake = []
+    all_missed = []
+    all_pv_distances = []
+    all_amvf_distances = []  # AMVF pairwise distances for comparison
+    all_reco_z = []
+    all_truth_correct = []
+    all_truth_ntrks = []
+    all_pred_hists = []
+    pileup_values = []
+    n_vertices_per_event = []
+
+    # Batch processing
+    batch_tensors = []
+    batch_event_info = []
+
+    for i, evt_idx in enumerate(tqdm(selected_indices, desc="Processing events")):
+        # Extract event data
+        tracks_z0 = np.asarray(events_data[f"{track_prefix}z0"][evt_idx])
+        tracks_d0 = np.asarray(events_data[f"{track_prefix}d0"][evt_idx])
+        tracks_theta = np.asarray(events_data[f"{track_prefix}theta"][evt_idx])
+        tracks_phi = np.asarray(events_data[f"{track_prefix}phi"][evt_idx])
+
+        # sig_d0_z0
+        if f"{track_prefix}ErrD0Z0" in events_data:
+            tracks_sig_d0_z0 = np.asarray(
+                events_data[f"{track_prefix}ErrD0Z0"][evt_idx]
+            )
+        elif f"{track_prefix}sig_d0_z0" in events_data:
+            tracks_sig_d0_z0 = np.asarray(
+                events_data[f"{track_prefix}sig_d0_z0"][evt_idx]
+            )
+        else:
+            tracks_sig_d0_z0 = np.zeros_like(tracks_z0)
+
+        # ErrZ0 for 3-sigma track selection
+        if f"{track_prefix}ErrZ0" in events_data:
+            tracks_err_z0 = np.asarray(events_data[f"{track_prefix}ErrZ0"][evt_idx])
+        else:
+            tracks_err_z0 = np.full_like(tracks_z0, 0.5)  # Default 0.5mm
+
+        # AMVF vertices
+        amvf_z = np.asarray(events_data["RecoVertex_z"][evt_idx])
+        amvf_ntrks = np.asarray(events_data["RecoVertex_nTracks"][evt_idx])
+
+        # Beam spot correction (AMVF vertices are relative to beam spot)
+        if "BeamPosZ" in events_data:
+            beam_z = events_data["BeamPosZ"][evt_idx]
+            if hasattr(beam_z, "__len__"):
+                beam_z = float(beam_z[0]) if len(beam_z) > 0 else 0.0
+            else:
+                beam_z = float(beam_z)
+        else:
+            beam_z = 0.0
+        amvf_z = amvf_z - beam_z  # Convert to detector coordinates
+
+        # Filter AMVF vertices with nTracks >= 2
+        valid_amvf = amvf_ntrks >= 2
+        amvf_z = amvf_z[valid_amvf]
+        amvf_ntrks = amvf_ntrks[valid_amvf]
+
+        # Pileup
+        if "ActualNumOfInt" in events_data:
+            mu = events_data["ActualNumOfInt"][evt_idx]
+            if hasattr(mu, "__len__"):
+                mu = float(mu[0]) if len(mu) > 0 else len(amvf_z)
+            else:
+                mu = float(mu)
+        else:
+            mu = len(amvf_z)
+        pileup_values.append(mu)
+        n_vertices_per_event.append(len(amvf_z))
+
+        # Build sub-event tensors (with 3*sigma_z0 track selection)
+        # Returns list of (sub_idx, tensor) - may have multiple chunks per sub-event
+        subevent_data = build_subevent_tensors(
+            tracks_z0,
+            tracks_d0,
+            tracks_theta,
+            tracks_phi,
+            tracks_sig_d0_z0,
+            tracks_err_z0,
+        )
+
+        # Add to batch - track which sub-event each tensor belongs to
+        n_tensors = len(subevent_data)
+        for sub_idx, tensor in subevent_data:
+            batch_tensors.append(tensor)
+        batch_event_info.append((i, subevent_data, amvf_z, amvf_ntrks))
+
+        # Process batch when full or at end
+        if len(batch_tensors) >= args.batch_size or i == len(selected_indices) - 1:
+            # Run inference
+            batch_np = np.stack(batch_tensors, axis=0)
+            batch_tensor = torch.from_numpy(batch_np).float().to(device)
+
+            with torch.no_grad():
+                pred_batch = model(batch_tensor)
+                # Handle squeeze issue for batch_size=1
+                if pred_batch.dim() == 1:
+                    pred_batch = pred_batch.unsqueeze(0)
+                pred_batch = pred_batch.cpu().numpy()
+
+            # Process results per event
+            tensor_idx = 0
+            for evt_i, subevent_data, evt_amvf_z, evt_amvf_ntrks in batch_event_info:
+                n_tensors = len(subevent_data)
+
+                # Accumulate outputs per sub-event (sum multiple chunks)
+                subevent_outputs = {
+                    i: np.zeros(SUBEVENT_BINS, dtype=np.float32)
+                    for i in range(N_SUBEVENTS)
+                }
+
+                for chunk_i, (sub_idx, _) in enumerate(subevent_data):
+                    subevent_outputs[sub_idx] += pred_batch[
+                        tensor_idx + chunk_i
+                    ].flatten()
+
+                tensor_idx += n_tensors
+
+                # Stitch the summed sub-event outputs
+                sub_hists = np.array([subevent_outputs[i] for i in range(N_SUBEVENTS)])
+                full_hist = stitch_histograms(sub_hists)
+                all_pred_hists.append(full_hist)
+
+                # Find predicted PVs
+                pv_result = pv_locations_updated_res(
+                    full_hist,
+                    threshold=args.threshold,
+                    integral_threshold=args.integral_threshold,
+                    min_width=args.min_width,
+                )
+                pred_z = pv_result[0]  # z positions in mm
+
+                all_reco_z.extend(pred_z.tolist())
+
+                # Convert to bins for matching
+                pred_bins = (pred_z - Z_MIN) / BIN_WIDTH
+                amvf_bins = (evt_amvf_z - Z_MIN) / BIN_WIDTH
+
+                # Get resolution for each prediction
+                pred_res = np.full(len(pred_bins), sigma_bins)
+
+                # Compare
+                if len(amvf_bins) > 0 and len(pred_bins) > 0:
+                    perf_info, truth_class, _ = compare_res_reco(
+                        amvf_bins, pred_bins, pred_res, debug=False
+                    )
+
+                    n_clean = perf_info.reco_clean
+                    n_merged = perf_info.reco_merged
+                    n_split = perf_info.reco_split
+                    n_fake = perf_info.reco_fake
+                    n_missed = sum(1 for tc in truth_class if tc == [])
+
+                    all_clean.append(n_clean)
+                    all_merged.append(n_merged)
+                    all_split.append(n_split)
+                    all_fake.append(n_fake)
+                    all_missed.append(n_missed)
+
+                    # Truth tracking
+                    for t_idx, t_class in enumerate(truth_class):
+                        matched = 1 if t_class != [] else 0
+                        all_truth_correct.append(matched)
+                        all_truth_ntrks.append(
+                            evt_amvf_ntrks[t_idx] if t_idx < len(evt_amvf_ntrks) else 0
+                        )
+                elif len(pred_bins) > 0:
+                    all_clean.append(0)
+                    all_merged.append(0)
+                    all_split.append(0)
+                    all_fake.append(len(pred_bins))
+                    all_missed.append(0)
+                else:
+                    all_clean.append(0)
+                    all_merged.append(0)
+                    all_split.append(0)
+                    all_fake.append(0)
+                    all_missed.append(len(amvf_bins))
+
+                # Calculate pairwise distances for resolution plot (same as ground truth eval)
+                # All pairs, no filtering - histogram range handles display
+                if len(pred_z) >= 2:
+                    pred_z_shuffled = pred_z.copy()
+                    np.random.shuffle(pred_z_shuffled)
+                    for ii in range(len(pred_z_shuffled) - 1):
+                        for jj in range(ii + 1, len(pred_z_shuffled)):
+                            dist = pred_z_shuffled[ii] - pred_z_shuffled[jj]
+                            all_pv_distances.append(dist)
+
+                # Calculate AMVF pairwise distances for comparison
+                if len(evt_amvf_z) >= 2:
+                    amvf_z_shuffled = evt_amvf_z.copy()
+                    np.random.shuffle(amvf_z_shuffled)
+                    for ii in range(len(amvf_z_shuffled) - 1):
+                        for jj in range(ii + 1, len(amvf_z_shuffled)):
+                            dist = amvf_z_shuffled[ii] - amvf_z_shuffled[jj]
+                            all_amvf_distances.append(dist)
+
+            # Clear batch
+            batch_tensors = []
+            batch_event_info = []
+
+    # Summary statistics
+    total_clean = sum(all_clean)
+    total_merged = sum(all_merged)
+    total_split = sum(all_split)
+    total_fake = sum(all_fake)
+    total_missed = sum(all_missed)
+    total_amvf = total_clean + total_merged + total_missed
+
+    efficiency = (total_clean + total_merged) / total_amvf if total_amvf > 0 else 0
+    fpr = total_fake / n_events
+
+    print("\n" + "=" * 60)
+    print("RESULTS SUMMARY")
+    print("=" * 60)
+    print(f"Events processed: {n_events}")
+    print(f"Total AMVF vertices (nTracks >= 2): {total_amvf}")
+    print(f"  Clean matches:  {total_clean} ({100 * total_clean / total_amvf:.1f}%)")
+    print(f"  Merged:         {total_merged} ({100 * total_merged / total_amvf:.1f}%)")
+    print(f"  Split:          {total_split} ({100 * total_split / total_amvf:.2f}%)")
+    print(f"  Fake:           {total_fake}")
+    print(f"  Missed:         {total_missed}")
+    print(f"\nEfficiency: {100 * efficiency:.2f}%")
+    print(f"False Positive Rate: {fpr:.4f} ({100 * fpr:.2f}%)")
+    print(f"Avg pileup: {np.mean(pileup_values):.2f}")
+    print(f"Avg vertices/event: {np.mean(n_vertices_per_event):.2f}")
+
+    # Save results
+    print("\n" + "=" * 60)
+    print("Saving Results")
+    print("=" * 60)
+
+    summary = {
+        "n_events": n_events,
+        "n_amvf_total": int(total_amvf),
+        "n_clean": int(total_clean),
+        "n_merged": int(total_merged),
+        "n_split": int(total_split),
+        "n_fake": int(total_fake),
+        "n_missed": int(total_missed),
+        "efficiency": float(efficiency),
+        "false_positive_rate": float(fpr),
+        "avg_pileup": float(np.mean(pileup_values)),
+        "avg_vertices_per_event": float(np.mean(n_vertices_per_event)),
     }
-    with open(out / "pvf_run3_results.json", "w") as f:
-        json.dump(summary, f, indent=2)
-    _make_category_bar(summary, out)
 
-    s = summary
-    nr = max(n_reco, 1)
-    print("\n── Results ────────────────────────────────────────────")
-    print(
-        f"  Events: {s['n_events']}  |  AMVF truth: {s['n_amvf_truth']} ({s['avg_amvf_per_event']:.1f}/ev)  |  Reco: {s['n_reco']} ({s['avg_reco_per_event']:.1f}/ev)"
-    )
-    print(
-        f"  AMVF efficiency: {s['amvf_efficiency']:.4f}  |  sigma_PVF={s['sigma_pvf_mm']:.2f} mm  sigma_AMVF={s['sigma_amvf_mm']:.2f} mm"
-    )
-    print(
-        f"  Clean {clean:>5d} ({100 * clean / nr:.1f}%)  Merged {merged:>5d} ({100 * merged / nr:.1f}%)  Split {split:>5d} ({100 * split / nr:.1f}%)  Fake {fake:>5d} ({100 * fake / nr:.1f}%)"
-    )
-    print(f"  Saved: {out}/pvf_run3_results.json  pvf_category_bar.png")
-    return summary
+    with open(os.path.join(args.output_dir, "run3_eval_summary.json"), "w") as f:
+        json.dump(summary, f, indent=4)
+    print("  Saved: run3_eval_summary.json")
 
-
-# ─── CLI ─────────────────────────────────────────────────────────────────────
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        description="PV-Finder evaluation on Run 3 ROOT data (AMVF truth)"
+    pickle.dump(
+        all_clean,
+        open(os.path.join(args.output_dir, "run3_eval_separated_clean.p"), "wb"),
     )
-    p.add_argument("--model", type=str, required=True, help="Model weights (.pyt)")
-    p.add_argument("--root-file", type=str, required=True, help="ROOT file path")
-    p.add_argument("--output-dir", type=str, required=True, help="Output directory")
-    p.add_argument("--n-events", type=int, default=2000)
-    p.add_argument("--device", type=int, default=0, help="GPU index, -1 for CPU")
-    p.add_argument(
-        "--sigma-vtx-vtx", type=float, default=None, help="Pre-computed sigma (mm)"
+    print("  Saved: run3_eval_separated_clean.p")
+    pickle.dump(
+        all_merged,
+        open(os.path.join(args.output_dir, "run3_eval_separated_merged.p"), "wb"),
     )
-    p.add_argument("--threshold", type=float, default=0.01)
-    p.add_argument("--integral-threshold", type=float, default=0.5)
-    p.add_argument("--min-width", type=int, default=3)
-    return p
+    print("  Saved: run3_eval_separated_merged.p")
+    pickle.dump(
+        all_split,
+        open(os.path.join(args.output_dir, "run3_eval_separated_split.p"), "wb"),
+    )
+    print("  Saved: run3_eval_separated_split.p")
+    pickle.dump(
+        all_fake,
+        open(os.path.join(args.output_dir, "run3_eval_separated_fake.p"), "wb"),
+    )
+    print("  Saved: run3_eval_separated_fake.p")
+    pickle.dump(
+        all_truth_ntrks,
+        open(os.path.join(args.output_dir, "run3_eval_truth_ntrks.p"), "wb"),
+    )
+    print("  Saved: run3_eval_truth_ntrks.p")
+    pickle.dump(
+        all_truth_correct,
+        open(os.path.join(args.output_dir, "run3_eval_truth_correct.p"), "wb"),
+    )
+    print("  Saved: run3_eval_truth_correct.p")
+    pickle.dump(
+        all_reco_z,
+        open(os.path.join(args.output_dir, "run3_eval_total_reco_z.p"), "wb"),
+    )
+    print("  Saved: run3_eval_total_reco_z.p")
+    pickle.dump(
+        all_pred_hists,
+        open(os.path.join(args.output_dir, "run3_eval_all_pred_hists.p"), "wb"),
+    )
+    print("  Saved: run3_eval_all_pred_hists.p")
 
+    print(f"\nPairwise distances collected: {len(all_pv_distances)}")
 
-def main() -> None:
-    """CLI entry point."""
-    args = _build_parser().parse_args()
-    device = (
-        torch.device("cpu") if args.device < 0 else torch.device(f"cuda:{args.device}")
+    # Generate resolution plot
+    print("\n" + "=" * 60)
+    print("Creating Resolution Plot")
+    print("=" * 60)
+    print(f"PV-Finder pairwise distances: {len(all_pv_distances)}")
+    print(f"AMVF pairwise distances: {len(all_amvf_distances)}")
+    sigma_fit, sigma_err = make_resolution_plot(
+        all_pv_distances, args.output_dir, amvf_distances=all_amvf_distances
     )
-    evaluate_run3(
-        model_path=args.model,
-        root_file=args.root_file,
-        output_dir=args.output_dir,
-        n_events=args.n_events,
-        device=device,
-        sigma_vtx_vtx=args.sigma_vtx_vtx,
-        threshold=args.threshold,
-        integral_threshold=args.integral_threshold,
-        min_width=args.min_width,
+
+    if sigma_fit is not None:
+        summary["sigma_vtx_vtx_fitted"] = float(sigma_fit)
+        summary["sigma_vtx_vtx_error"] = float(sigma_err)
+        with open(os.path.join(args.output_dir, "run3_eval_summary.json"), "w") as f:
+            json.dump(summary, f, indent=4)
+
+    # Generate category bar chart
+    print("\n" + "=" * 60)
+    print("Creating Category Bar Chart")
+    print("=" * 60)
+    plot_category_bar_chart(
+        total_clean,
+        total_merged,
+        total_split,
+        total_fake,
+        total_missed,
+        args.output_dir,
     )
+
+    print("\n" + "=" * 60)
+    print("EVALUATION COMPLETE")
+    print("=" * 60)
+    print(f"Results saved to: {args.output_dir}")
 
 
 if __name__ == "__main__":
