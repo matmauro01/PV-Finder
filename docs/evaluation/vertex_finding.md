@@ -1,220 +1,106 @@
 # Evaluation — Vertex Finding
 
-Evaluation of PV-Finder vertex finding on MC and Run 3 data.
-Ported from `atlas_pvfinder/mattia_finder` (Feb 2026).
+Evaluation of PV-Finder vertex finding on MC test data.
 
-## Code
+## Script
 
-| File | Description |
-|------|-------------|
-| `src/pv_finder/evaluation/vertex_matching.py` | Peak finding (6-tuple), vertex categorization, resolution fitting |
-| `src/pv_finder/evaluation/evaluate_pvf.py` | MC evaluation (pre-computed pickles + ROOT truth) |
-| `src/pv_finder/evaluation/evaluate_pvf_run3.py` | Run 3 evaluation (ROOT input, AMVF truth, on-the-fly inference) |
-| `src/pv_finder/utils/peak_finding.py` | Shared peak finding (4-tuple), used by diagnostics |
+`src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py`
 
-### Peak finding: two versions
+Three pipeline modes (mutually exclusive):
 
-The eval pipeline uses `_pv_locations_updated_res` from `vertex_matching.py`, which
-returns a 6-tuple `(z_positions, peak_values, peak_bins, conjoined_left, conjoined_right, sigmas)`.
-The diagnostics code uses `pv_locations_updated_res` from `utils/peak_finding.py`, which
-returns a 4-tuple `(z_positions, peak_heights, peak_bins, sigmas)`. Both implement
-conjoined-peak splitting. They will be unified after testing.
+| Flag | Pipeline |
+|------|----------|
+| _(default)_ | Analytical KDE_A_z (h5) → K2H (UNet_1000) |
+| `--full-pipeline` | Raw tracks → T2KDE (MaskedDNN) → K2H |
+| `--e2e-model` | Raw tracks → trackstoHists_UNet_1000 (no KDE stage) |
 
----
-
-## MC Evaluation (`evaluate_pvf.py`)
-
-Classifies pre-computed PV-Finder outputs against MC truth from ROOT files.
-
-**Prerequisites:** Run `TestModel.py` first to generate pickled inputs, labels, and outputs.
-
-### Usage
+## How to Run
 
 ```bash
-PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf \
-    -o outputs/evaluation/pvf_results \
-    -m unet \
-    -f data/monte_carlo/training_data.h5 \
-    -r data/monte_carlo/pvfinder_data.root \
-    -i test_indices.p \
-    -s 0.34
-```
+source venv/bin/activate
 
-### CLI Arguments
-
-| Flag | Required | Default | Description |
-|------|----------|---------|-------------|
-| `-o`, `--dirname` | yes | — | Directory with pickled PVF outputs |
-| `-m`, `--modelname` | yes | — | Model name (e.g. `unet`, `unetplusplus`) |
-| `-f`, `--path_hdf5` | yes | — | Path to input H5 file |
-| `-r`, `--path_root` | yes | — | Path to ROOT file (same data as H5) |
-| `-i`, `--indices` | yes | — | Pickled index array for train/test split |
-| `-s`, `--sigma` | yes | — | σ_vtx-vtx matching window (mm) |
-| `-n`, `--nevents` | no | 51000 | Total events in input |
-| `--use_label_truth` | no | off | Use KDE label peaks instead of ROOT truth |
-| `--label_peak_thresh` | no | 0.1 | Peak height threshold for label truth |
-
-### Truth Sources
-
-- **Default (ROOT):** Reads `TruthVertex_x/y/z/nTracks` from the ROOT file,
-  filtered to nTracks ≥ 2.
-- **Label-based (`--use_label_truth`):** Finds peaks in the KDE labels using
-  `scipy.signal.find_peaks`. All peaks are valid (dummy nTracks = 10).
-
-### Peak-Finding Parameters (hardcoded)
-
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `threshold` | 0.01 | Min bin value to start a peak |
-| `integral_threshold` | 0.2 | Min integral for a valid peak |
-| `min_width` | 3 | Min consecutive above-threshold bins |
-
-### Efficiency Metrics
-
-Two metrics are computed:
-
-1. **Custom efficiency:** fraction of truth vertices (nTracks ≥ 2) classified
-   as "clean" or "merged" by `compare_res_reco`.
-
-2. **LHCb-style efficiency:** computed by `pv_finder.utils.efficiency.efficiency`
-   with parameters `difference=5.0`, `threshold=1e-2`, `integral_threshold=0.2`,
-   `min_width=3`. Returns (S, Sp, MT, FP).
-
-### Output Files
-
-Pickled dictionaries keyed by pileup (rounded `ActualNumOfInt`):
-
-```
-{dirname}/
-├── separated_all_pvf_{model}.p      # total reco per event by pileup
-├── separated_clean_pvf_{model}.p
-├── separated_merged_pvf_{model}.p
-├── separated_split_pvf_{model}.p
-├── separated_fake_pvf_{model}.p
-├── separated_eff_pvf_{model}.p      # per-event efficiency by pileup
-├── truth_correct_pvf_{model}.p      # per-truth-PV correct flag
-├── truth_ntrks_pvf_{model}.p        # per-truth-PV nTracks
-├── total_reco_z_{model}.p           # all reco z positions (mm)
-└── predicted_pv_distances_pvf_{model}.p  # all pairwise Δz
-```
-
----
-
-## Run 3 Evaluation (`evaluate_pvf_run3.py`)
-
-End-to-end evaluation on real Run 3 data. Builds subevent tensors from ROOT
-tracks, runs the PVF model, and classifies against AMVF reconstructed vertices.
-
-### Usage
-
-```bash
-PYTHONPATH=src python -m pv_finder.evaluation.evaluate_pvf_run3 \
-    --model model_weights/pvf_e2e_epoch400.pyt \
-    --input data/run3/pvfinder_data.root \
-    --output-dir outputs/evaluation/pvf_run3 \
-    --nevents 2000 \
+# E2E model, full test set, ROOT truth (recommended — matches mattia_finder):
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
+    --h5 /share/lazy/qibinlei/recoTrackNPV_jets_pubindices_1000bins_incbounds_Target_Y_split.h5 \
+    --e2e-model model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth \
+    --root /share/lazy/rocky/ATLAS_data/Latest_Sept2023/ATLAS_PVFinderData_TruthMatched.root \
+    --qibin configs/qibin_test_main_indices_v2.p \
+    --indices configs/test_main_indices_2550evt.p \
+    --output-dir outputs/eval_tracks2hist_1ch_e191_root \
     --device 0
+
+# K2H stage-2 only, no ROOT:
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
+    --h5 ... --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
+    --indices configs/test_main_indices_2550evt.p \
+    --output-dir outputs/eval_k2h --device 0
 ```
 
-### CLI Arguments
+## Test Set
 
-| Flag | Required | Default | Description |
-|------|----------|---------|-------------|
-| `--model` | yes | — | Path to trained model (.pyt) |
-| `--input` | yes | — | Input file (.pkl or .root) |
-| `--output-dir` | yes | — | Output directory |
-| `--nevents` | no | 1000 | Number of events to process |
-| `--seed` | no | 42 | Random seed |
-| `--sigma-vtx-vtx` | no | 0.34 | Resolution for matching (mm) |
-| `--threshold` | no | 0.02 | Peak finding threshold |
-| `--integral-threshold` | no | 0.4 | Integral threshold |
-| `--min-width` | no | 2 | Min peak width (bins) |
-| `--device` | no | 0 | GPU device (-1 for CPU) |
-| `--batch-size` | no | 600 | GPU batch size (sub-events) |
+- **File:** `configs/test_main_indices_2550evt.p`
+- **Events:** h5 indices 48450–50999 (2550 events = last 5% of 51000)
+- **Subevents:** 581400–611999 (30600 subevents, split [0.7, 0.25, 0.05])
+- Matches `mattia_finder` test set exactly.
 
-### Pipeline
+## Key Design Decisions
 
-1. Load tracks from ROOT/pkl (`Track_z0/d0/theta/phi/ErrD0Z0/ErrZ0`)
-2. Build 12 subevent tensors (7 features, 100 tracks each, padded to -999999)
-3. Run PVF model on GPU in batches
-4. Stitch 12 subevent outputs into full 12000-bin histogram
-5. Peak-find with conjoined splitting
-6. Match against AMVF truth (beam-corrected, nTracks ≥ 2) using `compare_res_reco`
-7. Generate resolution plot (PVF + AMVF overlay) and category bar chart
+### Peak-finding thresholds
 
-### Known Issue: Feature Engineering
+| Parameter | Value | Used for |
+|-----------|-------|---------|
+| `threshold` | `1e-2` | Min bin height to start a peak |
+| `INTEGRAL_THRESHOLD` | `0.2` | Min peak area — for performance metrics |
+| `INTEGRAL_THRESHOLD_RES` | `0.5` | Min peak area — for σ_vtx_vtx only |
+| `min_width` | `3` bins | Min peak width |
 
-The current code uses the **mattia_finder feature mapping** which is known to
-be wrong for the PV-Finder training setup:
+Matches `evaluate_model.py` (0.2) and `calculate_sigma.py` (0.5) in `mattia_finder`.
 
-| Channel | Current (wrong) | Correct |
-|---------|----------------|---------|
-| 0 | d0 / 2 | d0 |
-| 1 | z0 | z0 |
-| 2 | theta / 3 | d0_err |
-| 3 | (phi + π) / 3 | z0_err |
-| 4 | sig_d0_z0 | d0_z0_cov |
+### ROOT truth vs h5 truth
 
-This will be fixed as a follow-up after testing the matching/classification logic.
+Without `--root`: truth PVs from h5 `pv` field — **no nTracks filter**. All truth PVs included, which inflates `reco_merged` count.
 
-### Output Files
+With `--root` + `--qibin`: truth PVs from `ATLAS_PVFinderData_TruthMatched.root`, filtered to **nTracks ≥ 2**. Matches `mattia_finder` exactly.
 
-```
-{output-dir}/
-├── run3_eval_summary.json
-├── pvfinder_deltaz_resolution.png/pdf   # PVF + AMVF overlay
-├── pvfinder_vs_amvf_bar.png/pdf         # Category bar chart
-├── run3_eval_separated_clean.p
-├── run3_eval_separated_merged.p
-├── run3_eval_separated_split.p
-├── run3_eval_separated_fake.p
-├── run3_eval_truth_ntrks.p
-├── run3_eval_truth_correct.p
-├── run3_eval_total_reco_z.p
-└── run3_eval_all_pred_hists.p
-```
+### h5 ↔ ROOT event index mapping
 
----
+The h5 file uses reindexed ("pubindices") event ordering — h5 event `i` ≠ ROOT event `i`. The correct ROOT index for the `k`-th sequential test event is `qibin[k]`, stored in `configs/qibin_test_main_indices_v2.p` (copied from `mattia_finder/config/`).
 
-## Vertex Matching (`vertex_matching.py`)
+### Pileup filter for summary
 
-Core matching logic, ported from `efficiency_res_optimized_atlas.py`.
+Summary statistics (clean/merged/split/fake averages) are computed only over events with **55 ≤ ActualNumOfInt ≤ 65** (from ROOT). This matches `mattia_finder`'s `plot_tracks2hist.py` convention. Overall efficiency across all events is also printed.
 
-### Functions
+### Pairwise Δz for σ_vtx_vtx
 
-| Function | Description |
-|----------|-------------|
-| `_pv_locations_updated_res` | Peak finding with conjoined splitting (6-tuple return) |
-| `filter_nans_res` | Filter predicted peaks that land on NaN regions in labels |
-| `get_reco_resolution` | Per-peak FWHM-based resolution measurement |
-| `compare_res_reco` | Classify predicted PVs as Clean/Merged/Split/Fake |
-| `compare_res_reco2` | Extended version with per-peak resolution support |
-| `fit_sigma_vtx_vtx` | Fit sigmoid to pairwise Δz distribution |
-| `make_resolution_plot` | Generate Δz histogram + sigmoid fit plot |
+`pv_locations_updated_res` returns PVs sorted ascending in z, so all pairwise differences `pvs[i]-pvs[j]` for `i<j` are negative. Both `+dz` and `-dz` are added to make the distribution symmetric before fitting the sigmoid.
 
-### Vertex Categories
+## Outputs
 
-| Category | Definition |
-|----------|-----------|
-| **Clean** | Exactly one truth PV within the σ_vtx-vtx matching window |
-| **Merged** | Multiple truth PVs within the matching window |
-| **Split** | Multiple reco PVs match the same truth PV (closest kept, rest = Split) |
-| **Fake** | No truth PV within the matching window |
+| File | Contents |
+|------|----------|
+| `resolution_plot.png` | Pairwise Δz histogram + sigmoid fit → σ_vtx_vtx |
+| `performance_plot.png` | Clean/merged/split/fake fractions and efficiency vs pileup |
+| `stats_histogram.png` | Avg count/event for clean/merged/split/fake vs pileup (all events, mattia_finder style) |
+| `eval_results.pkl` | All per-event results, pred/truth PV positions, fit params |
 
-### Resolution Fitting
+## Model Checkpoints
 
-Histogram all pairwise z-distances between predicted PVs in [−6, 6] mm
-(61 bins) and fit a sigmoid:
+| Model | File |
+|-------|------|
+| E2E ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` |
+| K2H ep190 | `model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth` |
+| T2KDE ep130 | `model_weights/reproduction_KDE_A_z_matmauro_run1_200_epoch_130_fullstate.pth` |
 
-```
-f(x) = a / (1 + exp(b * (rcc - |x|))) + c
-```
+The E2E checkpoint was extracted from the mattia_finder MLflow artifact (`.pyt` full model → state dict) using the `pvfinder` conda env, since the `.pyt` format embeds the `model` module path.
 
-The parameter `rcc` = σ_vtx-vtx is the vertex-vertex resolution.
+## Outstanding Issues
 
-### Bugs Fixed During Port
+1. **No nTracks per truth PV in h5** — the flat h5 `pv` field has only z positions, no track counts. The nTracks≥2 filter therefore requires the ROOT file. Consider adding a `--no-root` fast mode that notes this caveat explicitly.
 
-| Bug | Location | Fix |
-|-----|----------|-----|
-| `[[]]*n` shallow copy | `compare_res_reco` | `[[] for _ in range(n)]` |
-| `MT_total+=eff[3]` | `evaluate_pvf.py` | `FP_total+=eff[3]` (index 3 is FP, not MT) |
+2. **σ_vtx_vtx fit quality** — the sigmoid fit sometimes has large uncertainty (±0.24 mm on a 0.34 mm value). More events or a tighter fit range would help.
+
+3. **Pileup proxy inconsistency** — performance plot x-axis uses N truth PVs (from h5/ROOT), while mattia_finder uses `ActualNumOfInt`. These differ: `ActualNumOfInt` is the number of pp interactions, not reconstructed PVs. Should switch plot x-axis to `ActualNumOfInt` when ROOT is available.
+
+4. **E2E checkpoint extraction** — `tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` was manually extracted. Other epoch checkpoints have not been extracted. Automate if needed.
+
+5. **Split file limit** — `run_eval_pvf.py` is at exactly 500 lines (the pre-commit limit). Any further feature additions will require splitting the file (e.g., extract plotting helpers to `plots_pvf.py`).

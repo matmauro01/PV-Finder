@@ -527,3 +527,41 @@ follow-up.
 after validation against known-good mattia_finder results.
 
 Updated: `docs/evaluation/vertex_finding.md`.
+
+---
+
+## 2026-02-25 — MC evaluation pipeline (run_eval_pvf.py)
+
+Built `src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py` from scratch to replace the broken legacy eval scripts. Supports three pipeline modes: K2H-only (analytical KDE), full T2KDE→K2H, and E2E (tracks→hist directly).
+
+**Key findings during development:**
+
+- **h5 ↔ ROOT index mismatch.** The h5 file uses reindexed ("pubindices") event ordering — h5 event `i` ≠ ROOT event `i`. The mapping is `configs/qibin_test_main_indices_v2.p` (copied from mattia_finder). Without this, ROOT truth matching gives ~16% efficiency instead of ~90%.
+
+- **Pairwise Δz symmetry.** `pv_locations_updated_res` returns PVs sorted ascending, so all raw pairwise differences are negative. Fixed by adding both `+dz` and `-dz`, making the distribution symmetric for the sigmoid fit.
+
+- **Two integral thresholds.** Use `0.5` for σ_vtx_vtx computation (matches `calculate_sigma.py`) and `0.2` for performance metrics (matches `evaluate_model.py`).
+
+- **Pileup filter.** Summary statistics match mattia_finder only when restricted to events with 55 ≤ ActualNumOfInt ≤ 65 (loaded from ROOT). Overall efficiency across all events is also reported.
+
+- **nTracks≥2 filter.** Without `--root`, truth from h5 has no track filter, inflating `reco_merged`. With `--root --qibin`, truth is filtered to nTracks≥2, matching mattia_finder exactly.
+
+- **E2E checkpoint format.** mattia_finder saves full model objects (`.pyt`), not state dicts. Extracted state dict using the `pvfinder` conda env and saved as `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth`.
+
+**Test set:** `configs/test_main_indices_2550evt.p` — h5 events 48450–50999 (last 5%, matches mattia_finder split [0.7, 0.25, 0.05]).
+
+Updated: `docs/evaluation/vertex_finding.md`.
+
+---
+
+## 2026-02-27 — Add stats_histogram.png to run_eval_pvf.py
+
+Added `plot_stats_histogram()` to `run_eval_pvf.py`. Produces `stats_histogram.png` alongside the existing `resolution_plot.png` and `performance_plot.png`.
+
+**What it shows:** average count/event for clean, merged, split, and fake reconstructed PVs vs pileup (all events, no μ filter), with mean ± SEM error bars. X-axis is `ActualNumOfInt` (rounded) when ROOT truth is available, else N truth PVs per event.
+
+**Why:** matches the `make_npv_plot` / category summary style from `mattia_finder/plotting/plot_tracks2hist.py` — adjacent-mu pair binning, one line per category with error bars.
+
+**Implementation note:** to stay within the 500-line limit, several verbose print blocks and docstrings were trimmed. The file is now at exactly 500 lines.
+
+Updated: `docs/evaluation/vertex_finding.md`.
