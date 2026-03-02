@@ -13,6 +13,8 @@ CRITICAL: The MC H5 feature channels are decoded as:
     Channel 6: z_end     (sub-event boundary, mm)
 """
 
+from typing import Optional
+
 import numpy as np
 from tqdm import tqdm
 
@@ -30,13 +32,13 @@ N_TRACKS_PER_SUBEVENT = 100  # padding size used during training
 
 # CORRECT feature channel names -- the whole point of this script
 CHANNEL_NAMES = [
-    "d0 [mm]",           # channel 0
-    "z0 [mm]",           # channel 1
-    "d0_err [mm]",       # channel 2  (NOT theta!)
-    "z0_err [mm]",       # channel 3  (NOT phi!)
+    "d0 [mm]",  # channel 0
+    "z0 [mm]",  # channel 1
+    "d0_err [mm]",  # channel 2  (NOT theta!)
+    "z0_err [mm]",  # channel 3  (NOT phi!)
     "d0_z0_cov [mm^2]",  # channel 4
-    "z_start [mm]",      # channel 5
-    "z_end [mm]",        # channel 6
+    "z_start [mm]",  # channel 5
+    "z_end [mm]",  # channel 6
 ]
 CHANNEL_SHORT = ["d0", "z0", "d0_err", "z0_err", "cov", "z_s", "z_e"]
 
@@ -44,6 +46,7 @@ CHANNEL_SHORT = ["d0", "z0", "d0_err", "z0_err", "cov", "z_s", "z_e"]
 # ============================================================================
 # Utility helpers
 # ============================================================================
+
 
 def safe_percentile(arr, pcts):
     """np.percentile that handles empty arrays gracefully."""
@@ -70,12 +73,19 @@ def feature_stats(arr):
 # Data Loading
 # ============================================================================
 
-def load_mc_data(h5_path, n_events=200):
+
+def load_mc_data(h5_path, n_events=200, start_event: int = 0):
     """Load MC validation events from the HDF5 training file.
 
     Uses sequential sub-event indices from the validation split
     (70%--95% of the 612000 sub-events, i.e. indices 428400 to 581400).
     Each event consists of 12 contiguous sub-events.
+
+    Parameters
+    ----------
+    start_event:
+        Offset (in events) from the start of the validation split.
+        Use to load a different slice of the validation set.
 
     Returns
     -------
@@ -86,34 +96,57 @@ def load_mc_data(h5_path, n_events=200):
 
     print(f"Loading MC data: {h5_path}")
     total_subevents = 612000
-    val_start = int(total_subevents * 0.7)    # 428400
-    val_end = int(total_subevents * 0.95)      # 581400
+    val_start = int(total_subevents * 0.7)  # 428400
+    val_end = int(total_subevents * 0.95)  # 581400
+
+    actual_start = val_start + start_event * N_SUBEVENTS
+    if actual_start >= val_end:
+        raise ValueError(
+            f"start_event={start_event} puts the start past the end of the "
+            f"validation set (max {(val_end - val_start) // N_SUBEVENTS - 1})."
+        )
 
     n_subevents_needed = n_events * N_SUBEVENTS
-    if val_start + n_subevents_needed > val_end:
-        n_subevents_needed = val_end - val_start
+    if actual_start + n_subevents_needed > val_end:
+        n_subevents_needed = val_end - actual_start
         n_events = n_subevents_needed // N_SUBEVENTS
-    sub_end = val_start + n_events * N_SUBEVENTS
+    sub_end = actual_start + n_events * N_SUBEVENTS
 
     with h5py.File(h5_path, "r") as f:
-        tracks_all = f["tracks"][val_start:sub_end]  # (N, 7, 695)
+        tracks_all = f["tracks"][actual_start:sub_end]  # (N, 7, 695)
 
     tracks_all = tracks_all.reshape(n_events, N_SUBEVENTS, 7, 695)
 
     events = []
     for i in range(n_events):
-        events.append({
-            "tracks": tracks_all[i],  # (12, 7, 695)
-            "event_idx": i,
-        })
+        events.append(
+            {
+                "tracks": tracks_all[i],  # (12, 7, 695)
+                "event_idx": start_event + i,
+            }
+        )
 
-    print(f"  Loaded {n_events} MC validation events "
-          f"({n_events * N_SUBEVENTS} sub-events)")
+    print(
+        f"  Loaded {n_events} MC validation events "
+        f"(start_event={start_event}, {n_events * N_SUBEVENTS} sub-events)"
+    )
     return events
 
 
-def load_run3_data(cache_path, min_pileup=3, max_events=200):
+def load_run3_data(
+    cache_path,
+    min_pileup: int = 3,
+    max_events: int = 200,
+    shuffle_seed: Optional[int] = None,
+):
     """Load Run 3 events from the pre-extracted NPZ cache.
+
+    Parameters
+    ----------
+    shuffle_seed:
+        When set, randomly shuffle event order before selecting the first
+        ``max_events`` passing the pileup filter.  Ensures different runs
+        produce different events.  Pass an integer for reproducibility.
 
     Returns a list of dicts with per-event track arrays.
     """
@@ -129,9 +162,12 @@ def load_run3_data(cache_path, min_pileup=3, max_events=200):
     num_reco_vtx = data["NumRecoVtx"]
 
     n_total = len(z0_all)
+    order = np.arange(n_total)
+    if shuffle_seed is not None:
+        np.random.RandomState(shuffle_seed).shuffle(order)
     events = []
 
-    for i in range(n_total):
+    for i in order:
         nrv = int(num_reco_vtx[i])
         if nrv < min_pileup:
             continue
@@ -147,16 +183,18 @@ def load_run3_data(cache_path, min_pileup=3, max_events=200):
         beam_z_arr = np.atleast_1d(np.asarray(beam_z_raw, dtype=np.float64))
         beam_z = float(beam_z_arr[0]) if len(beam_z_arr) > 0 else 0.0
 
-        events.append({
-            "z0": z0,
-            "d0": d0,
-            "d0_err": d0_err,
-            "z0_err": z0_err,
-            "d0_z0_cov": d0_z0_cov,
-            "beam_z": beam_z,
-            "pileup": nrv,
-            "event_idx": i,
-        })
+        events.append(
+            {
+                "z0": z0,
+                "d0": d0,
+                "d0_err": d0_err,
+                "z0_err": z0_err,
+                "d0_z0_cov": d0_z0_cov,
+                "beam_z": beam_z,
+                "pileup": nrv,
+                "event_idx": i,
+            }
+        )
         if len(events) >= max_events:
             break
 
@@ -167,6 +205,7 @@ def load_run3_data(cache_path, min_pileup=3, max_events=200):
 # ============================================================================
 # MC Track Decoding -- CORRECT VERSION
 # ============================================================================
+
 
 def decode_mc_tracks(tracks_tensor):
     """Decode a single MC sub-event tensor (7, N_max) to physical params.
@@ -189,11 +228,11 @@ def decode_mc_tracks(tracks_tensor):
         return None
 
     return {
-        "d0": tracks_tensor[0, valid],          # RAW d0 (NO *2!)
-        "z0": tracks_tensor[1, valid],           # z0
-        "d0_err": tracks_tensor[2, valid],       # d0_err (NOT theta!)
-        "z0_err": tracks_tensor[3, valid],       # z0_err (NOT phi!)
-        "d0_z0_cov": tracks_tensor[4, valid],    # covariance
+        "d0": tracks_tensor[0, valid],  # RAW d0 (NO *2!)
+        "z0": tracks_tensor[1, valid],  # z0
+        "d0_err": tracks_tensor[2, valid],  # d0_err (NOT theta!)
+        "z0_err": tracks_tensor[3, valid],  # z0_err (NOT phi!)
+        "d0_z0_cov": tracks_tensor[4, valid],  # covariance
         "n_tracks": n_valid,
     }
 
@@ -201,6 +240,7 @@ def decode_mc_tracks(tracks_tensor):
 # ============================================================================
 # Run 3 Tensor Building -- matches training format exactly
 # ============================================================================
+
 
 def build_run3_subevent_tensor(z0, d0, d0_err, z0_err, d0_z0_cov, sub_idx):
     """Build a single sub-event tensor from Run 3 track arrays.
@@ -223,13 +263,13 @@ def build_run3_subevent_tensor(z0, d0, d0_err, z0_err, d0_z0_cov, sub_idx):
     sort_idx = np.argsort(z0_sub)
 
     tensor = np.full((N_FEATURES, n_trk), MASK_VAL, dtype=np.float32)
-    tensor[0, :] = d0[mask][sort_idx]           # d0 RAW
-    tensor[1, :] = z0_sub[sort_idx]             # z0
-    tensor[2, :] = d0_err[mask][sort_idx]       # d0_err
-    tensor[3, :] = z0_err[mask][sort_idx]       # z0_err
-    tensor[4, :] = d0_z0_cov[mask][sort_idx]    # d0_z0_cov
-    tensor[5, :] = z_start                      # z_start (constant)
-    tensor[6, :] = z_end                        # z_end   (constant)
+    tensor[0, :] = d0[mask][sort_idx]  # d0 RAW
+    tensor[1, :] = z0_sub[sort_idx]  # z0
+    tensor[2, :] = d0_err[mask][sort_idx]  # d0_err
+    tensor[3, :] = z0_err[mask][sort_idx]  # z0_err
+    tensor[4, :] = d0_z0_cov[mask][sort_idx]  # d0_z0_cov
+    tensor[5, :] = z_start  # z_start (constant)
+    tensor[6, :] = z_end  # z_end   (constant)
 
     return tensor, n_trk
 
@@ -237,6 +277,7 @@ def build_run3_subevent_tensor(z0, d0, d0_err, z0_err, d0_z0_cov, sub_idx):
 # ============================================================================
 # Data Collection
 # ============================================================================
+
 
 def collect_features(mc_events, run3_events):
     """Extract physical track features from both datasets.
@@ -260,23 +301,30 @@ def collect_features(mc_events, run3_events):
 
             if decoded is None:
                 mc_track_counts.append(0)
-                mc_per_subevent.append({
-                    "z_center": z_center, "n_tracks": 0,
-                    "mean_d0": 0.0, "mean_d0_err": 0.0, "std_d0": 0.0,
-                })
+                mc_per_subevent.append(
+                    {
+                        "z_center": z_center,
+                        "n_tracks": 0,
+                        "mean_d0": 0.0,
+                        "mean_d0_err": 0.0,
+                        "std_d0": 0.0,
+                    }
+                )
                 continue
 
             mc_track_counts.append(decoded["n_tracks"])
             for key in mc_feats:
                 mc_feats[key].append(decoded[key])
 
-            mc_per_subevent.append({
-                "z_center": z_center,
-                "n_tracks": decoded["n_tracks"],
-                "mean_d0": float(np.mean(decoded["d0"])),
-                "mean_d0_err": float(np.mean(decoded["d0_err"])),
-                "std_d0": float(np.std(decoded["d0"])),
-            })
+            mc_per_subevent.append(
+                {
+                    "z_center": z_center,
+                    "n_tracks": decoded["n_tracks"],
+                    "mean_d0": float(np.mean(decoded["d0"])),
+                    "mean_d0_err": float(np.mean(decoded["d0_err"])),
+                    "std_d0": float(np.std(decoded["d0"])),
+                }
+            )
 
     # Concatenate all tracks
     for key in mc_feats:
@@ -305,10 +353,15 @@ def collect_features(mc_events, run3_events):
             r3_track_counts.append(n_trk)
 
             if n_trk == 0:
-                r3_per_subevent.append({
-                    "z_center": z_center, "n_tracks": 0,
-                    "mean_d0": 0.0, "mean_d0_err": 0.0, "std_d0": 0.0,
-                })
+                r3_per_subevent.append(
+                    {
+                        "z_center": z_center,
+                        "n_tracks": 0,
+                        "mean_d0": 0.0,
+                        "mean_d0_err": 0.0,
+                        "std_d0": 0.0,
+                    }
+                )
                 continue
 
             r3_feats["d0"].append(d0[mask])
@@ -317,21 +370,24 @@ def collect_features(mc_events, run3_events):
             r3_feats["z0_err"].append(z0_err[mask])
             r3_feats["d0_z0_cov"].append(d0_z0_cov[mask])
 
-            r3_per_subevent.append({
-                "z_center": z_center,
-                "n_tracks": n_trk,
-                "mean_d0": float(np.mean(d0[mask])),
-                "mean_d0_err": float(np.mean(d0_err[mask])),
-                "std_d0": float(np.std(d0[mask])),
-            })
+            r3_per_subevent.append(
+                {
+                    "z_center": z_center,
+                    "n_tracks": n_trk,
+                    "mean_d0": float(np.mean(d0[mask])),
+                    "mean_d0_err": float(np.mean(d0_err[mask])),
+                    "std_d0": float(np.std(d0[mask])),
+                }
+            )
 
     for key in ["d0", "z0", "d0_err", "z0_err", "d0_z0_cov"]:
         r3_feats[key] = np.concatenate(r3_feats[key]) if r3_feats[key] else np.array([])
     r3_feats["track_counts"] = np.array(r3_track_counts)
     r3_feats["per_subevent"] = r3_per_subevent
 
-    print(f"    MC: {len(mc_feats['d0']):,} tracks, "
-          f"Run3: {len(r3_feats['d0']):,} tracks")
+    print(
+        f"    MC: {len(mc_feats['d0']):,} tracks, Run3: {len(r3_feats['d0']):,} tracks"
+    )
 
     return mc_feats, r3_feats
 
@@ -383,7 +439,9 @@ def collect_tensor_values(mc_events, run3_events):
             np.concatenate(r3_channels[ch]) if r3_channels[ch] else np.array([])
         )
 
-    print(f"    MC tensor values: {len(mc_channels[0]):,}, "
-          f"Run3 tensor values: {len(r3_channels[0]):,}")
+    print(
+        f"    MC tensor values: {len(mc_channels[0]):,}, "
+        f"Run3 tensor values: {len(r3_channels[0]):,}"
+    )
 
     return mc_channels, r3_channels

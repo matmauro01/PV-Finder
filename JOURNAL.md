@@ -565,3 +565,52 @@ Added `plot_stats_histogram()` to `run_eval_pvf.py`. Produces `stats_histogram.p
 **Implementation note:** to stay within the 500-line limit, several verbose print blocks and docstrings were trimmed. The file is now at exactly 500 lines.
 
 Updated: `docs/evaluation/vertex_finding.md`.
+
+---
+
+## 2026-03-01 — Eval pipeline cleanup + stats histogram
+
+**CLI simplification (Proposal B):**
+- Removed `--full-pipeline`, `--t2kde-model`, `run_t2kde` — the T2KDE→K2H path was unused and added ambiguity.
+- Merged `--root` + `--qibin` into `--root-truth`; qibin path is now hardcoded as `configs/qibin_test_main_indices_v2.p`.
+- Added defaults for `--h5` (standard data path), `--indices` (`configs/test_main_indices_2550evt.p`), and `--root-truth` (standard ROOT path). Only the model checkpoint is now required.
+- Minimal run: `python run_eval_pvf.py --e2e-model model_weights/foo.pth`
+
+**Plotting extracted to `plots_pvf.py`** (184 lines); `run_eval_pvf.py` is 467 lines.
+
+**New output: `stats_histogram.png`** — average clean/merged/split/fake count/event vs pileup (all events, paired μ bins, mean ± SEM), matching mattia_finder `make_npv_plot` style.
+
+**Pileup x-axis**: performance and stats plots now use `ActualNumOfInt` (rounded) when ROOT is available, matching mattia_finder convention. Falls back to N truth PVs without ROOT.
+
+Updated: `docs/evaluation/vertex_finding.md`.
+
+---
+
+## 2026-03-02 — Run 3 evaluation pipeline
+
+Added evaluation pipeline for Run 3 real data (`data/run3/file_3.root`).
+
+**New files:**
+- `src/pv_finder/data/run3_io.py` (265 lines) — data loading from ROOT (uproot) and NPZ cache, returning `Run3Event` NamedTuple with tracks + AMVF vertices.
+- `src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py` (470 lines) — evaluation script using AMVF vertices (nTracks >= 2) as reference "truth". Supports full pipeline (T2KDE + K2H) and E2E inference modes.
+
+**Modified:**
+- `plots_pvf.py` — added optional `title` parameter to all three plot functions for Run 3 labeling (backward compatible).
+
+**Key finding — beam correction required:** AMVF vertex z positions are beam-corrected while PVFinder output is in the detector frame. Without subtracting BeamPosZ from AMVF z, efficiency drops from ~88% to ~26% due to systematic offset. Beam correction is now the default (`--no-correct-beam` to disable).
+
+**Smoke test results (T2KDE+K2H, NPZ, 30 events):** Eff=87.6%, FP=3.93/evt, σ_vtx_vtx=0.30mm — comparable to MC evaluation (86.3%, 1.47/evt, 0.34mm).
+
+Updated: `docs/evaluation/vertex_finding.md`.
+
+---
+
+## 2026-03-02 — Random event selection for Run 3 per-vertex visualization
+
+**Problem:** `run_per_vertex.py` selected random MC events (via `--start-event`) but always took the first N Run 3 events from the NPZ file. Also, Run 3 event folders were named by loop counter (`event0000`) instead of actual NPZ index, so reruns would overwrite existing plots.
+
+**Changes:**
+- `feature_loading.py` — added `shuffle_seed` parameter to `load_run3_data()`. When set, shuffles iteration order so `max_events` picks random events.
+- `run_per_vertex.py` — added `--seed-run3` CLI arg (random by default, like MC's `--start-event`). Fixed Run 3 event naming to use `evt["event_idx"]` (actual NPZ index) instead of loop counter.
+
+**Generated:** 3 new random events for each dataset (MC events 10179–10181, Run 3 events 358/571/1012) in `outputs/per_vertex/`.

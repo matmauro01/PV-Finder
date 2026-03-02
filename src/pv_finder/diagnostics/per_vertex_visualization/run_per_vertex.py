@@ -52,6 +52,7 @@ from pv_finder.diagnostics.per_vertex_visualization.inference import (
     run_e2e_on_events,
 )
 from pv_finder.diagnostics.per_vertex_visualization.peak_matching import (
+    classify_vertices,
     find_histogram_peaks,
     load_mc_truth_vertices,
     load_run3_amvf_vertices,
@@ -80,14 +81,17 @@ _VAL_START_EVENT = _VAL_START_SUB // N_SUBEVENTS  # 35700
 # ---------------------------------------------------------------------------
 
 
-def _load_mc_truth_hists(h5_path: str, n_events: int) -> np.ndarray:
+def _load_mc_truth_hists(
+    h5_path: str, n_events: int, start_event: int = 0
+) -> np.ndarray:
     """Load MC truth histograms from H5 target_y_split, channel 0.
 
     Returns shape (n_events, 12, 1000) float32.
     """
     n_sub = n_events * N_SUBEVENTS
+    sub_start = _VAL_START_SUB + start_event * N_SUBEVENTS
     with h5py.File(h5_path, "r") as f:
-        raw = f["target_y_split"][_VAL_START_SUB : _VAL_START_SUB + n_sub, 0, :]
+        raw = f["target_y_split"][sub_start : sub_start + n_sub, 0, :]
     return raw.reshape(n_events, N_SUBEVENTS, 1000).astype(np.float32)
 
 
@@ -127,6 +131,7 @@ def _process_event(
     """
     evt_dir = os.path.join(output_dir, f"event{event_idx:04d}")
     pred_peaks = find_histogram_peaks(hist_e2e.reshape(-1))
+    truth_labels, _ = classify_vertices(truth_vertices, pred_peaks)
 
     plot_event_overview(
         hist_e2e,
@@ -157,6 +162,7 @@ def _process_event(
             hist_truth=hist_truth,
             hist_t2kde=hist_t2kde,
             all_truth_vertices=truth_vertices,
+            vertex_label=truth_labels[vi],
         )
 
     # Compact per-event summary
@@ -199,6 +205,26 @@ def main() -> None:
         default=8.0,
         help="Half-width of the zoom window around each truth vertex (mm)",
     )
+    parser.add_argument(
+        "--start-event",
+        type=int,
+        default=None,
+        help=(
+            "Offset from the start of the MC validation split (events 35700–48449). "
+            "Defaults to a new random value each run. "
+            "Pass an integer for reproducibility."
+        ),
+    )
+    parser.add_argument(
+        "--seed-run3",
+        type=int,
+        default=None,
+        help=(
+            "Random seed for shuffling Run 3 event selection.  "
+            "Defaults to a new random value each run.  "
+            "Pass an integer for reproducibility."
+        ),
+    )
     parser.add_argument("--mc-h5", default=_DEFAULT_MC_H5, help="MC HDF5 file")
     parser.add_argument(
         "--run3-npz", default=_DEFAULT_RUN3_NPZ, help="Run 3 NPZ cache file"
@@ -215,15 +241,34 @@ def main() -> None:
 
     n_ev = args.n_events
 
+    # Resolve start_event: random if not specified (max offset = 12747)
+    import random as _random
+
+    _VAL_N_EVENTS = 12750  # validation events (35700–48449)
+    start_event = (
+        args.start_event
+        if args.start_event is not None
+        else _random.randint(0, _VAL_N_EVENTS - n_ev)
+    )
+    print(f"MC start_event offset: {start_event}  (event index {35700 + start_event})")
+
+    # Resolve Run 3 seed: random if not specified
+    run3_seed = (
+        args.seed_run3 if args.seed_run3 is not None else _random.randint(0, 2**31)
+    )
+    print(f"Run 3 shuffle seed: {run3_seed}")
+
     # ---- Load tracks ----
-    mc_events = load_mc_data(args.mc_h5, n_events=n_ev)
-    run3_events = load_run3_data(args.run3_npz, max_events=n_ev)
+    mc_events = load_mc_data(args.mc_h5, n_events=n_ev, start_event=start_event)
+    run3_events = load_run3_data(args.run3_npz, max_events=n_ev, shuffle_seed=run3_seed)
 
     # Original NPZ indices are needed by load_run3_amvf_vertices
     run3_indices = [evt["event_idx"] for evt in run3_events]
 
     # ---- Load truth vertices ----
-    mc_truth_vtx = load_mc_truth_vertices(args.mc_h5, n_ev)
+    mc_truth_vtx = load_mc_truth_vertices(
+        args.mc_h5, n_ev, val_start_event=_VAL_START_EVENT + start_event
+    )
     run3_amvf_vtx = load_run3_amvf_vertices(args.run3_npz, run3_indices)
 
     # ---- e2e model ----
@@ -257,7 +302,7 @@ def main() -> None:
     run3_ana = compute_analytical_kdes_batch(run3_events, "run3")
 
     # ---- MC truth histograms (training targets) ----
-    mc_truth_hists = _load_mc_truth_hists(args.mc_h5, n_ev)
+    mc_truth_hists = _load_mc_truth_hists(args.mc_h5, n_ev, start_event=start_event)
 
     # ---- Output directories ----
     mc_out = os.path.join(args.output_dir, "mc")
@@ -269,7 +314,7 @@ def main() -> None:
     for i, evt in enumerate(mc_events):
         z0, d0, d0_err = _mc_track_arrays(evt)
         _process_event(
-            event_idx=i,
+            event_idx=evt["event_idx"],
             hist_e2e=mc_e2e[i],
             hist_ana=mc_ana[i],
             truth_vertices=mc_truth_vtx[i],
@@ -288,7 +333,7 @@ def main() -> None:
     print("Run 3 events:")
     for i, evt in enumerate(run3_events):
         _process_event(
-            event_idx=i,
+            event_idx=evt["event_idx"],
             hist_e2e=run3_e2e[i],
             hist_ana=run3_ana[i],
             truth_vertices=run3_amvf_vtx[i],
