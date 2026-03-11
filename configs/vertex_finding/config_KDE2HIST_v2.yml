@@ -1,0 +1,40 @@
+# Config for KDE-to-Histogram training — UNet_1000_v2
+# Identical hyperparameters to config_KDE2HIST_matmauro.yml, only model changed.
+
+# ===================================================
+# Data configurations
+
+data_file: /share/lazy/qibinlei/recoTrackNPV_jets_pubindices_1000bins_incbounds_Target_Y_split.h5
+output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
+
+# ===================================================
+# Training configurations
+
+device_id: 0
+n_events: 51000
+train_split: [0.7, 0.25, 0.05]
+n_epochs: 200
+batch_size: 128
+num_workers: 16
+learning_rate: 0.0001
+asymmetry_param: 2.5
+
+save_weights: True
+save_frequency: 10
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/
+
+experimentname: "ATLAS 2025 - K2H v2 (interp upsample)"
+runname: "K2H_v2_interp_200epochs"
+
+# ===================================================
+# Model configurations
+
+model_class: KDE-to-hist
+model_type: UNet_v2
+
+models_config:
+    UNet_v2:
+        n: 64
+        dropout_p: 0.0
+        n_features: 1
+        out_idx: 0

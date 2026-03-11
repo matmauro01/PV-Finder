@@ -10,9 +10,8 @@ from pv_finder.data.collectdata_poca_KDE import (
     collect_data_poca_ATLAS as collect_data_poca,
 )
 from pv_finder.models.alt_loss_A import Loss
-
-# from pv_finder.models.autoencoder_models import trackstoHists_UNet_400, UNet_400
 from pv_finder.models.autoencoder_models import UNet_1000
+from pv_finder.models.unet_v2 import UNet_1000_v2
 from pv_finder.training.training import trainNet
 from pv_finder.utils.utilities import (
     load_checkpoint,
@@ -44,12 +43,20 @@ def main(configs):
     mlflow.tracking.set_tracking_uri("file:/data/home/matmauro/codice/PV-Finder/mlruns")
     mlflow.set_experiment(configs["experimentname"])
 
-    # print("Loaded model weights dictionary: ", best_model_state)
-
-    model = UNet_1000(
-        dropout_p=configs["models_config"]["UNet"].get("dropout_p", 0.25),
-        n_features=configs["models_config"]["UNet"].get("n_features", 1),
-    )
+    model_type = configs.get("model_type", "UNet")
+    if model_type == "UNet_v2":
+        mcfg = configs["models_config"]["UNet_v2"]
+        model = UNet_1000_v2(
+            n=mcfg.get("n", 64),
+            n_features=mcfg.get("n_features", 1),
+            dropout_p=mcfg.get("dropout_p", 0.0),
+        )
+    else:
+        mcfg = configs["models_config"]["UNet"]
+        model = UNet_1000(
+            dropout_p=mcfg.get("dropout_p", 0.25),
+            n_features=mcfg.get("n_features", 1),
+        )
 
     # print("Model dict before: ", model.state_dict())
 
@@ -65,7 +72,7 @@ def main(configs):
 
     # print("This is the selected neural network model: ", model)
     # Output index for Target_Y
-    out_idx = configs["models_config"]["UNet"].get("out_idx", 0)
+    out_idx = mcfg.get("out_idx", 0)
     # print("Your out index: ", out_idx)
 
     optimizer = torch.optim.Adam(

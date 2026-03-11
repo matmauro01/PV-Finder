@@ -34,6 +34,7 @@ from pv_finder.models.autoencoder_models import (  # noqa: E402
     UNet_1000,
     trackstoHists_UNet_1000,
 )
+from pv_finder.models.unet_v2 import UNet_1000_v2  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent))
 from efficiency_res_optimized_atlas import (  # noqa: E402
@@ -205,7 +206,10 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     else:
         t2kde = MaskedDNN(**T2KDE_CONFIG)
         load_ckpt(args.t2kde_model, t2kde, device)
-        k2h = UNet_1000(**K2H_CONFIG)
+        if args.k2h_type == "v2":
+            k2h = UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
+        else:
+            k2h = UNet_1000(**K2H_CONFIG)
         load_ckpt(args.k2h_model, k2h, device)
         mode_label = (
             f"T2KDE+K2H ({Path(args.t2kde_model).stem} + {Path(args.k2h_model).stem})"
@@ -467,6 +471,8 @@ if __name__ == "__main__":
     parser.add_argument("--e2e-model", default=None, dest="e2e_model")
     parser.add_argument("--t2kde-model", default=None, dest="t2kde_model")
     parser.add_argument("--k2h-model", default=None, dest="k2h_model")
+    parser.add_argument("--k2h-type", default="v1", choices=["v1", "v2"],
+                        dest="k2h_type", help="K2H model class (v1=UNet_1000, v2=UNet_1000_v2)")  # fmt: skip
     parser.add_argument("--max-events", type=int, default=0, dest="max_events")
     parser.add_argument("--min-tracks", type=int, default=1, dest="min_tracks")
     parser.add_argument("--min-amvf-vtx", type=int, default=1, dest="min_amvf_vtx")
