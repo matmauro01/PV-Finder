@@ -614,3 +614,280 @@ Updated: `docs/evaluation/vertex_finding.md`.
 - `run_per_vertex.py` — added `--seed-run3` CLI arg (random by default, like MC's `--start-event`). Fixed Run 3 event naming to use `evt["event_idx"]` (actual NPZ index) instead of loop counter.
 
 **Generated:** 3 new random events for each dataset (MC events 10179–10181, Run 3 events 358/571/1012) in `outputs/per_vertex/`.
+
+---
+
+## 2026-03-02 — Investigation: near-zero Δz excess in Run 3 resolution plots
+
+The Run 3 pairwise Δz resolution plot shows a conspicuous excess of entries in the
+-1mm to +1mm range compared to MC. Three hypotheses were tested systematically.
+
+**Methodology:**
+
+1. *Pileup check:* Analyzed 2000 Run 3 events from NPZ, using number of AMVF vertices
+   (nTracks >= 2) as pileup proxy. Computed all pairwise Δz between AMVF truth vertices,
+   tagged by pileup tercile (low/mid/high).
+
+2. *Model prediction analysis:* Used existing eval pickles to classify close predicted-PV
+   pairs by matching both predictions to truth (0.5mm window):
+   - Run 3: `outputs/eval_run3_e2e_2500/eval_results.pkl` (2500 events, e2e epoch 130)
+   - MC: `outputs/eval_e2e_pvfinder_ep130_root/eval_results.pkl` (2550 events, same model, ROOT truth)
+   - For each pair of predicted PVs with |Δz| < 1.5mm, classified the pair as:
+     split (both match same truth), fake-neighbor (one or both unmatched), or close-truth
+     (both match different truth vertices).
+
+3. *Histogram-level analysis:* Ran e2e inference on 200 Run 3 and 200 MC events, analyzed
+   peak heights, widths, proximity to truth, and threshold sensitivity.
+
+**Result 1 — Pileup is NOT the cause:**
+
+High-pileup events contribute ~45% of ALL pairwise Δz (due to N^2/2 scaling), but this
+fraction is identical across all Δz ranges. Mean pileup is ~31.0 for every Δz bin from
+0 to 6mm — no trend whatsoever.
+
+**Result 2 — Peak splitting: NOT the primary cause:**
+
+Run 3 has 1.49 splits/evt vs MC 1.51 splits/evt — essentially identical. Splitting is
+a baseline effect present in both datasets, not Run 3-specific.
+
+**Result 3 — Fake neighbor peaks: THE DOMINANT CAUSE:**
+
+- Run 3: 3.84 fake peaks/evt, MC: 0.69 fake peaks/evt (5.6x more in Run 3)
+- Fake-to-real ratio: Run 3 = 11.7%, MC = 2.7% (4.4x worse)
+- 79% of Run 3 fakes are within 1.5mm of a truth vertex — they are "shoulder" peaks /
+  sidelobes of real vertex peaks, not random noise
+- 57.6% are 0.5–1.0mm from truth — directly populating the near-zero Δz excess
+- Fake peaks have median height 0.051 (vs real 0.30), FWHM 0.68mm (vs real 0.24mm)
+- At |Δz| in [0.5, 1.0mm), fake-neighbor pairs: Run 3 = 1603/1000evt vs MC = 421/1000evt,
+  an excess of +1182/1000evt
+- Even at integral_threshold=1.0, Run 3 still has 0.62 fake/evt vs MC 0.01
+
+**Result 4 — Close truth vertices: NOT the cause (opposite direction):**
+
+MC has 15.8 close truth pairs/evt vs Run 3 2.8 — MC has 5.6x MORE close truth vertices.
+If anything, this should produce more near-zero excess in MC, not Run 3.
+
+**Conclusion:**
+
+The near-zero Δz excess is caused by domain shift: the model produces broader, noisier
+histogram output on Run 3 data, creating spurious sidelobes near real vertex peaks that
+pass the peak-finding threshold. The real peaks are similar between MC and Run 3, but
+the flanks/tails are significantly noisier in Run 3. This manifests as low-amplitude,
+wide fake peaks sitting on the shoulders of genuine vertex peaks.
+
+**Key numbers:**
+- sigma_vtx_vtx: Run 3 = 0.309mm, MC = 0.383mm (but Run 3 fit is degraded by fakes)
+- Efficiency: Run 3 = 96.8%, MC = 93.9%
+
+**Analysis scripts:** `/tmp/pileup_resolution_check.py`, `/tmp/investigate_near_zero.py`,
+`/tmp/histogram_analysis2.py`.
+
+**Eval results used:** `outputs/eval_run3_e2e_2500/`, `outputs/eval_e2e_pvfinder_ep130_root/`.
+
+**Next steps:** (completed in follow-up below)
+
+---
+
+## 2026-03-02 — Deep-dive: KDE inflection points & fake peak visualization
+
+Follow-up to the near-zero Δz investigation. Two tasks completed:
+
+### 1. KDE inflection point investigation
+
+Analyzed 40 fake-neighbor cases across 38 unique Run 3 events. For each event, ran
+the e2e model and computed the analytical KDE, then measured metrics at fake peak
+locations vs 1373 truth-matched (real) peak locations. Five hypotheses tested:
+
+**H1 — KDE inflection points: NOT SUPPORTED.**
+47.5% of fakes are at KDE inflection points vs 54.3% of real peaks. Fakes are
+actually *less* likely to sit at inflection points than real peaks.
+
+**H2 — KDE shoulder (positive curvature): NOT SUPPORTED.**
+Only 5.0% of fake peaks have positive KDE curvature vs 10.8% of real peaks.
+95% of fakes are at locations where the KDE is concave-down — genuine signal exists.
+
+**H3 — Model amplification: WEAKLY SUPPORTED.**
+Fakes have ~15% higher hist/KDE amplification ratio (0.0056 vs 0.0049). The model
+slightly over-amplifies at fake locations, but the difference is modest.
+
+**H4 — Subevent boundary artifacts: NOT SUPPORTED.**
+10.0% of fakes vs 10.1% of real peaks are within 2mm of a boundary — identical.
+
+**H5 — Track density: STRONGLY SUPPORTED (p = 0.00014).**
+Fake peaks: 31.9 tracks/mm (mean), median 26.
+Real peaks: 21.3 tracks/mm (mean), median 16.
+Mann-Whitney U test confirms significance. Fake sidelobe peaks appear preferentially
+in high track-density regions.
+
+**Interpretation:** Fakes are NOT inflection-point or boundary artifacts. They occur
+in high track-density regions where the analytical KDE itself has substantial signal
+(mean KDE at fakes = 57.7 vs 88.6 at real peaks, ~47% of truth-peak KDE). The model
+sees a broad KDE feature from many overlapping tracks and over-resolves it into multiple
+narrow peaks — a **deconvolution artifact**. The UNet trained on MC (with typically fewer
+close-by tracks per vertex) over-resolves the broader KDE shoulders of denser Run 3 data.
+
+**Analysis script:** `/tmp/kde_investigation.py`.
+**Results:** `outputs/kde_investigation_results.pkl`.
+
+### 2. Fake-neighbor visualization (40 cases)
+
+Produced per-vertex zoom plots for all 40 identified fake-neighbor cases using the
+existing `plot_vertex_zoom` code. For each case, two views:
+- **Fake-centered**: zoom window (±4mm) centered on the fake peak position
+- **Truth-centered**: zoom window (±4mm) centered on the nearby truth vertex
+
+Each plot shows e2e predicted histogram (red), analytical KDE (blue), T2KDE model
+(orange), all AMVF truth vertices, predicted peaks (filled/unfilled dots), and the
+track scatter panel. Also produced 38 event-overview plots.
+
+**Output:** `outputs/fake_neighbor_viz/` — 118 PNGs + 38 PDFs.
+**Visualization script:** `/tmp/visualize_fake_neighbors.py`.
+**Cases source:** `outputs/fake_neighbor_cases.pkl` (40 cases from 500 events).
+
+**Next steps:** (completed in follow-up below)
+
+---
+
+## 2026-03-03 — Pipeline vs E2E comparison on Run 3 (2000 events)
+
+Ran both the two-stage pipeline (T2KDE ep130 → K2H ep190) and the e2e model (ep130) on
+the same 2000 Run 3 events from NPZ, to test whether the pipeline produces fewer fakes.
+
+**Results (same 2000 events, AMVF truth, same peak-finding thresholds):**
+
+| Metric          | Pipeline (T2KDE→K2H) | E2E        |
+|-----------------|----------------------|------------|
+| Fake/evt        | 3.96                 | 4.92       |
+| Efficiency      | 87.1%                | 97.3%      |
+| sigma_vtx_vtx   | 0.304 mm             | 0.353 mm   |
+| Clean/evt       | 25.19                | 28.16      |
+| Split/evt       | 0.62                 | 0.87       |
+| Missed/evt      | 3.75                 | 0.78       |
+| Pred/evt        | 29.78                | 33.96      |
+
+**Key finding:** Pipeline has 20% fewer fakes (3.96 vs 4.92/evt) and a cleaner
+resolution plot (less near-zero Δz excess). But it comes at a steep efficiency cost:
+87.1% vs 97.3%, missing 3.75 vtx/evt vs 0.78. The pipeline is more conservative overall.
+
+**Interpretation:** Both models produce significant fakes on Run 3 — the issue is not
+unique to the e2e architecture. The K2H UNet also over-resolves, just less aggressively
+than the e2e model. This suggests the problem is in the UNet decoder stage regardless
+of whether the input is a learned latent (e2e) or an explicit KDE (pipeline).
+
+**Resolution plots confirm:** Pipeline plot shows a clean step function with minimal
+near-zero excess. E2E plot shows clear bumps at ±0.5–1mm (the sidelobe fakes).
+
+**Output:** `outputs/eval_run3_pipeline_2000/`, `outputs/eval_run3_e2e_2000/`.
+
+**Revised next steps:**
+- Post-processing sidelobe suppression filter on e2e output (keep high efficiency,
+  reduce fakes) — this is the most practical short-term fix
+- Domain adaptation: fine-tune UNet on Run 3-like data
+- Training augmentation: add MC events with artificially increased track density
+
+---
+
+## 2026-03-03 — Post-processing: Gaussian smoothing + NMS for sidelobe suppression
+
+Added two post-processing features to `run_eval_pvf_run3.py` to address the Run 3
+fake sidelobe problem identified on 2026-03-02.
+
+### What they do
+
+**Gaussian pre-smoothing** (`--smooth-sigma S`): Applies `gaussian_filter1d(ph, sigma=S)`
+to the predicted histogram *before* peak finding. The original unsmoothed histogram is
+preserved for all other purposes. Merges narrow sidelobe fluctuations into their parent
+peaks so the peak finder never sees them as separate peaks. Mainly kills the closest
+fakes (< ~0.3 mm from parent).
+
+**NMS** (`--nms-min-sep D --nms-max-ratio R`): After peak finding, scans all pairs of
+peaks closer than D mm. If the shorter peak's height is < R × the taller peak's height,
+the shorter one is suppressed. Processes tallest-first. Targets remaining sidelobes at
+0.5–0.85 mm that survived the blur. Preserves genuine close vertex pairs (similar heights)
+while killing sidelobe fakes (much shorter than parent).
+
+Implementation: `suppress_neighbor_peaks()` in `efficiency_res_optimized_atlas.py`.
+
+### Configuration sweep (2109 events, E2E ep130, file_3.root 300K–302.5K)
+
+| Configuration             | Eff (%) | Fake/evt | sigma (mm) |
+|---------------------------|---------|----------|------------|
+| Baseline (no PP)          | 97.6    | 4.80     | 0.347      |
+| smooth s=2                | 97.7    | 4.10     | 0.415      |
+| s=2 + NMS(0.85, 0.3)     | 97.4    | 2.70     | 0.487      |
+| s=2 + NMS(0.85, 0.5)     | 96.9    | 2.00     | 0.592      |
+
+Note: raw sigma values *increase* with PP because the fake close pairs that were
+artificially pulling sigma down get removed. The post-PP sigma is a more honest measure.
+
+### Decomposition: smoothing vs NMS
+
+| Step                       | Peaks removed/evt | Fake | Real |
+|----------------------------|:-:|:-:|:-:|
+| Gaussian blur (s=2)        | 0.79 | 0.75 | 0.05 |
+| NMS (0.85, ratio<0.5)      | 2.30 | 2.05 | 0.25 |
+| **Total**                  | **3.09** | **2.80** | **0.30** |
+
+NMS does 75% of the cleaning; the blur is a light first pass.
+
+### NMS diagnostic: what gets removed (177 events, `nms_diagnostic.py`)
+
+**NMS(0.85, 0.3)** — conservative, 90.9% of removed peaks are fake:
+
+| Distance to survivor | Total | Real | Fake | Fake% |
+|---------------------|:---:|:---:|:---:|:---:|
+| 0.30–0.45 mm | 1 | 1 | 0 | 0% |
+| 0.45–0.55 mm | 20 | 3 | 17 | 85% |
+| 0.55–0.65 mm | 85 | 2 | 83 | 98% |
+| 0.65–0.75 mm | 68 | 7 | 61 | 90% |
+| 0.75–0.85 mm | 54 | 9 | 45 | 83% |
+
+Removes 1.49 peaks/evt: 1.36 fake + 0.14 real (ratio 10:1).
+
+**NMS(0.85, 0.5)** — aggressive, 78.6% of removed peaks are fake:
+
+Removes 2.33 peaks/evt: 1.83 fake + 0.50 real (ratio 3.7:1).
+
+The resolution plot bump at ±0.55–0.80 mm was 67% real-fake satellite pairs.
+In the bump core (0.55–0.65 mm), NMS 0.3 achieves 98% fake purity.
+
+### Also fixed
+
+Sigmoid fit in `curve_fit` now uses `bounds=([0,0,0,0], [inf,...])` to prevent
+the fit from going below zero (both `run_eval_pvf_run3.py` and `run_eval_pvf.py`).
+Added `ax.set_ylim(bottom=0)` to `plots_pvf.py`.
+
+**Output:** `outputs/eval_run3_smooth_s2/`, `outputs/eval_run3_s2_nms03/`,
+`outputs/eval_run3_s2_nms05/`, `outputs/nms_diagnostic/`.
+
+---
+
+## 2026-03-11 — Run 2 real data evaluation + eval codebase cleanup
+
+### Run 2 data
+
+Added evaluation on Run 2 real collision data (2018, 13 TeV, ZeroBias). Data lives in
+`data/run2/Run2_Data/` — 4 ROOT files, 298,639 events total. Same ROOT branch structure
+as Run 3, so `run_eval_pvf_run3.py` works directly with no code changes.
+
+Pileup distribution: mean μ=32.5, median 31.2, peaked at ~25–30. Lower than both MC
+(flat, mean 39.9) and Run 3 (bimodal, median 59.0). BeamPosZ ≈ -2.5 mm (correction needed).
+
+Baseline results (T2KDE+K2H, 2500 events, AMVF ntrks ≥ 2):
+
+| Metric       | Run 2 real | MC (RecoVertex ref) |
+|-------------|-----------|-------------------|
+| Efficiency  | 87.3%     | 85.9%             |
+| σ_vtx_vtx   | 0.303 mm  | 0.333 mm          |
+| Truth PVs/evt | 22.5    | 22.8              |
+
+Model generalizes well from MC to real data — comparable or slightly better performance.
+
+### Eval codebase cleanup
+
+Removed 12 legacy files (7 from `vertex_finding/`, 5 from parent `evaluation/`).
+Cleaned `efficiency_res_optimized_atlas.py` from 953 → 292 lines by removing ~650
+lines of dead code (broken functions referencing undefined symbols, unused imports).
+All pre-commit hooks pass. Verified results are unchanged after cleanup.
+
+**New doc:** `docs/data/run_2.md`. Updated `docs/evaluation/vertex_finding.md`.

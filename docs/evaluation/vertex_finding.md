@@ -5,35 +5,47 @@ Evaluation of PV-Finder vertex finding on MC test data.
 ## Script
 
 `src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py`
+Plotting helpers: `src/pv_finder/evaluation/vertex_finding/plots_pvf.py`
 
-Three pipeline modes (mutually exclusive):
+Two pipeline modes (mutually exclusive):
 
 | Flag | Pipeline |
 |------|----------|
 | _(default)_ | Analytical KDE_A_z (h5) → K2H (UNet_1000) |
-| `--full-pipeline` | Raw tracks → T2KDE (MaskedDNN) → K2H |
 | `--e2e-model` | Raw tracks → trackstoHists_UNet_1000 (no KDE stage) |
+
+## CLI Options
+
+All options have sensible defaults — only the model checkpoint is required.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--e2e-model` | — | E2E checkpoint (mutually exclusive with `--k2h-model`) |
+| `--k2h-model` | — | K2H checkpoint (mutually exclusive with `--e2e-model`) |
+| `--h5` | standard data path | HDF5 file |
+| `--root-truth` | standard ROOT path | ROOT truth file; also loads qibin automatically |
+| `--indices` | `configs/test_main_indices_2550evt.p` | Test event indices |
+| `--output-dir` | `outputs/eval_pvf` | Output directory |
+| `--device` | `0` | CUDA device (-1 = CPU) |
 
 ## How to Run
 
 ```bash
 source venv/bin/activate
 
-# E2E model, full test set, ROOT truth (recommended — matches mattia_finder):
+# Minimal — E2E model, all defaults (ROOT truth, full test set):
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
-    --h5 /share/lazy/qibinlei/recoTrackNPV_jets_pubindices_1000bins_incbounds_Target_Y_split.h5 \
     --e2e-model model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth \
-    --root /share/lazy/rocky/ATLAS_data/Latest_Sept2023/ATLAS_PVFinderData_TruthMatched.root \
-    --qibin configs/qibin_test_main_indices_v2.p \
-    --indices configs/test_main_indices_2550evt.p \
-    --output-dir outputs/eval_tracks2hist_1ch_e191_root \
-    --device 0
+    --output-dir outputs/eval_tracks2hist_1ch_e191
 
-# K2H stage-2 only, no ROOT:
+# K2H stage-2, custom output dir:
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
-    --h5 ... --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
-    --indices configs/test_main_indices_2550evt.p \
-    --output-dir outputs/eval_k2h --device 0
+    --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
+    --output-dir outputs/eval_k2h
+
+# Without ROOT truth (faster, no nTracks filter):
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
+    --e2e-model model_weights/... --root-truth "" --output-dir outputs/eval_no_root
 ```
 
 ## Test Set
@@ -93,14 +105,193 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 
 The E2E checkpoint was extracted from the mattia_finder MLflow artifact (`.pyt` full model → state dict) using the `pvfinder` conda env, since the `.pyt` format embeds the `model` module path.
 
+## Differences vs mattia_finder evaluate_model.py
+
+This table is the ground truth for what is and isn't matched:
+
+| Aspect | mattia_finder | Our script | Status |
+|--------|--------------|-----------|--------|
+| Truth source | ROOT `TruthVertex_z`, nTracks≥2 | Same (via `--root-truth`) | ✅ Matched |
+| h5↔ROOT index mapping | `qibin_test_main_indices_v2.p` | Same | ✅ Matched |
+| Peak finder thresholds (performance) | threshold=0.01, int=0.2, width=3 | Same | ✅ Matched |
+| Peak finder thresholds (σ) | threshold=0.01, int=0.5, width=3 | Same | ✅ Matched |
+| Pileup variable | `ActualNumOfInt` (float, rounded) | Same when ROOT available | ✅ Matched |
+| Summary pileup filter | μ∈[55,65] | Same | ✅ Matched |
+| NaN filter on predicted PVs | Called but disabled (dead code) | Not applied | ✅ Equivalent |
+| Matching window units | Bins | Bins (when ROOT) | ✅ Matched |
+| **Pairwise Δz for σ** | **One sign only (negative)** | **Both ±dz** | ⚠️ Intentional difference |
+| **Sigmoid fit range** | All bins | All bins | ✅ Matched (clean_run3 excludes ±0.3mm centre — we don't) |
+
+The **one intentional difference**: we add both `+dz` and `-dz` for each pair, giving a symmetric distribution. mattia_finder only stores the negative direction (PVs are sorted ascending so `pvs[i]-pvs[j]` is always negative). Our approach is more correct; the fitted σ may differ slightly in value.
+
+## Moving Parts — Things to Be Aware Of
+
+### qibin mapping
+`configs/qibin_test_main_indices_v2.p` maps sequential test event position → ROOT event index. It has **exactly 2550 entries**, one per test event (h5 indices 48450–50999). If you change the test set or h5 file, this mapping is **invalid** and needs to be regenerated from mattia_finder.
+
+### ActualNumOfInt
+- A **float** from ROOT (e.g. 58.3), **rounded** to the nearest integer for pileup binning.
+- Used for: (1) summary table filter μ∈[55,65], (2) x-axis of performance and stats histogram plots.
+- Not available without ROOT — falls back to N truth PVs.
+- Distinct from `NumRecoVtx` (number of reconstructed AMVF vertices, also in ROOT) and from N truth PVs (from h5/ROOT after nTracks≥2 filter).
+
+### σ_vtx_vtx is both output and input
+σ_vtx_vtx is computed from the pairwise Δz distribution, then **used as the matching window** in `compare_res_reco`. This creates a mild circular dependency: a very different model will give a different σ, which changes how clean/merged/fake are counted. Keep this in mind when comparing numbers across very different models.
+
+### Two integral thresholds
+- `INTEGRAL_THRESHOLD = 0.2` — used for **performance metrics** (finds more peaks, important for fake/efficiency).
+- `INTEGRAL_THRESHOLD_RES = 0.5` — used only for **σ_vtx_vtx** peak finding (stricter, cleaner peaks for the resolution fit).
+
+### Pileup filter scope
+μ∈[55,65] applies **only to the printed summary table**. The performance plot and stats histogram use **all events**.
+
+### E2E checkpoint format
+mattia_finder saves full model objects (`.pyt`) embedding the `model` module path. These cannot be loaded directly from PV-Finder's venv. Extraction procedure: load with `conda run -n pvfinder python -c "... ckpt.state_dict() ..."` then `torch.save({"model_state": sd, "epoch": N}, "...fullstate.pth")`.
+
+---
+
+## Real Data Evaluation (Run 2 / Run 3)
+
+`src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py`
+Data loading: `src/pv_finder/data/run3_io.py`
+
+Evaluates PV-Finder on real collision data (Run 2 or Run 3), using AMVF reconstructed vertices (nTracks >= 2) as the reference baseline. There is no MC truth on real data. The same script handles both Run 2 and Run 3 — the ROOT format is identical.
+
+### Modes
+
+| Flags | Pipeline |
+|-------|----------|
+| `--t2kde-model` + `--k2h-model` | Tracks → T2KDE (MaskedDNN) → K2H (UNet_1000) |
+| `--e2e-model` | Tracks → trackstoHists_UNet_1000 end-to-end |
+
+### Data Sources (mutually exclusive)
+
+| Flag | Source |
+|------|--------|
+| `--root` | ROOT file directly via uproot (supports `--entry-start`/`--entry-stop`) |
+| `--npz` | Pre-extracted NPZ cache (faster, 2000 events) |
+
+### How to Run
+
+```bash
+source venv/bin/activate
+
+# Full pipeline (T2KDE + K2H), from ROOT file, 500 events:
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
+    --root data/run3/file_3.root \
+    --t2kde-model model_weights/reproduction_KDE_A_z_matmauro_run1_200_epoch_130_fullstate.pth \
+    --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
+    --max-events 500 --entry-stop 10000 --output-dir outputs/eval_run3_pipeline
+
+# E2E model, from NPZ cache:
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
+    --npz data/run3/cache_file3_2000ev_seed42.npz \
+    --e2e-model model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth \
+    --max-events 300 --output-dir outputs/eval_run3_e2e
+
+# Run 2 real data (same script — identical ROOT format):
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
+    --root data/run2/Run2_Data/.../user.rgarg.49035490.EXT0._000002.ATLAS_PVFinderData_Run3Data.root \
+    --t2kde-model model_weights/reproduction_KDE_A_z_matmauro_run1_200_epoch_130_fullstate.pth \
+    --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
+    --max-events 2500 --output-dir outputs/eval_pvf_run2
+```
+
+### Real Data vs MC Differences
+
+| Aspect | MC (`run_eval_pvf.py`) | Real data (`run_eval_pvf_run3.py`) |
+|--------|----------------------|-------------------------------|
+| Data format | Flat HDF5 with pre-split subevents | ROOT or NPZ with variable-length track arrays |
+| Pre-computed KDEs | Available (Stage 2 shortcut) | Not available — must run full pipeline |
+| Ground truth | MC truth PVs | AMVF vertices (nTracks >= 2) |
+| Beam correction | Not needed (MC beam at origin) | **Applied by default** (subtracts BeamPosZ from AMVF z) |
+| Pileup (μ) | ActualNumOfInt from ROOT | ActualNumOfInt from ROOT; unavailable from NPZ |
+| Subevent building | Pre-split in HDF5 | Built on-the-fly from track z0 positions |
+| Run 2 specifics | — | μ ≈ 25–30 peak, BeamPosZ ≈ -2.5 mm |
+| Run 3 specifics | — | μ ≈ 60 peak, BeamPosZ varies |
+
+### Beam Correction
+
+Beam correction is **on by default** (`--no-correct-beam` to disable). AMVF vertex z positions are beam-corrected while PVFinder operates in the detector frame (from track z0). Subtracting BeamPosZ from AMVF z aligns the two coordinate systems. Without correction, you'll see a systematic ~BeamPosZ offset and artificially low efficiency.
+
+### Outputs
+
+Same as MC eval: `resolution_plot.png`, `performance_plot.png`, `stats_histogram.png`, `eval_results.pkl`.
+
+### Post-Processing: Smoothing + NMS
+
+Two optional post-processing steps reduce fake sidelobe peaks on Run 3 data.
+The E2E model produces UNet deconvolution sidelobes — small spurious peaks
+0.5–0.85 mm from real vertex peaks, caused by over-resolving broad KDE features
+in high track-density regions. These inflate the fake rate and contaminate the
+resolution plot.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--smooth-sigma` | `0` (off) | Gaussian sigma (bins) applied to histogram before peak finding only |
+| `--nms-min-sep` | `0` (off) | Remove shorter peak if pair closer than this (mm) |
+| `--nms-max-ratio` | `0.3` | Only suppress if short/tall height ratio < this |
+
+**How it works:**
+
+1. **Gaussian pre-smoothing** blurs the predicted histogram before peak finding
+   (original preserved for all other purposes). Narrow sidelobe fluctuations get
+   absorbed into their parent peak. Kills ~0.75 fake/evt, ~0.05 real/evt.
+
+2. **NMS** (`suppress_neighbor_peaks()` in `efficiency_res_optimized_atlas.py`)
+   scans pairs of peaks within `min_sep` mm. If the shorter peak's height is
+   < `max_ratio` × the taller, the shorter is suppressed (tallest-first ordering).
+   Preserves genuine close vertex pairs (similar heights) while killing sidelobe
+   fakes (3–5× shorter than parent). Kills ~1.4–2.1 fake/evt depending on ratio.
+
+**Two operating points:**
+
+| Config | Eff | Fake/evt | Real lost/evt | Fake:real | sigma |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| No PP (baseline) | 97.6% | 4.80 | — | — | 0.347 mm |
+| s=2 + NMS(0.85, **0.3**) | 97.4% | 2.70 | 0.14 | **10:1** | 0.487 mm |
+| s=2 + NMS(0.85, **0.5**) | 96.9% | 2.00 | 0.50 | **3.7:1** | 0.592 mm |
+
+- **NMS 0.3** (conservative): 90.9% of removed peaks are fake; 98% purity in the
+  0.55–0.65 mm sidelobe core. Barely touches real vertices.
+- **NMS 0.5** (aggressive): halves the fake rate but removes 0.50 real/evt.
+
+Sigma increases with PP because fake close pairs that artificially pulled it
+down get removed — the post-PP sigma is a more honest measure.
+
+**Example (conservative):**
+
+```bash
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
+    --root data/run3/file_3.root \
+    --e2e-model model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth \
+    --smooth-sigma 2.0 --nms-min-sep 0.85 --nms-max-ratio 0.3 \
+    --output-dir outputs/eval_run3_s2_nms03
+```
+
+### NMS Diagnostic Script
+
+`src/pv_finder/evaluation/vertex_finding/nms_diagnostic.py` — re-runs inference
+on a subset of events, identifies which peaks NMS removes, classifies them as
+real (truth-matched) or fake, and generates per-vertex zoom plots.
+
+```bash
+python src/pv_finder/evaluation/vertex_finding/nms_diagnostic.py \
+    --root data/run3/file_3.root \
+    --e2e-model model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth \
+    --entry-start 300000 --entry-stop 300200 \
+    --output-dir outputs/nms_diagnostic --device 0
+```
+
+Outputs: `removal_stats.png` (4-panel summary), `zoom_plots/` (~40 per-vertex
+3-panel plots with analytical KDE + track scatter), `removed_peaks_summary.pkl`.
+
+---
+
 ## Outstanding Issues
 
-1. **No nTracks per truth PV in h5** — the flat h5 `pv` field has only z positions, no track counts. The nTracks≥2 filter therefore requires the ROOT file. Consider adding a `--no-root` fast mode that notes this caveat explicitly.
+1. **E2E checkpoint extraction** — `tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` was manually extracted. Other epoch checkpoints have not been extracted. Automate if needed.
 
-2. **σ_vtx_vtx fit quality** — the sigmoid fit sometimes has large uncertainty (±0.24 mm on a 0.34 mm value). More events or a tighter fit range would help.
+2. **σ_vtx_vtx fit differences vs clean_run3** — clean_run3 excludes central |x|≤0.3 mm bins from the sigmoid fit and tries a Gaussian notch fit first; PV-Finder fits all bins with a sigmoid only. clean_run3 also uses slightly different peak-finding thresholds (threshold=0.02, integral=0.4, width=2 vs our 0.01/0.5/3). These differences can shift the reported sigma.
 
-3. **Pileup proxy inconsistency** — performance plot x-axis uses N truth PVs (from h5/ROOT), while mattia_finder uses `ActualNumOfInt`. These differ: `ActualNumOfInt` is the number of pp interactions, not reconstructed PVs. Should switch plot x-axis to `ActualNumOfInt` when ROOT is available.
-
-4. **E2E checkpoint extraction** — `tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` was manually extracted. Other epoch checkpoints have not been extracted. Automate if needed.
-
-5. **Split file limit** — `run_eval_pvf.py` is at exactly 500 lines (the pre-commit limit). Any further feature additions will require splitting the file (e.g., extract plotting helpers to `plots_pvf.py`).
+3. **No nTracks in h5** — the flat h5 `pv` field has only z positions. The nTracks≥2 filter requires ROOT. Running without `--root-truth` gives unfiltered truth (more merged, lower clean counts).
