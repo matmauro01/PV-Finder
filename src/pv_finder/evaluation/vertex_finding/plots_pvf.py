@@ -20,6 +20,7 @@ def plot_resolution(
     sigmoid_fit,
     mode_label: str,
     output_dir: Path,
+    title: str = "",
 ) -> None:
     """Pairwise Δz histogram with fitted sigmoid curve."""
     bins_res = np.linspace(-6.0, 6.0, 61)
@@ -55,9 +56,10 @@ def plot_resolution(
         ax.axvline(-sigma_vtx_vtx, color="red", ls="--", alpha=0.7)
     ax.set_xlabel("Δz between reconstructed PV pairs (mm)")
     ax.set_ylabel("Counts")
-    ax.set_title(f"PVF Resolution — MC Test Set\n({mode_label})")
+    ax.set_title(title or f"PVF Resolution — MC Test Set\n({mode_label})")
     ax.legend()
     ax.grid(alpha=0.3)
+    ax.set_ylim(bottom=0)
     plt.tight_layout()
     plt.savefig(output_dir / "resolution_plot.png", dpi=150)
     plt.close()
@@ -69,6 +71,7 @@ def plot_performance(
     root_z_available: bool,
     mode_label: str,
     output_dir: Path,
+    title: str = "",
 ) -> None:
     """Reco category fractions and efficiency vs pileup proxy."""
     pu: dict = defaultdict(lambda: defaultdict(list))
@@ -98,7 +101,7 @@ def plot_performance(
             label=label,
         )
     ax.set_ylabel("Fraction of reconstructed PVs")
-    ax.set_title(f"PVF Performance — Reco PV Categories\n({mode_label})")
+    ax.set_title(title or f"PVF Performance — Reco PV Categories\n({mode_label})")
     ax.legend()
     ax.grid(alpha=0.3)
 
@@ -128,6 +131,7 @@ def plot_stats(
     root_z_available: bool,
     mode_label: str,
     output_dir: Path,
+    title: str = "",
 ) -> None:
     """Avg count/event for clean/merged/split/fake vs pileup (all events).
 
@@ -175,7 +179,7 @@ def plot_stats(
     xlabel = "ActualNumOfInt (μ, rounded)" if root_z_available else "N truth PVs/evt"
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Avg count / event")
-    ax.set_title(f"PVF Reco PV Categories vs Pileup\n({mode_label})")
+    ax.set_title(title or f"PVF Reco PV Categories vs Pileup\n({mode_label})")
     ax.set_ylim(bottom=0)
     ax.legend()
     ax.grid(alpha=0.3)
