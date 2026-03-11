@@ -37,6 +37,28 @@ Can be initialized from pretrained Phase 1 + 2 weights via `initialize_combined_
 - Input: (batch, 7, num_tracks)
 - Output: (batch, 1000)
 
+### UNet_1000_v2 (Phase 2 — improved)
+
+Source: `src/pv_finder/models/unet_v2.py`
+
+Redesigned K2H model targeting the sidelobe artifact (spurious peaks 0.25–1.0 mm
+from real peaks). Three architectural changes vs UNet_1000:
+
+| | UNet_1000 | UNet_1000_v2 |
+|---|---|---|
+| Upsampling | ConvTranspose1d(k=2, s=2) | F.interpolate(nearest) + Conv1d(k=3) |
+| Bottleneck | 125 bins (8x, 3 pool stages) | 250 bins (4x, 2 pool stages) |
+| First kernel | k=25 (1.0 mm) | k=15 (0.6 mm) |
+| Skip connections | Concat (channel doubling) | Additive |
+| Encoder blocks | ConvBNrelu | ResConvBNrelu (residual) |
+| Output head | Conv(k=5) → Conv(k=5) | Conv(k=5) → Conv(k=3) → Conv(k=1) |
+| Parameters | ~221K | ~156K |
+
+**Rationale**: The original UNet produces sidelobes because (1) ConvTranspose with
+kernel=stride creates seam artifacts, (2) 8x downsampling makes sharp peaks
+sub-resolution at bottleneck, (3) k=25 correlates bins across the full sidelobe range.
+See JOURNAL.md 2026-03-11 entry for investigation details.
+
 ## Loss Functions
 
 - **MSELoss**: standard, used in Phase 3 (recommended)
@@ -52,4 +74,5 @@ Can be initialized from pretrained Phase 1 + 2 weights via `initialize_combined_
 | File | Contents |
 |------|----------|
 | `autoencoder_models.py` | All model classes (1628 lines, needs splitting) |
+| `unet_v2.py` | UNet_1000_v2 — sidelobe-free K2H model |
 | `alt_loss_A.py` | Asymmetric loss function |

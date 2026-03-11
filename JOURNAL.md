@@ -891,3 +891,61 @@ lines of dead code (broken functions referencing undefined symbols, unused impor
 All pre-commit hooks pass. Verified results are unchanged after cleanup.
 
 **New doc:** `docs/data/run_2.md`. Updated `docs/evaluation/vertex_finding.md`.
+
+---
+
+## 2026-03-11 — Sidelobe investigation: root cause confirmed as UNet architecture
+
+### Investigation
+
+Analyzed the 0.25–1.0 mm bump in the pairwise Δz resolution plot that appears on
+Run 2 real data, Run 3 real data, and MC simulation alike.
+
+**Method**: classified all predicted peak pairs within 0.25–1.0 mm by matching both
+peaks against truth/AMVF vertices. For each pair, determined whether it's:
+- one real + one fake ("sidelobe")
+- both matching different truth vertices ("genuine close pair")
+- both matching the same truth vertex ("true split")
+- both fake
+
+**Results** (2500 events each):
+
+| Category            | Run 2  | MC     |
+|---------------------|--------|--------|
+| Sidelobe (1 real + 1 fake) | 60.1%  | 51.9%  |
+| Genuine close pairs | 26.2%  | 33.1%  |
+| True splits         | 10.2%  | 12.6%  |
+| Both fake           | 3.5%   | 2.3%   |
+
+After reweighting MC to match Run 2's pileup distribution (μ≈42, σ≈5):
+- 91% of Run 2's bump is shared with MC (UNet artifact)
+- 9% is domain-shift excess
+- Pileup distribution difference explains only 12% of the sidelobe fraction gap
+
+**Root causes** (all architectural):
+1. **ConvTranspose1d(k=2, s=2)** in decoder: kernel=stride → zero overlap between
+   adjacent output regions → seam/aliasing artifacts at 2, 4, 8-bin scales
+2. **8x bottleneck** (1000→125 bins): truth peaks (~2-4 bins) are sub-resolution
+3. **k=25 first encoder kernel**: correlates bins across 1.0 mm (= sidelobe range)
+
+Height ratio of close-pair peaks (MC, 500 subevents): 46% have ratio < 0.3
+(clearly fake sidelobes), 65% < 0.5. Mean ratio 0.39.
+
+### Plan: UNet_1000_v2
+
+Designed a new K2H architecture targeting all three root causes:
+
+1. **Replace ConvTranspose1d with nearest-neighbor interpolation + Conv1d** —
+   eliminates checkerboard artifacts (Odena et al. 2016)
+2. **Reduce to 2 pooling levels** (bottleneck 250 bins, 4x) instead of 3 (125, 8x) —
+   truth peaks stay representable at bottleneck
+3. **Reduce first encoder kernel from 25 to 15** — 0.6 mm correlation (vs 1.0 mm)
+
+Additional: additive skip connections (simpler than concat), residual encoder blocks
+(`ResConvBNrelu`), k=1 pointwise final output conv. ~156K params (vs ~221K).
+
+New file: `src/pv_finder/models/unet_v2.py`
+New config: `configs/vertex_finding/config_KDE2HIST_v2.yml`
+Training: same hyperparameters as baseline (Adam lr=1e-4, 200 epochs, batch 128).
+
+See `docs/models/vertex_finding.md` for architecture details.

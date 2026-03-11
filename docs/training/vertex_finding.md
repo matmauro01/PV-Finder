@@ -75,6 +75,7 @@ spatial mapping before the UNet co-adapts.
 | `config_T2HIST_matmauro.yml` | A step 4 | 100 epochs, lr=0.001, MSE loss, pre-built .pth |
 | `config_T2HIST_combined_200epochs.yml` | A step 4 | 400 epochs, auto-init from step 1+2 weights |
 | `config_mlp_hist_e2e.yml` | B | 50+400 epochs, no KDE, MLP warmup |
+| `config_KDE2HIST_v2.yml` | A step 2 (v2) | 200 epochs, lr=0.0001, UNet_1000_v2 |
 
 ## MLflow
 
