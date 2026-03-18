@@ -175,6 +175,7 @@ def plot_vertex_zoom(
     hist_t2kde: np.ndarray | None = None,
     match_window_mm: float = 0.5,
     all_truth_vertices: list[float] | None = None,
+    vertex_label: str | None = None,
 ) -> None:
     """Three-panel per-vertex visualization.
 
@@ -297,8 +298,9 @@ def plot_vertex_zoom(
             )
 
     ax_hist.set_ylabel("Predicted histogram")
+    label_str = f" [{vertex_label.upper()}]" if vertex_label else ""
     ax_hist.set_title(
-        f"{dataset_label.upper()} Ev {event_idx} | Vtx {vtx_idx} | "
+        f"{dataset_label.upper()} Ev {event_idx} | Vtx {vtx_idx}{label_str} | "
         f"truth z = {truth_z:.2f} mm"
     )
     ax_hist.legend(loc="upper right", fontsize=9)

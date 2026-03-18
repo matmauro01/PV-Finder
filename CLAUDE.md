@@ -60,6 +60,24 @@ Two systems, both must stay current:
 When you make a meaningful change: update the relevant doc in docs/ AND append to JOURNAL.md.
 Always pyush you're code when you're done, and make sure to document it properly before doing so.
 
+## Running Heavy Processes
+
+**sneezy** is a shared machine. Runaway processes become unkillable zombies (kernel 4.15 bug) and crash the Cursor SSH session.
+
+Rules:
+- **Always run training, evaluation, and inference inside `tmux`** — never directly in Cursor's terminal
+- Use `python -u` (unbuffered stdout) so you see output immediately
+- Set resource limits for experimental/untested runs: `ulimit -v 33554432` (32 GB)
+- If Cursor disconnects: from a local terminal run `cursor-fix` (alias in `~/.bashrc`), then Reload Window in Cursor
+
+```bash
+# Correct way to run heavy work
+tmux new -s eval
+source venv/bin/activate
+python -u src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py ...
+# Ctrl+B, D to detach — safe to close Cursor
+```
+
 ## Project Map
 
 ```

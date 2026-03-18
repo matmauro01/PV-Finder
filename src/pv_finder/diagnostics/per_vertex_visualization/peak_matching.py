@@ -85,6 +85,69 @@ def load_mc_truth_vertices(
     return result
 
 
+def classify_vertices(
+    truth_vertices: list[float],
+    pred_peaks: list[tuple[float, float]],
+    match_window_mm: float = 0.5,
+) -> tuple[list[str], list[str]]:
+    """Classify truth and reco vertices following the eval nomenclature.
+
+    Replicates the logic of ``compare_res_reco`` from
+    ``efficiency_res_optimized_atlas.py``, using a fixed matching window in mm
+    (consistent with the visual peak marking already used in the plots).
+
+    Returns
+    -------
+    truth_labels
+        One label per truth vertex: ``"clean"``, ``"merged"``, or ``"missed"``.
+    reco_labels
+        One label per predicted peak: ``"clean"``, ``"merged"``, ``"split"``,
+        or ``"fake"``.
+    """
+    n_truth = len(truth_vertices)
+    n_reco = len(pred_peaks)
+
+    reco_to_truth: list[list[int]] = [[] for _ in range(n_reco)]
+    truth_to_reco: list[list[int]] = [[] for _ in range(n_truth)]
+
+    for i, (pz, _) in enumerate(pred_peaks):
+        for j, tz in enumerate(truth_vertices):
+            if abs(pz - tz) <= match_window_mm:
+                reco_to_truth[i].append(j)
+                truth_to_reco[j].append(i)
+
+    # Initial reco labels based on how many truth vertices each reco peak covers
+    reco_labels = ["fake"] * n_reco
+    for i, matched in enumerate(reco_to_truth):
+        if len(matched) == 1:
+            reco_labels[i] = "clean"
+        elif len(matched) > 1:
+            reco_labels[i] = "merged"
+
+    # Truth labels; resolve split conflicts: when multiple "clean" reco peaks
+    # claim the same truth vertex, only the closest keeps "clean" and the rest
+    # are reclassified as "split".
+    truth_labels = ["missed"] * n_truth
+    for j, matched_reco in enumerate(truth_to_reco):
+        if not matched_reco:
+            continue
+        if any(reco_labels[i] == "merged" for i in matched_reco):
+            truth_labels[j] = "merged"
+        else:
+            clean_reco = [i for i in matched_reco if reco_labels[i] == "clean"]
+            if len(clean_reco) == 1:
+                truth_labels[j] = "clean"
+            elif len(clean_reco) > 1:
+                tz = truth_vertices[j]
+                best = min(clean_reco, key=lambda i: abs(pred_peaks[i][0] - tz))
+                for i in clean_reco:
+                    if i != best:
+                        reco_labels[i] = "split"
+                truth_labels[j] = "clean"
+
+    return truth_labels, reco_labels
+
+
 def load_run3_amvf_vertices(
     cache_path: str,
     event_indices: list[int],
