@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from pv_finder.models.autoencoder_models import ConvBNrelu, ResConvBNrelu
+from pv_finder.models.autoencoder_models import ConvBNrelu, MaskedDNN, ResConvBNrelu
 
 
 class InterpUp(nn.Module):
@@ -87,3 +87,57 @@ class UNet_1000_v2(nn.Module):
 
         # Output
         return F.softplus(self.head(d2)).squeeze(1)
+
+
+class TracksToHist_v2(nn.Module):
+    """End-to-end tracks → histogram model composing MaskedDNN + UNet_1000_v2.
+
+    Unlike trackstoHists_UNet_1000 (which duplicates both architectures inline),
+    this class wraps the standalone models as submodules. Weight loading is trivial:
+    load each submodule's checkpoint into model.t2kde / model.k2h directly.
+    """
+
+    def __init__(self, t2kde: MaskedDNN, k2h: UNet_1000_v2):
+        super().__init__()
+        self.t2kde = t2kde
+        self.k2h = k2h
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        kde = self.t2kde(x)  # (B, 1000)
+        return self.k2h(kde.unsqueeze(1))  # (B, 1, 1000) → (B, 1000)
+
+    @staticmethod
+    def from_checkpoints(
+        t2kde_path: str,
+        k2h_path: str,
+        device: torch.device = torch.device("cpu"),
+    ) -> "TracksToHist_v2":
+        """Build and load from separate T2KDE and K2H v2 checkpoints."""
+        t2kde = MaskedDNN(
+            input_size=7,
+            hidden_nodes=[100, 100, 100, 100, 100],
+            output_size=1000,
+            leaky_param=0.01,
+            maskVal=-240.0,
+            predScaleFactor=0.001,
+        )
+        k2h = UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
+
+        for path, mod, label in [
+            (t2kde_path, t2kde, "T2KDE"),
+            (k2h_path, k2h, "K2H_v2"),
+        ]:
+            ckpt = torch.load(path, map_location=device, weights_only=False)
+            state = (
+                ckpt["model_state"]
+                if isinstance(ckpt, dict) and "model_state" in ckpt
+                else ckpt.state_dict()
+                if hasattr(ckpt, "state_dict")
+                else ckpt
+            )
+            mod.load_state_dict(state)
+            n = sum(p.numel() for p in mod.parameters())
+            print(f"  {label}: loaded {path} ({n:,} params)")
+
+        model = TracksToHist_v2(t2kde, k2h)
+        return model.to(device)
