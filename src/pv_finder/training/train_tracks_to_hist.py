@@ -21,6 +21,7 @@ from pv_finder.data.collectdata_poca_KDE import (
 )
 from pv_finder.models.alt_loss_A import Loss
 from pv_finder.models.autoencoder_models import trackstoHists_UNet_1000
+from pv_finder.models.unet_v2 import TracksToHist_v2
 from pv_finder.training.initialize_combined_weights import initialize_combined_model
 from pv_finder.training.training import trainNet
 from pv_finder.utils.utilities import (
@@ -70,40 +71,48 @@ def main(configs, resume_checkpoint=None, resume_epoch=None):
     print("Creating model...")
     print("=" * 80)
 
-    # Create new model (checkpoint loading happens after optimizer creation)
-    model = trackstoHists_UNet_1000(
-        n_InputFeatures=configs["models_config"]["n_input_features"],
-        n_LatentChannels=configs["models_config"]["n_latent_channels"],
-        dropout=configs["models_config"]["dropout"],
-    )
+    # Create model based on model_type
+    model_type = configs.get("model_type", "v1")
+    if model_type == "v2":
+        # Composition-based model: load from separate checkpoints
+        t2kde_path = configs["pretrained_tracks2kde"]
+        k2h_path = configs["pretrained_kde2hist"]
+        model = TracksToHist_v2.from_checkpoints(t2kde_path, k2h_path)
+    else:
+        model = trackstoHists_UNet_1000(
+            n_InputFeatures=configs["models_config"]["n_input_features"],
+            n_LatentChannels=configs["models_config"]["n_latent_channels"],
+            dropout=configs["models_config"]["dropout"],
+        )
 
-    # Initialize with pretrained weights if provided
-    if "pretrained_weights" in configs and configs["pretrained_weights"] is not None:
-        print("\n" + "=" * 80)
-        print("Loading pretrained weights...")
-        print("=" * 80)
+        # Initialize with pretrained weights if provided
+        if (
+            "pretrained_weights" in configs
+            and configs["pretrained_weights"] is not None
+        ):
+            print("\n" + "=" * 80)
+            print("Loading pretrained weights...")
+            print("=" * 80)
 
-        pretrained_path = configs["pretrained_weights"]
+            pretrained_path = configs["pretrained_weights"]
 
-        if pretrained_path.endswith(".pth"):
-            # Load combined model weights
-            print(f"Loading combined model weights from: {pretrained_path}")
-            pretrained_weights = torch.load(pretrained_path, map_location="cpu")
-            model.load_state_dict(pretrained_weights)
-            print("✓ Loaded pretrained combined model weights")
-        else:
-            # Initialize from separate Tracks-to-KDE and KDE-to-Histogram models
-            tracks2kde_path = configs["pretrained_tracks2kde"]
-            kde2hist_path = configs["pretrained_kde2hist"]
+            if pretrained_path.endswith(".pth"):
+                print(f"Loading combined model weights from: {pretrained_path}")
+                pretrained_weights = torch.load(pretrained_path, map_location="cpu")
+                model.load_state_dict(pretrained_weights)
+                print("✓ Loaded pretrained combined model weights")
+            else:
+                tracks2kde_path = configs["pretrained_tracks2kde"]
+                kde2hist_path = configs["pretrained_kde2hist"]
 
-            model = initialize_combined_model(
-                model=model,
-                tracks2kde_weights_path=tracks2kde_path,
-                kde2hist_weights_path=kde2hist_path,
-                n_latent_channels=configs["models_config"]["n_latent_channels"],
-                n_output_bins=1000,
-                verbose=True,
-            )
+                model = initialize_combined_model(
+                    model=model,
+                    tracks2kde_weights_path=tracks2kde_path,
+                    kde2hist_weights_path=kde2hist_path,
+                    n_latent_channels=configs["models_config"]["n_latent_channels"],
+                    n_output_bins=1000,
+                    verbose=True,
+                )
 
     model.to(device)
 
@@ -111,9 +120,8 @@ def main(configs, resume_checkpoint=None, resume_epoch=None):
     out_idx = 0
 
     # Set up optimizer (must be created before resume logic for full checkpoint loading)
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=configs["learning_rate"], betas=(0.9, 0.999)
-    )
+    base_lr = configs["learning_rate"]
+    optimizer = torch.optim.Adam(model.parameters(), lr=base_lr, betas=(0.9, 0.999))
 
     # Optional resume from checkpoint (after optimizer is created)
     # - If resume_checkpoint is a .pth full checkpoint, restore model + optimizer and start from loaded_epoch + 1
@@ -157,6 +165,16 @@ def main(configs, resume_checkpoint=None, resume_epoch=None):
 
     # Get run name
     runname = configs["runname"]
+
+    # Set up learning rate warmup for v2 (fresh Adam with pretrained weights)
+    warmup_epochs = configs.get("warmup_epochs", 5) if model_type == "v2" else 0
+    if warmup_epochs > 0:
+        scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
+        )
+        print(f"LR warmup: {warmup_epochs} epochs (0.1x → 1.0x)")
+    else:
+        scheduler = None
 
     # Start training
     print("\n" + "=" * 80)
@@ -221,6 +239,10 @@ def main(configs, resume_checkpoint=None, resume_epoch=None):
                 )
                 mlflow.log_artifact(str(full_ckpt_path))
                 print(f"  ✓ Saved full checkpoint: {full_ckpt_path.name}")
+
+            # Step LR warmup scheduler
+            if scheduler is not None:
+                scheduler.step()
 
             # Log metrics to MLflow
             save_to_mlflow(

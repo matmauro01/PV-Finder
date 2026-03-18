@@ -10,7 +10,7 @@ output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
 # ===================================================
 # Training configurations
 
-device_id: 0
+device_id: 3
 n_events: 51000
 train_split: [0.7, 0.25, 0.05]
 n_epochs: 200
