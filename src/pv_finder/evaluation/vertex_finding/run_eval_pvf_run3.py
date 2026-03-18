@@ -34,7 +34,7 @@ from pv_finder.models.autoencoder_models import (  # noqa: E402
     UNet_1000,
     trackstoHists_UNet_1000,
 )
-from pv_finder.models.unet_v2 import UNet_1000_v2  # noqa: E402
+from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent))
 from efficiency_res_optimized_atlas import (  # noqa: E402
@@ -77,20 +77,27 @@ def sigmoid_fit(x: np.ndarray, a: float, b: float, c: float, rcc: float) -> np.n
 
 
 def load_ckpt(path: str, model: torch.nn.Module, device: torch.device) -> None:
-    """Load checkpoint into model, handling model_state key."""
+    """Load checkpoint into model, handling model_state key and legacy .pyt paths."""
+    import types
+
+    import pv_finder.models.autoencoder_models as _am  # noqa: E402
+
+    if "model" not in sys.modules:
+        sys.modules["model"] = types.ModuleType("model")
+    sys.modules["model.autoencoder_models"] = _am
     ckpt = torch.load(path, map_location=device, weights_only=False)
-    state = (
-        ckpt["model_state"]
-        if isinstance(ckpt, dict) and "model_state" in ckpt
-        else ckpt
-    )
+    if isinstance(ckpt, dict) and "model_state" in ckpt:
+        state = ckpt["model_state"]
+    elif hasattr(ckpt, "state_dict"):
+        state = ckpt.state_dict()
+    else:
+        state = ckpt
     model.load_state_dict(state)
     if isinstance(ckpt, dict):
         ls = f"{ckpt['loss']:.6f}" if ckpt.get("loss") is not None else "N/A"
         n = sum(p.numel() for p in model.parameters())
         print(
-            f"  ckpt {Path(path).name}: epoch={ckpt.get('epoch')} "
-            f"loss={ls} params={n:,}"
+            f"  ckpt {Path(path).name}: epoch={ckpt.get('epoch')} loss={ls} params={n:,}"
         )
     model.to(device).eval()
 
@@ -157,22 +164,7 @@ def run_e2e_inference(
     return _stitch(hist)
 
 
-def _evt_rec(  # noqa: PLR0913
-    eidx: int,
-    nt: int,
-    np_: int,
-    c: int,
-    m: int,
-    s: int,
-    f: int,
-    eff: float,
-    tc: int,
-    tm: int,
-    tmiss: int,
-    mu: float | None,
-    beam_z: float,
-) -> dict:
-    """Build a per-event result dict."""
+def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu, beam_z):  # noqa: PLR0913
     return dict(event_idx=eidx, n_truth=nt, n_pred=np_, clean=c, merged=m,
                 split=s, fake=f, eff=eff, tc=tc, tm=tm, tmiss=tmiss,
                 mu=mu, beam_z=beam_z)  # fmt: skip
@@ -200,7 +192,13 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     print("\n--- Loading Models ---")
     t2kde = k2h = e2e = None
     if has_e2e:
-        e2e = trackstoHists_UNet_1000(**E2E_CONFIG)
+        e2e_type = getattr(args, "e2e_type", "v1")
+        if e2e_type == "v2":
+            t2kde_sub = MaskedDNN(**T2KDE_CONFIG)
+            k2h_sub = UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
+            e2e = TracksToHist_v2(t2kde_sub, k2h_sub)
+        else:
+            e2e = trackstoHists_UNet_1000(**E2E_CONFIG)
         load_ckpt(args.e2e_model, e2e, device)
         mode_label = f"E2E ({Path(args.e2e_model).stem})"
     else:
@@ -264,7 +262,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             ph_peaks, THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH
         )
         p_pvs_r, p_hts_r, *_ = pv_locations_updated_res(
-            ph_peaks, THRESHOLD, INTEGRAL_THRESHOLD_RES, MIN_WIDTH
+            ph_peaks, THRESHOLD, args.integral_threshold_res, MIN_WIDTH
         )
         if args.nms_min_sep > 0:
             keep = suppress_neighbor_peaks(
@@ -469,6 +467,8 @@ if __name__ == "__main__":
     data_grp.add_argument("--npz", help="NPZ cache file path")
     data_grp.add_argument("--root", help="ROOT file path")
     parser.add_argument("--e2e-model", default=None, dest="e2e_model")
+    parser.add_argument("--e2e-type", default="v1", choices=["v1", "v2"],
+                        dest="e2e_type", help="E2E model class (v1=trackstoHists_UNet_1000, v2=TracksToHist_v2)")  # fmt: skip
     parser.add_argument("--t2kde-model", default=None, dest="t2kde_model")
     parser.add_argument("--k2h-model", default=None, dest="k2h_model")
     parser.add_argument("--k2h-type", default="v1", choices=["v1", "v2"],
@@ -490,4 +490,7 @@ if __name__ == "__main__":
                         help="NMS min separation mm (0=off)")  # fmt: skip
     parser.add_argument("--nms-max-ratio", type=float, default=0.3, dest="nms_max_ratio",
                         help="NMS max height ratio for suppression")  # fmt: skip
+    parser.add_argument("--integral-threshold-res", type=float, default=0.5,
+                        dest="integral_threshold_res",
+                        help="Integral threshold for resolution pairwise dz (default 0.5)")  # fmt: skip
     main(parser.parse_args())

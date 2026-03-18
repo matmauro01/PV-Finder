@@ -33,10 +33,11 @@ from scipy.optimize import curve_fit
 
 sys.path.insert(0, str(Path(__file__).parents[4] / "src"))
 from pv_finder.models.autoencoder_models import (  # noqa: E402
+    MaskedDNN,
     UNet_1000,
     trackstoHists_UNet_1000,
 )
-from pv_finder.models.unet_v2 import UNet_1000_v2  # noqa: E402
+from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent))
 from efficiency_res_optimized_atlas import (  # noqa: E402
@@ -119,11 +120,12 @@ def sigmoid_fit(x, a, b, c, rcc):
 
 def load_ckpt(path: str, model: torch.nn.Module, device: torch.device) -> None:
     ckpt = torch.load(path, map_location=device, weights_only=False)
-    state = (
-        ckpt["model_state"]
-        if isinstance(ckpt, dict) and "model_state" in ckpt
-        else ckpt
-    )
+    if isinstance(ckpt, dict) and "model_state" in ckpt:
+        state = ckpt["model_state"]
+    elif hasattr(ckpt, "state_dict"):
+        state = ckpt.state_dict()
+    else:
+        state = ckpt
     model.load_state_dict(state)
     if isinstance(ckpt, dict):
         ls = f"{ckpt['loss']:.6f}" if ckpt.get("loss") is not None else "N/A"
@@ -198,7 +200,13 @@ def main(args: argparse.Namespace) -> None:
     print("\n--- Loading Models ---")
     k2h = e2e = None
     if args.e2e_model:
-        e2e = trackstoHists_UNet_1000(**E2E_CONFIG)
+        e2e_type = getattr(args, "e2e_type", "v1")
+        if e2e_type == "v2":
+            t2kde_sub = MaskedDNN(**T2KDE_CONFIG)
+            k2h_sub = UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
+            e2e = TracksToHist_v2(t2kde_sub, k2h_sub)
+        else:
+            e2e = trackstoHists_UNet_1000(**E2E_CONFIG)
         load_ckpt(args.e2e_model, e2e, device)
         mode_label = f"E2E — tracks → histogram ({Path(args.e2e_model).stem})"
     else:
@@ -456,6 +464,8 @@ if __name__ == "__main__":
     parser.add_argument("--k2h-type", default="v1", choices=["v1", "v2"],
                         dest="k2h_type", help="K2H model class (v1=UNet_1000, v2=UNet_1000_v2)")  # fmt: skip
     parser.add_argument("--e2e-model", default=None, dest="e2e_model")
+    parser.add_argument("--e2e-type", default="v1", choices=["v1", "v2"],
+                        dest="e2e_type", help="E2E model class (v1=trackstoHists_UNet_1000, v2=TracksToHist_v2)")  # fmt: skip
     parser.add_argument(
         "--root-truth",
         default=None,
