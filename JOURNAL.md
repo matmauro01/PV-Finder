@@ -949,3 +949,78 @@ New config: `configs/vertex_finding/config_KDE2HIST_v2.yml`
 Training: same hyperparameters as baseline (Adam lr=1e-4, 200 epochs, batch 128).
 
 See `docs/models/vertex_finding.md` for architecture details.
+
+## 2026-03-16 — K2H v2 training, E2E v2 model, and sidelobe root cause correction
+
+### K2H v2 training completed
+
+UNet_1000_v2 trained for 200 epochs (config `config_KDE2HIST_v2.yml`, device 3).
+Checkpoint: `model_weights/K2H_v2_interp_200epochs_epoch_190_fullstate.pth` (156K params).
+
+### TracksToHist_v2 — composition-based E2E model
+
+Created `TracksToHist_v2` in `unet_v2.py`: wraps MaskedDNN (T2KDE) + UNet_1000_v2
+(K2H) as submodules. Unlike the original `trackstoHists_UNet_1000` (which duplicates
+both architectures inline), this composes the standalone models. Weight loading via
+`TracksToHist_v2.from_checkpoints()` factory method.
+
+### E2E v2 fine-tuning (100 epochs)
+
+Config: `configs/vertex_finding/config_T2HIST_v2.yml`
+- Pretrained: T2KDE ep130 + K2H v2 ep190
+- LR: 0.0001 uniform, 5-epoch linear warmup (0.1x → 1.0x)
+- Loss: MSE (not asymmetric — MSE is standard for E2E per Qi Bin's convention)
+- Checkpoints saved every 10 epochs in `model_weights/T2HIST_v2_100epochs_epoch_*.pth`
+
+Training script: `train_tracks_to_hist.py` (added `model_type: v2` dispatch,
+warmup scheduler, TracksToHist_v2 support).
+
+### Sidelobe root cause: CORRECTED — eval threshold artifact, not architecture
+
+**Critical finding**: the sidelobe bumps in the resolution plot are **hidden by the
+eval script's dual-threshold design**, not fixed by E2E training or architecture changes.
+
+Our `run_eval_pvf_run3.py` uses two peak-finding passes:
+- `INTEGRAL_THRESHOLD = 0.2` for performance metrics (efficiency, FP rate)
+- `INTEGRAL_THRESHOLD_RES = 0.5` for the resolution pairwise Δz plot
+
+The sidelobe peaks are small (low integral) — they pass 0.2 but fail 0.5. This means:
+- They **count as fakes** in performance metrics
+- They **don't appear** in the resolution plot
+- The resolution plot looks clean even though sidelobes exist
+
+The `clean_run3` eval script uses a **single threshold (0.4)** for both, so sidelobes
+appear in its resolution plot.
+
+**Verification**: rerunning evals with `--integral-threshold-res 0.2` makes the
+sidelobe bumps reappear in the resolution plot for ALL models (E2E v1, E2E v2, pipeline).
+
+This means:
+1. The earlier conclusion that "E2E training eliminates sidelobes" was wrong — it
+   was the stricter threshold hiding them
+2. The UNet_v2 architecture changes may still help, but need honest evaluation
+3. All models (E2E and pipeline) have sidelobes; the pipeline may be slightly worse
+
+### Eval script improvements
+
+- Added `--e2e-type v1|v2` flag to both `run_eval_pvf.py` and `run_eval_pvf_run3.py`
+- Added `--integral-threshold-res` CLI flag to control resolution threshold
+- Fixed `load_ckpt` to handle legacy `.pyt` model objects (`hasattr(ckpt, "state_dict")`)
+- Fixed `load_ckpt` to handle old module paths (`model.autoencoder_models` alias)
+- Created `eval_k2h_v2_run2.py` for K2H v2 eval with analytical KDEs on Run 2 data
+
+### K2H v2 standalone eval (analytical KDE input, Run 2, 1000 events)
+
+K2H v2 on analytical KDEs (no T2KDE): sigma=0.304mm, eff=97.6%. This isolates K2H v2
+from the T2KDE stage. Resolution plot on MC was clean (no sidelobes), but with
+`integral_threshold_res=0.2` needs re-checking.
+
+## 2026-03-17 — Threshold investigation and comparative evals
+
+Ran systematic evals comparing `integral_threshold_res=0.2` vs `0.5` across models
+and datasets to quantify the sidelobe hiding effect. Results pending.
+
+Key question being investigated: if `integral_threshold=0.5` is used for **all**
+peak finding (not just resolution), does it eliminate sidelobe fakes from performance
+metrics too, without hurting efficiency on real vertices? If the 0.2-0.5 integral
+range is predominantly sidelobes, 0.5 everywhere is the right operating point.

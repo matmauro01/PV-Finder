@@ -99,8 +99,11 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 
 | Model | File |
 |-------|------|
-| E2E ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` |
-| K2H ep190 | `model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth` |
+| E2E v1 ep130 (Qi Bin) | `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130.pyt` |
+| E2E v1 ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` |
+| E2E v2 ep90 (TracksToHist_v2) | `model_weights/T2HIST_v2_100epochs_epoch_90_fullstate.pth` |
+| K2H v1 ep190 | `model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth` |
+| K2H v2 ep190 | `model_weights/K2H_v2_interp_200epochs_epoch_190_fullstate.pth` |
 | T2KDE ep130 | `model_weights/reproduction_KDE_A_z_matmauro_run1_200_epoch_130_fullstate.pth` |
 
 The E2E checkpoint was extracted from the mattia_finder MLflow artifact (`.pyt` full model → state dict) using the `pvfinder` conda env, since the `.pyt` format embeds the `model` module path.
@@ -138,9 +141,19 @@ The **one intentional difference**: we add both `+dz` and `-dz` for each pair, g
 ### σ_vtx_vtx is both output and input
 σ_vtx_vtx is computed from the pairwise Δz distribution, then **used as the matching window** in `compare_res_reco`. This creates a mild circular dependency: a very different model will give a different σ, which changes how clean/merged/fake are counted. Keep this in mind when comparing numbers across very different models.
 
-### Two integral thresholds
+### Two integral thresholds — CAUTION
+
 - `INTEGRAL_THRESHOLD = 0.2` — used for **performance metrics** (finds more peaks, important for fake/efficiency).
-- `INTEGRAL_THRESHOLD_RES = 0.5` — used only for **σ_vtx_vtx** peak finding (stricter, cleaner peaks for the resolution fit).
+- `INTEGRAL_THRESHOLD_RES = 0.5` — used only for **σ_vtx_vtx** peak finding (stricter, cleaner peaks for the resolution fit). Overridable via `--integral-threshold-res`.
+
+**WARNING**: This dual-threshold design hides sidelobe artifacts from the resolution
+plot. Sidelobe peaks have low integral (pass 0.2 but fail 0.5), so they count as
+fakes in performance metrics but don't appear in the resolution plot. This creates
+a misleading impression of clean resolution. The `clean_run3` eval uses a single
+threshold (0.4) for both, which is why its resolution plots show sidelobes.
+
+Use `--integral-threshold-res 0.2` for honest resolution plots that include all
+peaks counted in performance metrics.
 
 ### Pileup filter scope
 μ∈[55,65] applies **only to the printed summary table**. The performance plot and stats histogram use **all events**.
@@ -162,7 +175,8 @@ Evaluates PV-Finder on real collision data (Run 2 or Run 3), using AMVF reconstr
 | Flags | Pipeline |
 |-------|----------|
 | `--t2kde-model` + `--k2h-model` | Tracks → T2KDE (MaskedDNN) → K2H (UNet_1000) |
-| `--e2e-model` | Tracks → trackstoHists_UNet_1000 end-to-end |
+| `--e2e-model` + `--e2e-type v1` | Tracks → trackstoHists_UNet_1000 end-to-end |
+| `--e2e-model` + `--e2e-type v2` | Tracks → TracksToHist_v2 end-to-end |
 
 ### Data Sources (mutually exclusive)
 
@@ -292,6 +306,6 @@ Outputs: `removal_stats.png` (4-panel summary), `zoom_plots/` (~40 per-vertex
 
 1. **E2E checkpoint extraction** — `tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` was manually extracted. Other epoch checkpoints have not been extracted. Automate if needed.
 
-2. **σ_vtx_vtx fit differences vs clean_run3** — clean_run3 excludes central |x|≤0.3 mm bins from the sigmoid fit and tries a Gaussian notch fit first; PV-Finder fits all bins with a sigmoid only. clean_run3 also uses slightly different peak-finding thresholds (threshold=0.02, integral=0.4, width=2 vs our 0.01/0.5/3). These differences can shift the reported sigma.
+2. **σ_vtx_vtx fit differences vs clean_run3** — clean_run3 excludes central |x|≤0.3 mm bins from the sigmoid fit and tries a Gaussian notch fit first; PV-Finder fits all bins with a sigmoid only. clean_run3 uses different peak-finding thresholds (threshold=0.02, integral=0.4, width=2 vs our 0.01/0.2/3 for perf, 0.01/0.5/3 for resolution). The dual-threshold design in our code hides sidelobes from the resolution plot (see warning above).
 
 3. **No nTracks in h5** — the flat h5 `pv` field has only z positions. The nTracks≥2 filter requires ROOT. Running without `--root-truth` gives unfiltered truth (more merged, lower clean counts).
