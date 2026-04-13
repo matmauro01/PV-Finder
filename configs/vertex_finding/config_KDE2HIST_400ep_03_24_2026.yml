@@ -1,0 +1,42 @@
+# KDE-to-Histogram reproduction training - 400 epochs - 03/24/2026
+
+# ===================================================
+# Data configurations
+
+data_file: /share/lazy/qibinlei/recoTrackNPV_jets_pubindices_1000bins_incbounds_Target_Y_split.h5
+output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
+
+# ===================================================
+# Training configurations
+
+device_id: 1
+n_events: 51000
+train_split: [0.7, 0.25, 0.05]
+n_epochs: 400
+batch_size: 128
+num_workers: 16
+learning_rate: 0.0001
+asymmetry_param: 2.5
+
+save_weights: True
+save_frequency: 10
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/03_24_2026/
+
+experimentname: "ATLAS 2025 Reproduction - KDE to Histogram"
+runname: "reproduction_KDE2HIST_400ep"
+
+# ===================================================
+# Model configurations
+
+model_class: KDE-to-hist
+model_type: UNet
+
+models_config:
+    UNet:
+        n: 64
+        sc_mode: concat
+        dropout_p: 0.25
+        d_selection: ConvBNrelu
+        u_selection: Up
+        n_features: 1
+        out_idx: 0
