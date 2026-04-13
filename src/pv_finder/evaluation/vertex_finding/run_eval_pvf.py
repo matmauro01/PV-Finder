@@ -297,7 +297,15 @@ def main(args: argparse.Namespace) -> None:
         print(f"  WARNING: fit failed ({exc}). Default sigma={sigma} mm")
 
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, Path(args.output_dir))
+    plot_resolution(
+        dz_arr,
+        sigma,
+        popt,
+        sigmoid_fit,
+        mode_label,
+        Path(args.output_dir),
+        title=args.title,
+    )
     print(f"  Saved: {Path(args.output_dir) / 'resolution_plot.png'}")
 
     # Performance metrics
@@ -415,34 +423,36 @@ def main(args: argparse.Namespace) -> None:
 
     print("\n--- Generating Plots ---")
     plot_performance(
-        per_event, overall_eff, root_z is not None, mode_label, Path(args.output_dir)
+        per_event,
+        overall_eff,
+        fp_rate,
+        sigma,
+        root_z is not None,
+        mode_label,
+        Path(args.output_dir),
+        title=args.title,
     )
     print(f"  Saved: {Path(args.output_dir) / 'performance_plot.png'}")
-    plot_stats(per_event, root_z is not None, mode_label, Path(args.output_dir))
+    plot_stats(
+        per_event,
+        root_z is not None,
+        mode_label,
+        Path(args.output_dir),
+        title=args.title,
+    )
     print(f"  Saved: {Path(args.output_dir) / 'stats_histogram.png'}")
 
     results = dict(
         mode="e2e" if args.e2e_model else "stage2",
-        sigma_vtx_vtx_mm=sigma,
-        overall_efficiency=overall_eff,
-        fp_rate_per_evt=fp_rate,
-        n_events=nsc,
-        total_truth_pvs=tot_truth,
-        total_clean=tot_c,
-        total_merged=tot_m,
-        total_split=tot_s,
-        total_fake=tot_f,
-        total_truth_clean=tot_tc,
-        total_truth_merged=tot_tm,
-        total_truth_missed=tot_tmiss,
-        per_event=per_event,
-        pred_pvs_mm=all_pred,
-        truth_pvs_mm=all_truth,
+        sigma_vtx_vtx_mm=sigma, overall_efficiency=overall_eff, fp_rate_per_evt=fp_rate,
+        n_events=nsc, total_truth_pvs=tot_truth,
+        total_clean=tot_c, total_merged=tot_m, total_split=tot_s, total_fake=tot_f,
+        total_truth_clean=tot_tc, total_truth_merged=tot_tm, total_truth_missed=tot_tmiss,
+        per_event=per_event, pred_pvs_mm=all_pred, truth_pvs_mm=all_truth,
         pairwise_dz_mm=dz_arr,
         fit_params=popt.tolist() if popt is not None else None,
-        k2h_checkpoint=args.k2h_model,
-        e2e_checkpoint=args.e2e_model,
-    )
+        k2h_checkpoint=args.k2h_model, e2e_checkpoint=args.e2e_model,
+    )  # fmt: skip
     pkl_path = Path(args.output_dir) / "eval_results.pkl"
     with open(pkl_path, "wb") as fp:
         pickle.dump(results, fp)
@@ -466,22 +476,12 @@ if __name__ == "__main__":
     parser.add_argument("--e2e-model", default=None, dest="e2e_model")
     parser.add_argument("--e2e-type", default="v1", choices=["v1", "v2"],
                         dest="e2e_type", help="E2E model class (v1=trackstoHists_UNet_1000, v2=TracksToHist_v2)")  # fmt: skip
-    parser.add_argument(
-        "--root-truth",
-        default=None,
-        dest="root_truth",
-        help=(
-            "ROOT truth file for nTracks>=2 filtering. "
-            f"Default when flag present: {_DEFAULT_ROOT}. "
-            "qibin index map is loaded automatically from "
-            f"{_DEFAULT_QIBIN}."
-        ),
-    )
-    parser.add_argument(
-        "--indices",
-        default="configs/test_main_indices_2550evt.p",
-        help="Test event indices pickle",
-    )
+    parser.add_argument("--root-truth", default=None, dest="root_truth",
+        help=f"ROOT truth for nTracks>=2 filter. Default: {_DEFAULT_ROOT}. "
+             f"qibin map auto-loaded from {_DEFAULT_QIBIN}.")  # fmt: skip
+    parser.add_argument("--indices", default="configs/test_main_indices_2550evt.p",
+                        help="Test event indices pickle")  # fmt: skip
     parser.add_argument("--output-dir", default="outputs/eval_pvf", dest="output_dir")
     parser.add_argument("--device", type=int, default=0, help="CUDA device (-1=CPU)")
+    parser.add_argument("--title", default="", help="Plot title (used for all plots)")
     main(parser.parse_args())

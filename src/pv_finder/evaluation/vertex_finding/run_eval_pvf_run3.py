@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""PV-Finder evaluation on real data (Run 2 / Run 3).
+"""PV-Finder evaluation on real/MC data (Run 2 / Run 3 / HLLHC).
 
-Reference: AMVF vertices (RecoVertex_z with nTracks >= 2).
-Data: --root (ROOT file) or --npz (pre-extracted cache).
-Models: --e2e-model OR --t2kde-model + --k2h-model.
+Reference: AMVF vertices (nTracks >= 2). Models: --e2e-model OR --t2kde-model + --k2h-model.
 """
 
 from __future__ import annotations
@@ -299,12 +297,16 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     ctrs = 0.5 * (bins_r[:-1] + bins_r[1:])
     cnts, _ = np.histogram(dz_arr, bins=bins_r)
     sigma, popt = 0.5, None
+    # Adaptive initial guess: a ~ dip depth, c ~ baseline, b ~ steepness, rcc ~ 0.5mm
+    baseline = float(np.median(cnts))
+    dip = baseline - float(cnts.min())
+    p0 = [max(dip, 1.0), 10.0, max(baseline, 1.0), 0.5]
     try:
         popt, pcov = curve_fit(
             sigmoid_fit,
             ctrs,
             cnts.astype(float),
-            p0=FIT_P0,
+            p0=p0,
             maxfev=10000,
             bounds=([0, 0, 0, 0], [np.inf, np.inf, np.inf, np.inf]),
         )
@@ -317,8 +319,11 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
 
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
+    plot_title = (
+        args.title if args.title else f"PVF Resolution — Real Data\n({mode_label})"
+    )
     plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
-                    title=f"PVF Resolution -- Run 3 Data\n({mode_label})")  # fmt: skip
+                    title=plot_title)  # fmt: skip
     print(f"  Saved: {outdir / 'resolution_plot.png'}")
 
     # --- Performance metrics ---
@@ -371,7 +376,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     overall_eff = (tot_tc + tot_tm) / tot_truth if tot_truth else 0.0
     fp_rate = tot_f / nsc if nsc else 0.0
 
-    MU_MIN, MU_MAX = 55, 65
+    MU_MIN, MU_MAX = args.mu_min, args.mu_max
     if has_mu:
         sevts = [
             r
@@ -415,42 +420,37 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
 
     # --- Plots ---
     print("\n--- Generating Plots ---")
-    plot_performance(per_event, overall_eff, has_mu, mode_label, outdir,
-                     title=f"PVF Performance -- Run 3 Data\n({mode_label})")  # fmt: skip
+    perf_title = (
+        args.title if args.title else f"PVF Performance — Real Data\n({mode_label})"
+    )
+    plot_performance(per_event, overall_eff, fp_rate, sigma, has_mu,
+                     mode_label, outdir, title=perf_title)  # fmt: skip
     print(f"  Saved: {outdir / 'performance_plot.png'}")
+    stats_title = (
+        args.title if args.title else f"PVF Reco Categories — Real Data\n({mode_label})"
+    )
     plot_stats(per_event, has_mu, mode_label, outdir,
-               title=f"PVF Reco PV Categories -- Run 3 Data\n({mode_label})")  # fmt: skip
+               title=stats_title)  # fmt: skip
     print(f"  Saved: {outdir / 'stats_histogram.png'}")
 
     # --- Save results ---
     results = dict(
         mode="e2e" if has_e2e else "pipeline",
         sigma_vtx_vtx_mm=sigma,
-        overall_efficiency=overall_eff,
-        fp_rate_per_evt=fp_rate,
-        n_events=nsc,
-        total_truth_pvs=tot_truth,
-        total_clean=tot_c,
-        total_merged=tot_m,
-        total_split=tot_s,
-        total_fake=tot_f,
-        total_truth_clean=tot_tc,
-        total_truth_merged=tot_tm,
-        total_truth_missed=tot_tmiss,
-        per_event=per_event,
-        pred_pvs_mm=all_pred,
-        truth_pvs_mm=all_truth,
+        overall_efficiency=overall_eff, fp_rate_per_evt=fp_rate,
+        n_events=nsc, total_truth_pvs=tot_truth,
+        total_clean=tot_c, total_merged=tot_m, total_split=tot_s, total_fake=tot_f,
+        total_truth_clean=tot_tc, total_truth_merged=tot_tm, total_truth_missed=tot_tmiss,
+        per_event=per_event, pred_pvs_mm=all_pred, truth_pvs_mm=all_truth,
         pairwise_dz_mm=dz_arr,
         fit_params=popt.tolist() if popt is not None else None,
-        t2kde_checkpoint=args.t2kde_model,
-        k2h_checkpoint=args.k2h_model,
+        t2kde_checkpoint=args.t2kde_model, k2h_checkpoint=args.k2h_model,
         e2e_checkpoint=args.e2e_model,
         data_source="root" if args.root else "npz",
         correct_beam=not args.no_correct_beam,
         smooth_sigma=args.smooth_sigma,
-        nms_min_sep=args.nms_min_sep,
-        nms_max_ratio=args.nms_max_ratio,
-    )
+        nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio,
+    )  # fmt: skip
     pkl_path = outdir / "eval_results.pkl"
     with open(pkl_path, "wb") as fp:
         pickle.dump(results, fp)
@@ -488,9 +488,12 @@ if __name__ == "__main__":
                         help="Gaussian sigma (bins) for pre-smoothing (0=off)")  # fmt: skip
     parser.add_argument("--nms-min-sep", type=float, default=0.0, dest="nms_min_sep",
                         help="NMS min separation mm (0=off)")  # fmt: skip
+    parser.add_argument("--mu-min", type=int, default=55, dest="mu_min")
+    parser.add_argument("--mu-max", type=int, default=65, dest="mu_max")
     parser.add_argument("--nms-max-ratio", type=float, default=0.3, dest="nms_max_ratio",
                         help="NMS max height ratio for suppression")  # fmt: skip
     parser.add_argument("--integral-threshold-res", type=float, default=0.5,
                         dest="integral_threshold_res",
                         help="Integral threshold for resolution pairwise dz (default 0.5)")  # fmt: skip
+    parser.add_argument("--title", default="", help="Plot title (used for all plots)")
     main(parser.parse_args())

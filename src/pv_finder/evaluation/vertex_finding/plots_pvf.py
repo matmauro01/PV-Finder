@@ -1,7 +1,7 @@
 """plots_pvf.py — Plotting helpers for run_eval_pvf.py.
 
 Three functions, each saves one PNG to output_dir:
-  plot_resolution   — pairwise Δz histogram + sigmoid fit
+  plot_resolution   — pairwise Δz distribution + sigmoid fit
   plot_performance  — reco category fractions + efficiency vs pileup
   plot_stats        — avg count/event per category vs pileup (all events)
 """
@@ -11,6 +11,16 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+# Consistent styling
+_COLORS = {
+    "clean": "#1f77b4",
+    "merged": "#2ca02c",
+    "split": "#d62728",
+    "fake": "#7f7f7f",
+}
+_MARKERS = {"clean": "o", "merged": "s", "split": "^", "fake": "v"}
+_FONT = {"fontsize": 13}
 
 
 def plot_resolution(
@@ -22,19 +32,21 @@ def plot_resolution(
     output_dir: Path,
     title: str = "",
 ) -> None:
-    """Pairwise Δz histogram with fitted sigmoid curve."""
+    """Pairwise Δz distribution (points + Poisson errors) with sigmoid fit."""
     bins_res = np.linspace(-6.0, 6.0, 61)
     bin_ctrs = 0.5 * (bins_res[:-1] + bins_res[1:])
     counts, _ = np.histogram(dz_arr, bins=bins_res)
-    bw = bins_res[1] - bins_res[0]
+    errors = np.sqrt(counts.astype(float))
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.bar(
+    ax.errorbar(
         bin_ctrs,
         counts,
-        width=bw * 0.9,
-        color="steelblue",
-        alpha=0.8,
+        yerr=errors,
+        fmt="ko",
+        ms=4,
+        capsize=2,
+        elinewidth=1,
         label="Reconstructed PV pairs",
     )
     if popt is not None:
@@ -46,20 +58,21 @@ def plot_resolution(
             lw=2,
             label=f"Sigmoid fit  σ = {sigma_vtx_vtx:.3f} mm",
         )
+        ax.axvline(sigma_vtx_vtx, color="red", ls="--", alpha=0.6)
         ax.axvline(
-            sigma_vtx_vtx,
+            -sigma_vtx_vtx,
             color="red",
             ls="--",
-            alpha=0.7,
+            alpha=0.6,
             label=f"±σ = ±{sigma_vtx_vtx:.3f} mm",
         )
-        ax.axvline(-sigma_vtx_vtx, color="red", ls="--", alpha=0.7)
-    ax.set_xlabel("Δz between reconstructed PV pairs (mm)")
-    ax.set_ylabel("Counts")
-    ax.set_title(title or f"PVF Resolution — MC Test Set\n({mode_label})")
-    ax.legend()
+    ax.set_xlabel("Δz between reconstructed PV pairs (mm)", **_FONT)
+    ax.set_ylabel("Counts", **_FONT)
+    ax.set_title(title or f"PVF Resolution — {mode_label}", **_FONT)
+    ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
     ax.set_ylim(bottom=0)
+    ax.tick_params(labelsize=11)
     plt.tight_layout()
     plt.savefig(output_dir / "resolution_plot.png", dpi=150)
     plt.close()
@@ -68,6 +81,8 @@ def plot_resolution(
 def plot_performance(
     per_event: list,
     overall_eff: float,
+    fp_rate: float,
+    sigma_vtx_vtx: float,
     root_z_available: bool,
     mode_label: str,
     output_dir: Path,
@@ -84,43 +99,64 @@ def plot_performance(
 
     pu_vals = sorted(pu.keys())
     _m = lambda lst: float(np.mean(lst)) if lst else 0.0  # noqa: E731
+    _sem = lambda lst: float(np.std(lst) / np.sqrt(len(lst))) if len(lst) > 1 else 0.0  # noqa: E731
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
+
     ax = axes[0]
-    for key, color, marker, label in [
-        ("clean", "b", "o", "Clean"),
-        ("merged", "g", "s", "Merged"),
-        ("split", "r", "^", "Split"),
-        ("fake", "k", "v", "Fake"),
-    ]:
-        ax.plot(
+    for key in ("clean", "merged", "split", "fake"):
+        means = [_m(pu[p][key]) for p in pu_vals]
+        sems = [_sem(pu[p][key]) for p in pu_vals]
+        ax.errorbar(
             pu_vals,
-            [_m(pu[p][key]) for p in pu_vals],
-            f"{color}-{marker}",
+            means,
+            yerr=sems,
+            fmt=f"-{_MARKERS[key]}",
+            color=_COLORS[key],
             ms=4,
-            label=label,
+            capsize=2,
+            label=key.capitalize(),
         )
-    ax.set_ylabel("Fraction of reconstructed PVs")
-    ax.set_title(title or f"PVF Performance — Reco PV Categories\n({mode_label})")
-    ax.legend()
+    ax.set_ylabel("Fraction of reconstructed PVs", **_FONT)
+    ax.set_title(title or f"PVF Performance — {mode_label}", **_FONT)
+    ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
+    ax.tick_params(labelsize=11)
 
     ax = axes[1]
-    ax.plot(pu_vals, [_m(pu[p]["eff"]) for p in pu_vals], "b-o", ms=4)
+    eff_means = [_m(pu[p]["eff"]) for p in pu_vals]
+    eff_sems = [_sem(pu[p]["eff"]) for p in pu_vals]
+    ax.errorbar(
+        pu_vals, eff_means, yerr=eff_sems, fmt="-o", color="#1f77b4", ms=4, capsize=2
+    )
     ax.axhline(
         overall_eff,
         color="red",
         ls="--",
         alpha=0.7,
-        label=f"Overall = {overall_eff:.3f}",
+        label=f"Overall eff = {overall_eff:.3f}",
     )
     xlabel = "ActualNumOfInt (μ)" if root_z_available else "N truth PVs/evt"
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel("Efficiency (matched / truth)")
-    ax.set_title("PVF Efficiency")
+    ax.set_xlabel(xlabel, **_FONT)
+    ax.set_ylabel("Efficiency (matched / truth)", **_FONT)
     ax.set_ylim(0, 1.1)
-    ax.legend()
+    ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
+    ax.tick_params(labelsize=11)
+
+    # Annotation box with key metrics
+    txt = f"σ = {sigma_vtx_vtx:.3f} mm\nEff = {overall_eff:.3f}\nFP = {fp_rate:.2f}/evt"
+    ax.text(
+        0.98,
+        0.05,
+        txt,
+        transform=ax.transAxes,
+        fontsize=11,
+        va="bottom",
+        ha="right",
+        bbox=dict(boxstyle="round,pad=0.4", fc="wheat", alpha=0.8),
+    )
+
     plt.tight_layout()
     plt.savefig(output_dir / "performance_plot.png", dpi=150)
     plt.close()
@@ -161,28 +197,25 @@ def plot_stats(
             )
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    for key, color, marker in [
-        ("clean", "b", "o"),
-        ("merged", "g", "s"),
-        ("split", "r", "^"),
-        ("fake", "k", "v"),
-    ]:
+    for key in cats:
         ax.errorbar(
             mu_binned,
             means[key],
             yerr=errs[key],
-            fmt=f"{color}-{marker}",
+            fmt=f"-{_MARKERS[key]}",
+            color=_COLORS[key],
             ms=4,
             capsize=3,
             label=key.capitalize(),
         )
-    xlabel = "ActualNumOfInt (μ, rounded)" if root_z_available else "N truth PVs/evt"
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel("Avg count / event")
-    ax.set_title(title or f"PVF Reco PV Categories vs Pileup\n({mode_label})")
+    xlabel = "ActualNumOfInt (μ)" if root_z_available else "N truth PVs/evt"
+    ax.set_xlabel(xlabel, **_FONT)
+    ax.set_ylabel("Avg count / event", **_FONT)
+    ax.set_title(title or f"PVF Reco Categories vs Pileup — {mode_label}", **_FONT)
     ax.set_ylim(bottom=0)
-    ax.legend()
+    ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
+    ax.tick_params(labelsize=11)
     plt.tight_layout()
     plt.savefig(output_dir / "stats_histogram.png", dpi=150)
     plt.close()
