@@ -71,9 +71,12 @@ spatial mapping before the UNet co-adapts.
 | Config | Strategy | Key settings |
 |--------|----------|-------------|
 | `config_T2KDE_A_z_reproduction.yml` | A step 1 | 200 epochs, lr=0.001, batch=128 |
+| `config_T2KDE_400ep_03_24_2026.yml` | A step 1 | 400 epochs, lr=0.001, batch=128 |
 | `config_KDE2HIST_matmauro.yml` | A step 2 | 200 epochs, lr=0.0001, batch=128 |
+| `config_KDE2HIST_400ep_03_24_2026.yml` | A step 2 | 400 epochs, lr=0.0001, batch=128 |
 | `config_T2HIST_matmauro.yml` | A step 4 | 100 epochs, lr=0.001, MSE loss, pre-built .pth |
 | `config_T2HIST_combined_200epochs.yml` | A step 4 | 400 epochs, auto-init from step 1+2 weights |
+| `config_T2HIST_400ep_03_24_2026.yml` | A step 4 | 400 epochs, T2KDE ep100 + K2H ep150, MSE, Qi Bin repro |
 | `config_mlp_hist_e2e.yml` | B | 50+400 epochs, no KDE, MLP warmup |
 | `config_KDE2HIST_v2.yml` | A step 2 (v2) | 200 epochs, lr=0.0001, UNet_1000_v2 |
 

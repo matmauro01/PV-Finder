@@ -1024,3 +1024,197 @@ Key question being investigated: if `integral_threshold=0.5` is used for **all**
 peak finding (not just resolution), does it eliminate sidelobe fakes from performance
 metrics too, without hurting efficiency on real vertices? If the 0.2-0.5 integral
 range is predominantly sidelobes, 0.5 everywhere is the right operating point.
+
+## 2026-03-24 — 400-epoch component trainings launched
+
+Started fresh 400-epoch training runs for both stages (previous reproduction was 200 epochs):
+
+- **T2KDE**: `config_T2KDE_400ep_03_24_2026.yml`, MaskedDNN, lr=0.001, GPU 0
+  - Checkpoint prefix: `reproduction_KDE_A_z_400ep`
+- **K2H**: `config_KDE2HIST_400ep_03_24_2026.yml`, UNet_1000, lr=0.0001, GPU 1
+  - Checkpoint prefix: `reproduction_KDE2HIST_400ep`
+
+Both save to `model_weights/03_24_2026/` every 10 epochs. Running in tmux sessions.
+
+## 2026-03-24 — E2E combined model training launched (Qi Bin reproduction)
+
+Created `config_T2HIST_400ep_03_24_2026.yml` for end-to-end training, exact reproduction
+of Qi Bin's approach:
+
+- Model: `trackstoHists_UNet_1000` (v1, inlined MLP+UNet)
+- Initialized via `initialize_combined_model()` from:
+  - T2KDE epoch 100: `reproduction_KDE_A_z_400ep_epoch_100.pyt`
+  - K2H epoch 150: `reproduction_KDE2HIST_400ep_epoch_150.pyt`
+- Loss: MSE (Qi Bin convention for E2E)
+- Optimizer: Adam, lr=0.001, betas=(0.9, 0.999)
+- No warmup, no LR scheduler (exact Qi Bin reproduction)
+- 400 epochs, batch 128, dropout 0.25, n_latent_channels=1
+- GPU 2, saving to `model_weights/03_24_2026/`
+- MLflow experiment: "ATLAS 2025 Reproduction - Tracks to Histogram"
+- Run name: `reproduction_T2HIST_400ep_T2KDE100_K2H150`
+
+Decision: no warmup for this run. Warmup exists in the codebase for v2 models but
+Qi Bin never used it for v1 E2E. We may revisit if training is unstable.
+
+## 2026-03-24 — Zombie process cleanup on sneezy
+
+Discovered load average of ~375 on a 96-core machine. Root cause: 26 zombie bash/shell
+processes from old Cursor sessions (dating back to Feb 24), each spinning at 99% CPU.
+These are the unkillable zombie processes caused by the kernel 4.15 bug documented in
+CLAUDE.md.
+
+`kill -9` had no effect (as expected with the kernel bug). Applied two mitigations:
+
+1. `renice 19` — lowered all zombies to lowest scheduling priority
+2. `taskset -pc 95` — pinned all 26 zombies to a single CPU core (core 95)
+
+Net effect: freed ~25 CPU cores. Training throughput should recover to near-normal.
+Only a server reboot can fully remove these processes.
+
+## 2026-03-24 — E2E v2 training resumed to 400 epochs
+
+Resumed `T2HIST_v2_100epochs` from epoch 90 checkpoint (full optimizer state) to train
+up to epoch 400. Set `warmup_epochs: 0` to avoid re-applying warmup on resume. Kept
+lr=0.0001 (original v2 rate) — 10x lower than Qi Bin's v1 rate but changing mid-training
+would be disruptive. If convergence is slow, can always extend beyond 400.
+
+## 2026-03-24 — Eval code cleanup and threshold documentation
+
+### integral_threshold_res finding
+
+Reviewed 03/17 eval results comparing `integral_threshold_res=0.2` vs `0.5` on Run 2:
+
+| integral_threshold_res | sigma (Run 2) | sigma (Run 3) |
+|----------------------|---------------|---------------|
+| 0.2                  | 0.308 mm      | 0.309 mm      |
+| 0.5                  | 0.337 mm      | 0.354 mm      |
+
+**Decision: always use 0.5 for the resolution plot.** With 0.2, small sidelobe peaks
+pass the threshold and enter the pairwise distance computation, creating an artificial
+excess near Δz=0 that tightens sigma. The 0.5 threshold filters these out, giving a
+cleaner and more physically meaningful resolution measurement. Both MC and real data
+eval scripts default to 0.5.
+
+Threshold summary (now standardized across all evals):
+- **Performance** (peak finding for matching): `integral_threshold = 0.2`
+- **Resolution** (sigma_vtx_vtx pairwise Δz): `integral_threshold_res = 0.5`
+
+### Plot improvements
+
+Updated `plots_pvf.py`:
+- Resolution plot: replaced bar histogram with points + Poisson error bars (sqrt(N))
+- Performance plot: added SEM error bars on category fractions and efficiency vs pileup;
+  added annotation box with sigma/eff/FP summary
+- All plots: consistent color scheme, larger fonts, `--title` CLI flag for clean titles
+- Added `--title` argument to both `run_eval_pvf.py` and `run_eval_pvf_run3.py`
+
+### Eval fidelity vs Qi Bin (mattia_finder)
+
+Verified `run_eval_pvf.py` matches Qi Bin's evaluation exactly:
+- Peak finding: threshold=0.01, integral_threshold=0.2, min_width=3
+- Sigma: integral_threshold=0.5, same sigmoid fit function and p0
+- Truth filter: nTracks >= 2 from ROOT (with qibin index mapping)
+- Test set: 2550 events (last 5%), indices 48450-50999
+- Matching: compare_res_reco with sigma_vtx_vtx window in bins
+- No NMS post-processing
+
+## 2026-03-24 — MC and Run 2 evaluations launched
+
+Running clean evals on two E2E models:
+
+**Models:**
+- E2E v1 (Qi Bin repro): `reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150`
+- E2E v2 (UNet interp): `T2HIST_v2_100epochs_epoch_121`
+
+**MC evals** (2550 events, ROOT truth nTracks>=2):
+- `outputs/03_24_2026_output/eval_mc_e2e_v1_ep150/`
+- `outputs/03_24_2026_output/eval_mc_e2e_v2_ep121/`
+
+**Run 2 evals** (2500 events, AMVF nTracks>=2, beam-corrected):
+- `outputs/03_24_2026_output/eval_run2_e2e_v1_ep150/`
+- `outputs/03_24_2026_output/eval_run2_e2e_v2_ep121/`
+
+## 2026-03-26 — HLLHC PU200 dataset + ROOT→HDF5 converter
+
+New Run 4 dataset: `ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root`
+(99,800 events, μ≈200, ~927 tracks/event, ~126 truth PVs/event).
+
+Built `src/pv_finder/data/root_to_h5.py` — two-pass ROOT→HDF5 converter:
+- **Pass 1**: scans dimensions (max tracks/subevent, max PVs/event).
+- **Pass 2**: converts in chunks (default 1000 events), writing float32 tracks
+  `(N_sub, 7, MAX_TRACKS)` and float16 targets `target_y_split` and `target_y`.
+- Target histograms are generated on the fly via the LHCb Gaussian-CDF method
+  (resolution `σ = 0.23817 · ntrks^(-0.4949) − 0.000787` for ntrks≥2, else binWidth;
+  amplitude boost `where((0.15/σ)>1, (0.15/σ)*populate, populate)`).
+- Channel 0 = nTracks≥2, channel 1 = nTracks<2.
+- **No `kde_split`** — HLLHC training is end-to-end only (KDEs infeasible at μ≈200).
+
+Output: `data/run4/hllhc_pu200_training.h5`. Smoke-tested on 100 events, full conversion
+verified against expected shapes.
+
+## 2026-03-26 — HLLHC E2E training launched
+
+Created `configs/vertex_finding/config_hllhc_pu200_e2e.yml`:
+- `trackstoHists_UNet_1000` (v1) with MLP warmup + E2E phases.
+- 99,800 events, split [0.7, 0.25, 0.05] sequential (seed 42).
+- Phase 1: 50 epochs, MLP-only histogram supervision (UNet disabled), lr=0.001.
+- Phase 2: 400 epochs, full E2E, lr=0.001, batch 128, MSE loss.
+- dropout=0.25, n_latent_channels=1.
+
+**Loss choice (MSE, not asymmetric)**: investigated git history — the asymmetric loss
+(`alt_loss_A.py`) was only ever used for K2H supervised on KDEs, never for E2E. With
+coefficient > 1 it penalizes under-prediction more, which actively *encourages* small
+satellite peaks rather than suppressing them. MSE is the correct baseline for E2E.
+
+Checkpoints saved every 10 epochs to `model_weights/` (phase1 + phase2 numbering).
+Experiment: "HLLHC PU200 — E2E from scratch", run: `hllhc_pu200_mlp50_e2e400`.
+
+## 2026-03-26 — HLLHC eval fixes: --mu-min/--mu-max, adaptive sigmoid fit
+
+`run_eval_pvf_run3.py` had two bugs at PU200:
+
+1. **Hardcoded pileup filter**: `MU_MIN/MU_MAX = 55, 65` hid the single-bin summary at
+   μ≈200. Added `--mu-min` / `--mu-max` CLI flags (default still 55/65 for Run 2/3).
+2. **Sigmoid fit failed on HLLHC**: initial guess `FIT_P0 = [1000, 10, 30, 0.8]` was
+   tuned for Run 2 counts (~1000/bin); HLLHC has ~10000/bin. Replaced with an adaptive
+   guess computed from the actual histogram:
+   ```python
+   baseline = float(np.median(cnts))
+   dip      = baseline - float(cnts.min())
+   p0 = [max(dip, 1.0), 10.0, max(baseline, 1.0), 0.5]
+   ```
+   Works across all data scales (MC, Run 2, Run 3, HLLHC).
+
+## 2026-04-09 — HLLHC evaluations (old vs new model)
+
+Ran eval on 2550 random HLLHC events with both the legacy Run-2-trained E2E v1 model
+and the new HLLHC-trained model at several phase-2 checkpoints (80/100/130/150/350).
+The old model transfers surprisingly well (≈90% efficiency at μ≈200) despite never
+having seen PU200 data — the HLLHC-trained model matches or exceeds it on matched
+efficiency from ~ep100 onward.
+
+Peak-height comparison (integral_threshold=0.4, 200 events):
+- **Old Run 2 model**: mean=0.3802, median=0.2678, std=0.3344, 78.9 peaks/evt
+- **HLLHC ep100**:     mean=0.3505, median=0.2674, std=0.2821, 82.6 peaks/evt
+
+New model produces slightly fewer tall outliers (smaller std) at similar median height —
+consistent with a tighter, less-peaked output at high pileup.
+
+## 2026-04-09 — Eval plot polish + title flag
+
+Cleaned up `plots_pvf.py`:
+- Consistent color/marker dicts (`_COLORS`, `_MARKERS`) across all three plots.
+- Larger fonts (`_FONT`), SEM error bars on fraction/efficiency curves.
+- Performance plot: added annotation box with σ / eff / FP summary.
+- Resolution plot: points + Poisson errors instead of bars.
+- Added `--title` flag to both `run_eval_pvf.py` and `run_eval_pvf_run3.py` so eval
+  runs can be labeled cleanly for comparison figures.
+
+## 2026-04-09 — New diagnostics and Run 3 I/O module
+
+- `src/pv_finder/diagnostics/histogram_heights.py` — compares MC vs Run 3 distributions
+  of non-zero bin values and peak heights from the E2E model output. Used to check
+  for domain-shift signatures in model output amplitude.
+- `src/pv_finder/data/run3_io.py` — shared `Run3Event` loader (ROOT via uproot or
+  pre-extracted NPZ), with `nTracks ≥ 2` AMVF truth filtering. Factored out of
+  `run_eval_pvf_run3.py` for reuse by diagnostics scripts.

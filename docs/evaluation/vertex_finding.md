@@ -156,7 +156,13 @@ Use `--integral-threshold-res 0.2` for honest resolution plots that include all
 peaks counted in performance metrics.
 
 ### Pileup filter scope
-μ∈[55,65] applies **only to the printed summary table**. The performance plot and stats histogram use **all events**.
+μ∈[55,65] applies **only to the printed summary table**. The performance plot and stats histogram use **all events**. Both bounds are overridable via `--mu-min` / `--mu-max` (e.g. `--mu-min 195 --mu-max 205` for HLLHC PU200).
+
+### Adaptive sigmoid fit initial guess
+The pairwise-Δz sigmoid fit uses initial parameters computed from the actual histogram
+(`a = baseline − min(counts)`, `c = median(counts)`, `b = 10`, `rcc = 0.5`). This
+adapts to widely different count scales — Run 2 (~1000/bin), HLLHC PU200 (~10000/bin) —
+without hand-tuning. The older fixed `FIT_P0 = [1000, 10, 30, 0.8]` failed on HLLHC.
 
 ### E2E checkpoint format
 mattia_finder saves full model objects (`.pyt`) embedding the `model` module path. These cannot be loaded directly from PV-Finder's venv. Extraction procedure: load with `conda run -n pvfinder python -c "... ckpt.state_dict() ..."` then `torch.save({"model_state": sd, "epoch": N}, "...fullstate.pth")`.
@@ -177,6 +183,10 @@ Evaluates PV-Finder on real collision data (Run 2 or Run 3), using AMVF reconstr
 | `--t2kde-model` + `--k2h-model` | Tracks → T2KDE (MaskedDNN) → K2H (UNet_1000) |
 | `--e2e-model` + `--e2e-type v1` | Tracks → trackstoHists_UNet_1000 end-to-end |
 | `--e2e-model` + `--e2e-type v2` | Tracks → TracksToHist_v2 end-to-end |
+
+The same script also runs on **HLLHC PU200** ROOT files (Run 4) — the tree layout
+is identical. Pass `--mu-min`/`--mu-max` to move the summary window from the Run 2/3
+default of `[55, 65]` to something like `[195, 205]` for PU200.
 
 ### Data Sources (mutually exclusive)
 
@@ -209,6 +219,14 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
     --t2kde-model model_weights/reproduction_KDE_A_z_matmauro_run1_200_epoch_130_fullstate.pth \
     --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
     --max-events 2500 --output-dir outputs/eval_pvf_run2
+
+# HLLHC PU200 — same script, custom pileup window:
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
+    --root data/run4/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \
+    --e2e-model model_weights/hllhc_pu200_mlp50_e2e400_phase2_epoch_100_fullstate.pth \
+    --e2e-type v1 --mu-min 195 --mu-max 205 \
+    --max-events 2550 --output-dir outputs/eval_hllhc_ep100 \
+    --title "PVF — HLLHC PU200 — ep100"
 ```
 
 ### Real Data vs MC Differences

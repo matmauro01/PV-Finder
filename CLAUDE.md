@@ -60,6 +60,12 @@ Two systems, both must stay current:
 When you make a meaningful change: update the relevant doc in docs/ AND append to JOURNAL.md.
 Always pyush you're code when you're done, and make sure to document it properly before doing so.
 
+## Output Organization
+
+Use dated subfolders for outputs: `outputs/MM_DD_YYYY_output/`. When launching evals or
+other output-producing scripts, always use a dated folder. If unsure of the date or
+convention, ask the user before writing outputs.
+
 ## Running Heavy Processes
 
 **sneezy** is a shared machine. Runaway processes become unkillable zombies (kernel 4.15 bug) and crash the Cursor SSH session.
