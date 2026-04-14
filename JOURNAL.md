@@ -1218,3 +1218,63 @@ Cleaned up `plots_pvf.py`:
 - `src/pv_finder/data/run3_io.py` — shared `Run3Event` loader (ROOT via uproot or
   pre-extracted NPZ), with `nTracks ≥ 2` AMVF truth filtering. Factored out of
   `run_eval_pvf_run3.py` for reuse by diagnostics scripts.
+
+## 2026-04-14 — HLLHC v1 training diverged; v2 recipe with stabilized LR + bigger model
+
+The v1 HLLHC training (`config_hllhc_pu200_e2e.yml`, Phase 2 lr=1e-3) diverged
+around Phase 2 epoch ≈100, slowly reconverged, and ended at a noticeably worse
+operating point than expected. Root cause: at μ≈200 the per-event loss gradient
+scales up with pileup (~4× more truth peaks, ~6× more tracks/event vs Run 2), so
+`lr=1e-3` — inherited from the Run 2 recipe — is effectively much hotter. A single
+outlier batch can kick the optimizer out of the basin.
+
+### New recipe — `train_hllhc_e2e.py` + `config_hllhc_pu200_e2e_v2.yml`
+
+- **Phase 2 LR 1e-3 → 1e-4** (main fix).
+- **Phase 2 LR schedule**: 5-epoch linear warmup `0.01·lr → lr`, then cosine decay
+  to `eta_min = lr × 0.01`. Fresh Adam at Phase 2 start so the old (potentially
+  damaged) momentum is discarded.
+- **Gradient clipping** `max_grad_norm = 1.0` on both phases. Smoke test shows the
+  fresh-init gradient norm is ~1.6, so clipping bites immediately and shields
+  against outlier-batch spikes on high-pileup events.
+- **Modestly larger model**:
+  - `n_UNetChannels`: 64 → 96
+  - `l_HiddenNodes`: `[100]*5` → `[128]*5`
+  - Total parameters 359K → 681K (≈1.9×), same UNet topology and same single
+    latent channel.
+
+Phase 1 LR stays at `1e-3` because Phase 1 (MLP warmup with UNet frozen) converged
+fine in v1.
+
+### New training script
+
+`src/pv_finder/training/train_hllhc_e2e.py` is a **new, separate** script rather
+than a config flag on `train_mlp_hist_then_e2e.py`. Reason: Phase 2 needs a custom
+loop to inject gradient clipping and the LR scheduler, and injecting that into the
+shared `trainNet` helper would risk the non-HLLHC trainings. The new script reuses
+the Phase 1 MLP-only forward pass (`forward_mlp_hist`, `_squeeze_hist`) via an
+import, so there's no duplication of the phase-1 logic.
+
+### Smoke test
+
+Verified before committing:
+
+- Model builds with `n_UNetChannels=96`, `l_HiddenNodes=[128]*5` (681K params).
+- Full E2E forward on a synthetic `(4, 7, 400)` batch produces `(4, 1000)` output
+  and a finite MSE loss; backward runs.
+- Scheduler sequence over 400 epochs: `1e-6 → 1e-4` over 5 epochs of linear warmup,
+  then cosine decay (`1e-4 → 1e-6`).
+- Gradient norm at init ≈ 1.6 (clip threshold 1.0 → will activate early).
+
+### Launch
+
+```bash
+tmux new -s hllhc_v2
+source venv/bin/activate
+python -u src/pv_finder/training/train_hllhc_e2e.py \
+    -c configs/vertex_finding/config_hllhc_pu200_e2e_v2.yml \
+    2>&1 | tee outputs/logs/hllhc_pu200_v2_$(date +%Y%m%d_%H%M%S).log
+# Ctrl+B, D to detach
+```
+
+The v1 config is kept for reference (to diff against the v2 recipe), not deleted.
