@@ -37,7 +37,6 @@ from pv_finder.training.train_mlp_hist_then_e2e import (
 from pv_finder.training.training import validate as _validate_full
 from pv_finder.utils.utilities import (
     count_parameters,
-    load_checkpoint,
     save_checkpoint,
     save_to_mlflow,
     set_seed,
@@ -115,6 +114,18 @@ def _clip_and_step(
 
 def _noop_progress(iterable, **_kwargs):
     return iterable
+
+
+def _load_model_state(path: str, model: nn.Module) -> int:
+    """Load only the model_state from a fullstate checkpoint.
+
+    Skips optimizer_state. Used to resume Phase 2 from a Phase 1 checkpoint
+    whose optimizer covers a different set of parameters (MLP-only) than the
+    Phase 2 optimizer (full model).
+    """
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
+    model.load_state_dict(ckpt["model_state"])
+    return int(ckpt.get("epoch", -1))
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +334,7 @@ def run_phase2(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-def main(configs: dict) -> None:
+def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
     log_path = setup_logging(Path(configs["log_folder"]), configs["runname"])
     set_seed()
     if torch.cuda.is_available():
@@ -370,16 +381,20 @@ def main(configs: dict) -> None:
                     len(train_loader.dataset), len(val_loader.dataset))  # fmt: skip
         data = (train_loader, val_loader)
 
-        run_phase1(model, data, configs, device, save_folder)
-
-        p1_ckpt = (
-            save_folder
-            / f"{configs['runname']}_phase1_epoch_{configs['phase1_epochs']}_fullstate.pth"
-        )
-        tmp_opt = torch.optim.Adam(model.parameters(), lr=1e-4)
-        model, _ = load_checkpoint(model, tmp_opt, path=str(p1_ckpt))
-        model.to(device)
-        LOGGER.info("✓ Reloaded end-of-Phase-1 weights from %s", p1_ckpt.name)
+        if phase1_checkpoint is not None:
+            ep = _load_model_state(phase1_checkpoint, model)
+            model.to(device)
+            for p in model.parameters():
+                p.requires_grad = True
+            LOGGER.info(
+                "✓ Skipping Phase 1 — loaded weights from %s (Phase 1 epoch %d)",
+                Path(phase1_checkpoint).name,
+                ep,
+            )
+        else:
+            run_phase1(model, data, configs, device, save_folder)
+            # run_phase1 leaves the trained model in memory and unfreezes all
+            # params; no reload needed.
 
         run_phase2(model, data, configs, device, save_folder)
         mlflow.log_artifact(str(log_path))
@@ -394,6 +409,13 @@ if __name__ == "__main__":
         description="HLLHC PU200 E2E training (LR warmup + cosine + grad clip)"
     )
     parser.add_argument("-c", "--config_file", required=True, type=str)
+    parser.add_argument(
+        "--phase1-checkpoint",
+        default=None,
+        dest="phase1_checkpoint",
+        help="Path to a Phase-1 fullstate.pth. Skips Phase 1 entirely and "
+        "runs Phase 2 from the loaded weights (model_state only).",
+    )
     args = parser.parse_args()
 
     with open(args.config_file) as f:
@@ -406,4 +428,4 @@ if __name__ == "__main__":
         if key != "config_file":
             print(f"  {key}: {value}")
     print("=" * 80)
-    main(configs)
+    main(configs, phase1_checkpoint=args.phase1_checkpoint)
