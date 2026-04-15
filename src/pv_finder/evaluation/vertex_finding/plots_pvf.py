@@ -11,8 +11,11 @@ Functions, each saves one PNG to output_dir:
 from collections import defaultdict
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")  # headless — prevents X11/display crashes over SSH + tmux
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 
 # Consistent styling
 _COLORS = {
