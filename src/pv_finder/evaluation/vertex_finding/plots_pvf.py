@@ -145,6 +145,8 @@ def plot_performance(
     ax.set_xlabel(xlabel, **_FONT)
     ax.set_ylabel("Efficiency (matched / truth)", **_FONT)
     ax.set_ylim(0, 1.1)
+    if pu_vals:
+        ax.set_xlim(left=0, right=max(pu_vals) * 1.05)
     ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
     ax.tick_params(labelsize=11)
@@ -224,6 +226,8 @@ def plot_stats(
         **_FONT,
     )
     ax.set_ylim(bottom=0)
+    if mus:
+        ax.set_xlim(left=0, right=max(mus) * 1.05)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=11, loc="upper left", frameon=True)
     ax.tick_params(labelsize=11)
@@ -307,6 +311,8 @@ def plot_reco_vs_mu(
         **_FONT,
     )
     ax.set_ylim(bottom=0)
+    if mus:
+        ax.set_xlim(left=0, right=max(mus) * 1.05)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=11, loc="upper left", frameon=True)
     ax.tick_params(labelsize=11)
