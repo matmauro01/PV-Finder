@@ -265,7 +265,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             else ph
         )
         p_pvs, p_hts, *_ = pv_locations_updated_res(
-            ph_peaks, THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH
+            ph_peaks, THRESHOLD, args.integral_threshold, MIN_WIDTH
         )
         p_pvs_r, p_hts_r, *_ = pv_locations_updated_res(
             ph_peaks, THRESHOLD, args.integral_threshold_res, MIN_WIDTH
@@ -433,7 +433,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     plot_stats(per_event, has_mu, mode_label, outdir, title=t)
     ckpt = Path(args.e2e_model or args.k2h_model or "").stem
     plot_category_counts(per_event, mode_label, outdir, title="",
-        eval_label=f"ckpt: {ckpt}\nintegral_threshold = {INTEGRAL_THRESHOLD}",
+        eval_label=f"ckpt: {ckpt}\nintegral_threshold = {args.integral_threshold}",
         mu_min=args.mu_min, mu_max=args.mu_max)  # fmt: skip
     print(f"  Saved plots to: {outdir}")
 
@@ -490,6 +490,7 @@ if __name__ == "__main__":
     parser.add_argument("--nms-max-ratio", type=float, default=0.3)
     parser.add_argument("--mu-min", type=int, default=55)
     parser.add_argument("--mu-max", type=int, default=65)
+    parser.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
     parser.add_argument("--integral-threshold-res", type=float, default=0.5)
     parser.add_argument("--e2e-wide", action="store_true",
                         help="HLLHC v2 wide variant (96 UNet ch, [128]*5 MLP)")  # fmt: skip

@@ -247,7 +247,7 @@ def main(args: argparse.Namespace) -> None:
             else:
                 ph = run_k2h(h5f["kde_split"][s0:s1, 0, :], k2h, device)
             p_pvs = pv_locations_updated_res(
-                ph, THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH
+                ph, THRESHOLD, args.integral_threshold, MIN_WIDTH
             )[0]
             p_pvs_r = pv_locations_updated_res(
                 ph, THRESHOLD, INTEGRAL_THRESHOLD_RES, MIN_WIDTH
@@ -416,7 +416,7 @@ def main(args: argparse.Namespace) -> None:
         plot_reco_vs_mu(per_event, mode_label, outdir, title=args.title)
         print(f"  Saved: {outdir / 'reco_vs_mu.png'}")
     ckpt_name = Path(args.e2e_model or args.k2h_model).stem
-    eval_label = f"ckpt: {ckpt_name}\nintegral_threshold = {INTEGRAL_THRESHOLD}"
+    eval_label = f"ckpt: {ckpt_name}\nintegral_threshold = {args.integral_threshold}"
     plot_category_counts(per_event, mode_label, outdir, title=args.title,
                          eval_label=eval_label)  # fmt: skip
     print(f"  Saved: {outdir / 'category_counts_hist.png'}")
@@ -463,5 +463,8 @@ if __name__ == "__main__":
                         help="Test event indices pickle")  # fmt: skip
     parser.add_argument("--output-dir", default="outputs/eval_pvf", dest="output_dir")
     parser.add_argument("--device", type=int, default=0, help="CUDA device (-1=CPU)")
+    parser.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD,
+                        dest="integral_threshold",
+                        help=f"Peak-finder integral threshold (default {INTEGRAL_THRESHOLD})")  # fmt: skip
     parser.add_argument("--title", default="", help="Plot title (used for all plots)")
     main(parser.parse_args())
