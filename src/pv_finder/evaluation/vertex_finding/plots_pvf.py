@@ -1,9 +1,10 @@
 """plots_pvf.py — Plotting helpers for run_eval_pvf.py.
 
-Three functions, each saves one PNG to output_dir:
+Functions, each saves one PNG to output_dir:
   plot_resolution   — pairwise Δz distribution + sigmoid fit
   plot_performance  — reco category fractions + efficiency vs pileup
   plot_stats        — avg count/event per category vs pileup (all events)
+  plot_reco_vs_mu   — total reco PVs/event vs pileup, PV-Finder vs AMVF vs truth
 """
 
 from collections import defaultdict
@@ -218,4 +219,91 @@ def plot_stats(
     ax.tick_params(labelsize=11)
     plt.tight_layout()
     plt.savefig(output_dir / "stats_histogram.png", dpi=150)
+    plt.close()
+
+
+def plot_reco_vs_mu(
+    per_event: list,
+    mode_label: str,
+    output_dir: Path,
+    title: str = "",
+) -> None:
+    """Total reconstructed PVs per event vs pileup (μ) — PV-Finder vs AMVF.
+
+    Reuses the `n_pred` (PV-Finder, peak finder with integral_threshold=0.2)
+    and `n_amvf` (AMVF nTracks≥2 from ROOT) fields already stored in the
+    per-event result records. Also overlays `n_truth` as a reference line.
+    All three curves are binned by rounded ActualNumOfInt and shown with SEM
+    error bars.
+    """
+    buckets = defaultdict(lambda: {"pvf": [], "amvf": [], "truth": []})
+    for r in per_event:
+        if r.get("mu") is None:
+            continue
+        mu = int(round(r["mu"]))
+        buckets[mu]["pvf"].append(r["n_pred"])
+        buckets[mu]["truth"].append(r["n_truth"])
+        if r.get("n_amvf") is not None:
+            buckets[mu]["amvf"].append(r["n_amvf"])
+
+    if not buckets:
+        return
+
+    mus = sorted(buckets.keys())
+
+    def _stats(key):
+        means, sems = [], []
+        for m in mus:
+            vals = buckets[m][key]
+            if vals:
+                means.append(float(np.mean(vals)))
+                sems.append(float(np.std(vals) / np.sqrt(len(vals))) if len(vals) > 1 else 0.0)  # fmt: skip
+            else:
+                means.append(np.nan)
+                sems.append(0.0)
+        return np.array(means), np.array(sems)
+
+    pvf_m, pvf_e = _stats("pvf")
+    amvf_m, amvf_e = _stats("amvf")
+    tr_m, _ = _stats("truth")
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.errorbar(mus, pvf_m, yerr=pvf_e, fmt="-o", ms=5, lw=1.8, capsize=3,
+                color="#1f77b4", label="PV-Finder", zorder=3)  # fmt: skip
+    has_amvf = np.any(~np.isnan(amvf_m))
+    if has_amvf:
+        ax.errorbar(mus, amvf_m, yerr=amvf_e, fmt="-s", ms=5, lw=1.8, capsize=3,
+                    color="#d62728", label="AMVF (nTracks≥2)", zorder=2)  # fmt: skip
+    ax.plot(mus, tr_m, "--", lw=1.5, color="#555555", alpha=0.8,
+            label="Truth PVs (nTracks≥2)", zorder=1)  # fmt: skip
+
+    n_evt = sum(len(buckets[m]["pvf"]) for m in mus)
+    ax.set_xlabel("ActualNumOfInt (μ)", **_FONT)
+    ax.set_ylabel("Avg reconstructed PVs / event", **_FONT)
+    ax.set_title(
+        title or f"Reconstructed vertices vs pileup — {mode_label}  ({n_evt} events)",
+        **_FONT,
+    )
+    ax.set_ylim(bottom=0)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=11, loc="upper left", frameon=True)
+    ax.tick_params(labelsize=11)
+
+    if has_amvf:
+        overall_pvf = float(np.nanmean([np.mean(buckets[m]["pvf"]) for m in mus]))
+        overall_amvf = float(
+            np.nanmean([np.mean(buckets[m]["amvf"]) for m in mus if buckets[m]["amvf"]])
+        )
+        overall_tr = float(np.nanmean([np.mean(buckets[m]["truth"]) for m in mus]))
+        txt = (
+            f"⟨PV-Finder⟩ = {overall_pvf:.2f}/evt\n"
+            f"⟨AMVF⟩     = {overall_amvf:.2f}/evt\n"
+            f"⟨Truth⟩    = {overall_tr:.2f}/evt"
+        )
+        ax.text(0.98, 0.05, txt, transform=ax.transAxes, fontsize=10,
+                va="bottom", ha="right", family="monospace",
+                bbox=dict(boxstyle="round,pad=0.4", fc="wheat", alpha=0.85))  # fmt: skip
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "reco_vs_mu.png", dpi=150)
     plt.close()

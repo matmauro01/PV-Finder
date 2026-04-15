@@ -44,7 +44,12 @@ from efficiency_res_optimized_atlas import (  # noqa: E402
     compare_res_reco,
     pv_locations_updated_res,
 )
-from plots_pvf import plot_performance, plot_resolution, plot_stats  # noqa: E402
+from plots_pvf import (  # noqa: E402
+    plot_performance,
+    plot_reco_vs_mu,
+    plot_resolution,
+    plot_stats,
+)
 
 # ---------------------------------------------------------------------------
 # Constants — must match training
@@ -111,6 +116,7 @@ def load_root_truth(path: str) -> tuple:
         tree["TruthVertex_z"].array(library="np"),
         tree["TruthVertex_nTracks"].array(library="np"),
         tree["ActualNumOfInt"].array(library="np"),
+        tree["RecoVertex_nTracks"].array(library="np"),
     )
 
 
@@ -162,22 +168,13 @@ def run_e2e(
         return _stitch(model(torch.from_numpy(trk).float().to(device)))
 
 
-def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu):
+def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu, n_amvf=None):
     """Build a per-event result dict."""
     return dict(
-        event_idx=eidx,
-        n_truth=nt,
-        n_pred=np_,
-        clean=c,
-        merged=m,
-        split=s,
-        fake=f,
-        eff=eff,
-        tc=tc,
-        tm=tm,
-        tmiss=tmiss,
-        mu=mu,
-    )
+        event_idx=eidx, n_truth=nt, n_pred=np_,
+        clean=c, merged=m, split=s, fake=f, eff=eff,
+        tc=tc, tm=tm, tmiss=tmiss, mu=mu, n_amvf=n_amvf,
+    )  # fmt: skip
 
 
 def main(args: argparse.Namespace) -> None:
@@ -218,7 +215,7 @@ def main(args: argparse.Namespace) -> None:
         mode_label = "K2H only (analytical KDE_A_z input)"
 
     # Load ROOT truth + qibin index map (always uses defaults)
-    root_z = root_n = root_mu = qibin = None
+    root_z = root_n = root_mu = root_rv_n = qibin = None
     if args.root_truth:
         qibin_path = Path(_DEFAULT_QIBIN)
         if not qibin_path.exists():
@@ -227,7 +224,7 @@ def main(args: argparse.Namespace) -> None:
                 "Run from repo root or ensure configs/qibin_test_main_indices_v2.p exists."
             )
         print("\n--- Loading ROOT Truth (nTracks >= 2 filter) ---")
-        root_z, root_n, root_mu = load_root_truth(args.root_truth)
+        root_z, root_n, root_mu, root_rv_n = load_root_truth(args.root_truth)
         with open(qibin_path, "rb") as fp:
             qibin = list(pickle.load(fp))
         print(f"  qibin: {len(qibin)} entries  ({qibin_path})")
@@ -296,17 +293,11 @@ def main(args: argparse.Namespace) -> None:
     except RuntimeError as exc:
         print(f"  WARNING: fit failed ({exc}). Default sigma={sigma} mm")
 
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    plot_resolution(
-        dz_arr,
-        sigma,
-        popt,
-        sigmoid_fit,
-        mode_label,
-        Path(args.output_dir),
-        title=args.title,
-    )
-    print(f"  Saved: {Path(args.output_dir) / 'resolution_plot.png'}")
+    outdir = Path(args.output_dir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
+                    title=args.title)  # fmt: skip
+    print(f"  Saved: {outdir / 'resolution_plot.png'}")
 
     # Performance metrics
     sig_bins = sigma / BIN_WIDTH
@@ -318,11 +309,13 @@ def main(args: argparse.Namespace) -> None:
 
     for i, (p_pvs, h5t) in enumerate(zip(all_pred, all_truth)):
         eidx = int(event_indices[i])
+        n_amvf = None
         if root_z is not None:
             ridx = qibin[i]
             ze = np.asarray(root_z[ridx], dtype=np.float64)
             ne = np.asarray(root_n[ridx], dtype=np.float64)
             mu = float(root_mu[ridx])
+            n_amvf = int(np.sum(np.asarray(root_rv_n[ridx]) >= 2))
             t_pvs = mm_to_bins(ze[ne >= 2])
             p_cmp = mm_to_bins(p_pvs)
             win = sig_bins
@@ -336,7 +329,9 @@ def main(args: argparse.Namespace) -> None:
         if np_ == 0:
             tot_truth += nt
             tot_tmiss += nt
-            per_event.append(_evt_rec(eidx, nt, 0, 0, 0, 0, 0, 0.0, 0, 0, nt, mu))
+            per_event.append(
+                _evt_rec(eidx, nt, 0, 0, 0, 0, 0, 0.0, 0, 0, nt, mu, n_amvf)
+            )
             continue
 
         res, tc_arr, _ = compare_res_reco(t_pvs, p_cmp, win * np.ones(np_), debug=0)
@@ -352,22 +347,10 @@ def main(args: argparse.Namespace) -> None:
         tot_tm += ntm
         tot_tmiss += ntmiss
         tot_truth += nt
-        per_event.append(
-            _evt_rec(
-                eidx,
-                nt,
-                np_,
-                res.reco_clean,
-                res.reco_merged,
-                res.reco_split,
-                res.reco_fake,
-                eff,
-                ntc,
-                ntm,
-                ntmiss,
-                mu,
-            )
-        )
+        per_event.append(_evt_rec(
+            eidx, nt, np_, res.reco_clean, res.reco_merged, res.reco_split, res.reco_fake,
+            eff, ntc, ntm, ntmiss, mu, n_amvf,
+        ))  # fmt: skip
         if i < 5 or i % 50 == 0:
             print(
                 f"  evt {i:3d}: t={nt} p={np_} C={res.reco_clean} M={res.reco_merged} "
@@ -422,25 +405,15 @@ def main(args: argparse.Namespace) -> None:
     )
 
     print("\n--- Generating Plots ---")
-    plot_performance(
-        per_event,
-        overall_eff,
-        fp_rate,
-        sigma,
-        root_z is not None,
-        mode_label,
-        Path(args.output_dir),
-        title=args.title,
-    )
-    print(f"  Saved: {Path(args.output_dir) / 'performance_plot.png'}")
-    plot_stats(
-        per_event,
-        root_z is not None,
-        mode_label,
-        Path(args.output_dir),
-        title=args.title,
-    )
-    print(f"  Saved: {Path(args.output_dir) / 'stats_histogram.png'}")
+    has_mu = root_z is not None
+    plot_performance(per_event, overall_eff, fp_rate, sigma, has_mu, mode_label,
+                     outdir, title=args.title)  # fmt: skip
+    print(f"  Saved: {outdir / 'performance_plot.png'}")
+    plot_stats(per_event, has_mu, mode_label, outdir, title=args.title)
+    print(f"  Saved: {outdir / 'stats_histogram.png'}")
+    if has_mu:
+        plot_reco_vs_mu(per_event, mode_label, outdir, title=args.title)
+        print(f"  Saved: {outdir / 'reco_vs_mu.png'}")
 
     results = dict(
         mode="e2e" if args.e2e_model else "stage2",
