@@ -201,7 +201,10 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             k2h_sub = UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
             e2e = TracksToHist_v2(t2kde_sub, k2h_sub)
         else:
-            e2e = trackstoHists_UNet_1000(**E2E_CONFIG)
+            cfg = dict(E2E_CONFIG)
+            if getattr(args, "e2e_wide", False):
+                cfg.update(n_UNetChannels=96, l_HiddenNodes=[128] * 5)
+            e2e = trackstoHists_UNet_1000(**cfg)
         load_ckpt(args.e2e_model, e2e, device)
         mode_label = f"E2E ({Path(args.e2e_model).stem})"
     else:
@@ -479,22 +482,16 @@ if __name__ == "__main__":
     parser.add_argument("--min-amvf-vtx", type=int, default=1, dest="min_amvf_vtx")
     parser.add_argument("--entry-start", type=int, default=0, dest="entry_start")
     parser.add_argument("--entry-stop", type=int, default=None, dest="entry_stop")
-    parser.add_argument("--no-correct-beam", action="store_true", dest="no_correct_beam",
-                        help="Do NOT subtract BeamPosZ from AMVF vertex z")  # fmt: skip
-    parser.add_argument(
-        "--output-dir", default="outputs/eval_pvf_run3", dest="output_dir"
-    )
-    parser.add_argument("--device", type=int, default=0, help="CUDA device (-1=CPU)")
-    parser.add_argument("--smooth-sigma", type=float, default=0.0, dest="smooth_sigma",
-                        help="Gaussian sigma (bins) for pre-smoothing (0=off)")  # fmt: skip
-    parser.add_argument("--nms-min-sep", type=float, default=0.0, dest="nms_min_sep",
-                        help="NMS min separation mm (0=off)")  # fmt: skip
-    parser.add_argument("--mu-min", type=int, default=55, dest="mu_min")
-    parser.add_argument("--mu-max", type=int, default=65, dest="mu_max")
-    parser.add_argument("--nms-max-ratio", type=float, default=0.3, dest="nms_max_ratio",
-                        help="NMS max height ratio for suppression")  # fmt: skip
-    parser.add_argument("--integral-threshold-res", type=float, default=0.5,
-                        dest="integral_threshold_res",
-                        help="Integral threshold for resolution pairwise dz (default 0.5)")  # fmt: skip
-    parser.add_argument("--title", default="", help="Plot title (used for all plots)")
+    parser.add_argument("--no-correct-beam", action="store_true")
+    parser.add_argument("--output-dir", default="outputs/eval_pvf_run3")
+    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument("--smooth-sigma", type=float, default=0.0)
+    parser.add_argument("--nms-min-sep", type=float, default=0.0)
+    parser.add_argument("--nms-max-ratio", type=float, default=0.3)
+    parser.add_argument("--mu-min", type=int, default=55)
+    parser.add_argument("--mu-max", type=int, default=65)
+    parser.add_argument("--integral-threshold-res", type=float, default=0.5)
+    parser.add_argument("--e2e-wide", action="store_true",
+                        help="HLLHC v2 wide variant (96 UNet ch, [128]*5 MLP)")  # fmt: skip
+    parser.add_argument("--title", default="", help="Plot title")
     main(parser.parse_args())
