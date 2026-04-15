@@ -1319,3 +1319,32 @@ reported metric during training.
 No metric regression on the training of the HLLHC v2 run currently in Phase 2:
 the threshold change only affects what `trainNet`'s validation step *reports*,
 not the MSE loss that drives gradients.
+
+## 2026-04-15 — New MC eval plots: reco_vs_mu + category_counts_hist
+
+Two new plots added to the MC eval (`run_eval_pvf.py`), saved into the same
+output directory as the existing resolution/performance/stats plots:
+
+- **`reco_vs_mu.png`** (added earlier today): mean reconstructed PVs/event vs
+  ActualNumOfInt, overlaying PV-Finder (`n_pred` from peak finder at
+  `integral_threshold = 0.5`), AMVF (`RecoVertex_nTracks ≥ 2` from ROOT), and
+  truth (`TruthVertex_nTracks ≥ 2`, dashed reference). SEM bars per μ bin,
+  wheat annotation box with overall means. Only drawn when `--root-truth` is
+  available, so it is MC-eval specific today.
+- **`category_counts_hist.png`** (new): per-event distribution of
+  clean/merged/split/fake counts as four overlaid step-filled histograms on
+  integer bins. Monospace legend with `⟨N⟩ / σ / Σ` per category so two
+  evals can be compared side-by-side at a glance. Upper-left annotation box
+  shows the checkpoint stem and the integral threshold used, so the plot is
+  self-identifying when filed into a folder of comparison figures.
+
+Both plots live in `plots_pvf.py` alongside the existing three. The new
+`plot_category_counts` takes a `eval_label` kwarg that `run_eval_pvf.py`
+populates with `ckpt: <name>\nintegral_threshold = <value>` — this is the
+"clear and precise legend per eval" requirement.
+
+`run_eval_pvf.py` now calls `plot_category_counts` unconditionally (no ROOT
+needed — it only uses per-event `clean/merged/split/fake` fields that are
+always computed). `run_eval_pvf_run3.py` is at 499 lines and near the 500-line
+pre-commit limit, so the new plot is wired up in the MC script only for now;
+pulling it into the Run-3 script is a 1-line change once we free up room.

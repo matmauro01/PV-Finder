@@ -100,6 +100,8 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 | `resolution_plot.png` | Pairwise Δz histogram + sigmoid fit → σ_vtx_vtx |
 | `performance_plot.png` | Clean/merged/split/fake fractions and efficiency vs pileup |
 | `stats_histogram.png` | Avg count/event for clean/merged/split/fake vs pileup (all events, mattia_finder style) |
+| `reco_vs_mu.png` | Total reco PVs/event vs pileup — PV-Finder vs AMVF, with truth reference (MC eval only, requires `--root-truth`) |
+| `category_counts_hist.png` | Per-event distribution of clean/merged/split/fake counts (4 overlaid step-filled histograms with ⟨N⟩ / σ / Σ in the legend, checkpoint name + integral_threshold in an annotation box) |
 | `eval_results.pkl` | All per-event results, pred/truth PV positions, fit params |
 
 ## Model Checkpoints

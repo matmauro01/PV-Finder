@@ -1,10 +1,11 @@
 """plots_pvf.py — Plotting helpers for run_eval_pvf.py.
 
 Functions, each saves one PNG to output_dir:
-  plot_resolution   — pairwise Δz distribution + sigmoid fit
-  plot_performance  — reco category fractions + efficiency vs pileup
-  plot_stats        — avg count/event per category vs pileup (all events)
-  plot_reco_vs_mu   — total reco PVs/event vs pileup, PV-Finder vs AMVF vs truth
+  plot_resolution        — pairwise Δz distribution + sigmoid fit
+  plot_performance       — reco category fractions + efficiency vs pileup
+  plot_stats             — avg count/event per category vs pileup (all events)
+  plot_reco_vs_mu        — total reco PVs/event vs pileup, PV-Finder vs AMVF vs truth
+  plot_category_counts   — per-event distribution of clean/merged/split/fake counts
 """
 
 from collections import defaultdict
@@ -306,4 +307,62 @@ def plot_reco_vs_mu(
 
     plt.tight_layout()
     plt.savefig(output_dir / "reco_vs_mu.png", dpi=150)
+    plt.close()
+
+
+def plot_category_counts(
+    per_event: list,
+    mode_label: str,
+    output_dir: Path,
+    title: str = "",
+    eval_label: str = "",
+) -> None:
+    """Per-event distribution of clean / merged / split / fake counts.
+
+    Four overlaid step-filled histograms on integer-valued bins, one per
+    category. Each legend entry shows the category mean, σ, and total.
+    `eval_label` is written as a small annotation in the upper-right corner
+    so the plot is self-identifying when compared across runs.
+    """
+    cats = ("clean", "merged", "split", "fake")
+    data = {k: np.asarray([r[k] for r in per_event], dtype=float) for k in cats}
+    if not per_event or all(v.size == 0 for v in data.values()):
+        return
+
+    max_cnt = int(max(v.max() for v in data.values() if v.size))
+    bins = np.arange(-0.5, max_cnt + 1.5, 1.0)
+
+    fig, ax = plt.subplots(figsize=(9.5, 6))
+    for k in cats:
+        vals = data[k]
+        mean = float(vals.mean())
+        std = float(vals.std())
+        total = int(vals.sum())
+        label = f"{k.capitalize():<6}  ⟨N⟩={mean:5.2f}  σ={std:4.2f}  Σ={total:>5d}"
+        ax.hist(vals, bins=bins, histtype="stepfilled", alpha=0.28,
+                color=_COLORS[k], edgecolor=_COLORS[k], linewidth=2.2,
+                label=label)  # fmt: skip
+
+    ax.set_xlabel("Count per event", **_FONT)
+    ax.set_ylabel("Events", **_FONT)
+    ax.set_title(title or f"Per-event category counts — {mode_label}", **_FONT)
+    ax.set_xlim(-0.5, max_cnt + 0.5)
+    ax.set_ylim(bottom=0)
+    ax.grid(alpha=0.3)
+    ax.tick_params(labelsize=11)
+    leg = ax.legend(
+        fontsize=10, loc="upper right", framealpha=0.9, prop={"family": "monospace"}
+    )
+    leg.set_title(f"{len(per_event)} events", prop={"size": 10, "weight": "bold"})
+
+    if eval_label:
+        ax.text(
+            0.02, 0.97, eval_label, transform=ax.transAxes, fontsize=9,
+            va="top", ha="left", family="monospace", color="#333333",
+            bbox=dict(boxstyle="round,pad=0.35", fc="#f5f5f5", ec="#cccccc",
+                      alpha=0.9),
+        )  # fmt: skip
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "category_counts_hist.png", dpi=150)
     plt.close()

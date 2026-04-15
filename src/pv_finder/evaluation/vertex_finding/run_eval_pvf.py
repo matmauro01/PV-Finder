@@ -45,6 +45,7 @@ from efficiency_res_optimized_atlas import (  # noqa: E402
     pv_locations_updated_res,
 )
 from plots_pvf import (  # noqa: E402
+    plot_category_counts,
     plot_performance,
     plot_reco_vs_mu,
     plot_resolution,
@@ -414,6 +415,11 @@ def main(args: argparse.Namespace) -> None:
     if has_mu:
         plot_reco_vs_mu(per_event, mode_label, outdir, title=args.title)
         print(f"  Saved: {outdir / 'reco_vs_mu.png'}")
+    ckpt_name = Path(args.e2e_model or args.k2h_model).stem
+    eval_label = f"ckpt: {ckpt_name}\nintegral_threshold = {INTEGRAL_THRESHOLD}"
+    plot_category_counts(per_event, mode_label, outdir, title=args.title,
+                         eval_label=eval_label)  # fmt: skip
+    print(f"  Saved: {outdir / 'category_counts_hist.png'}")
 
     results = dict(
         mode="e2e" if args.e2e_model else "stage2",
