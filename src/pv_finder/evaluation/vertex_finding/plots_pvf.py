@@ -353,18 +353,20 @@ def plot_category_counts(
         return
 
     events_with_mu = [r for r in per_event if r.get("mu") is not None]
-    if events_with_mu:
-        filt = [r for r in events_with_mu if mu_min <= round(r["mu"]) <= mu_max]
-        mu_desc = f"μ ∈ [{mu_min}, {mu_max}]"
-    else:
-        filt = per_event
-        mu_desc = "all events"
+    if not events_with_mu:
+        # Pileup unavailable (ROOT truth not loaded) — refuse to draw a
+        # "high pileup" plot rather than silently include everything.
+        print(
+            f"  [plot_category_counts] skipped: no per-event mu "
+            f"(need --root-truth); cannot filter to [{mu_min}, {mu_max}]"
+        )
+        return
+    filt = [r for r in events_with_mu if mu_min <= round(r["mu"]) <= mu_max]
     if not filt:
+        print(f"  [plot_category_counts] skipped: 0 events in μ ∈ [{mu_min}, {mu_max}]")
         return
 
     labels = ("Total", "Clean", "Merged", "Split", "Fake")
-    # Total = sum of the four categories. Use `n_pred` when available, else
-    # compute c+m+s+f which is identical by construction.
     totals = np.asarray(
         [
             r.get("n_pred", r["clean"] + r["merged"] + r["split"] + r["fake"])
@@ -382,41 +384,66 @@ def plot_category_counts(
     n = len(filt)
     sems = np.array([float(v.std() / np.sqrt(n)) if n > 1 else 0.0 for v in stacks])
 
-    colors = ["#555555", _COLORS["clean"], _COLORS["merged"],
-              _COLORS["split"], _COLORS["fake"]]  # fmt: skip
+    # Vivid, saturated palette (distinct from the muted _COLORS used elsewhere)
+    vivid = {
+        "total": "#2C3E50",  # slate navy
+        "clean": "#3498DB",  # bright azure
+        "merged": "#2ECC71",  # emerald
+        "split": "#E74C3C",  # alizarin
+        "fake": "#F39C12",  # vivid orange
+    }
+    colors = [vivid[k] for k in ("total", "clean", "merged", "split", "fake")]
+    edges = ["#1a2530", "#1f6396", "#1b8449", "#962a1f", "#9c600a"]
 
-    fig, ax = plt.subplots(figsize=(9.5, 6))
+    fig, ax = plt.subplots(figsize=(10.5, 6.8))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("#fafbfc")
     x = np.arange(len(labels))
     bars = ax.bar(
-        x, means, yerr=sems, capsize=6, color=colors,
-        edgecolor="black", linewidth=1.3, alpha=0.85,
+        x, means, width=0.72, yerr=sems,
+        color=colors, edgecolor=edges, linewidth=1.8, alpha=0.95,
+        error_kw=dict(ecolor="#222", elinewidth=1.5, capsize=7, capthick=1.4),
     )  # fmt: skip
-    # value labels above the bars
+
     ymax = float((means + sems).max()) if means.size else 1.0
+    pad = 0.025 * ymax
     for bar, m, s in zip(bars, means, sems):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + s + 0.02 * ymax,
-            f"{m:.2f}", ha="center", va="bottom", fontsize=11, fontweight="bold",
+            bar.get_height() + s + pad,
+            f"{m:.2f}", ha="center", va="bottom",
+            fontsize=14, fontweight="bold", color="#1a1a1a",
         )  # fmt: skip
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=12)
-    ax.set_ylabel("Mean reconstructed PVs / event", **_FONT)
-    ax.set_title(title or f"Per-event reco counts ({mu_desc}) — {mode_label}", **_FONT)
-    ax.set_ylim(bottom=0, top=ymax * 1.18)
-    ax.grid(axis="y", alpha=0.3)
-    ax.tick_params(labelsize=11)
+    ax.set_xticklabels(labels, fontsize=14, fontweight="semibold")
+    ax.set_ylabel("Mean reconstructed PVs / event", fontsize=14, fontweight="semibold")
+    mu_desc = f"μ ∈ [{mu_min}, {mu_max}]"
+    ax.set_title(
+        title or f"Per-event reco counts, {mu_desc}  —  {mode_label}",
+        fontsize=15, fontweight="bold", pad=14,
+    )  # fmt: skip
+    ax.set_ylim(bottom=0, top=ymax * 1.28)
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", alpha=0.35, ls="--", lw=0.8, color="#666")
+    ax.tick_params(labelsize=12)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    for spine in ("left", "bottom"):
+        ax.spines[spine].set_color("#666")
+        ax.spines[spine].set_linewidth(1.2)
 
     info = f"{n} events\n{mu_desc}"
     if eval_label:
         info = f"{eval_label}\n{info}"
     ax.text(
-        0.98, 0.97, info, transform=ax.transAxes, fontsize=9,
-        va="top", ha="right", family="monospace", color="#333333",
-        bbox=dict(boxstyle="round,pad=0.35", fc="#f5f5f5", ec="#cccccc", alpha=0.9),
+        0.985, 0.97, info, transform=ax.transAxes, fontsize=9,
+        va="top", ha="right", family="monospace", color="#2C3E50",
+        bbox=dict(boxstyle="round,pad=0.45", fc="white", ec="#2C3E50", lw=1.1,
+                  alpha=0.92),
     )  # fmt: skip
 
     plt.tight_layout()
-    plt.savefig(output_dir / "category_counts_hist.png", dpi=150)
+    plt.savefig(output_dir / "category_counts_hist.png", dpi=160,
+                bbox_inches="tight", facecolor="white")  # fmt: skip
     plt.close()

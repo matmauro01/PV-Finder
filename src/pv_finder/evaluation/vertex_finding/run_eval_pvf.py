@@ -455,8 +455,9 @@ if __name__ == "__main__":
     parser.add_argument("--e2e-model", default=None, dest="e2e_model")
     parser.add_argument("--e2e-type", default="v1", choices=["v1", "v2"],
                         dest="e2e_type", help="E2E model class (v1=trackstoHists_UNet_1000, v2=TracksToHist_v2)")  # fmt: skip
-    parser.add_argument("--root-truth", default=None, dest="root_truth",
-        help=f"ROOT truth for nTracks>=2 filter. Default: {_DEFAULT_ROOT}. "
+    parser.add_argument("--root-truth", default=_DEFAULT_ROOT, dest="root_truth",
+        help=f"ROOT truth for nTracks>=2 filter + mu + AMVF reco count. "
+             f"Default: {_DEFAULT_ROOT}. Pass empty string to disable. "
              f"qibin map auto-loaded from {_DEFAULT_QIBIN}.")  # fmt: skip
     parser.add_argument("--indices", default="configs/test_main_indices_2550evt.p",
                         help="Test event indices pickle")  # fmt: skip
