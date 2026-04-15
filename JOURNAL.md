@@ -1449,3 +1449,84 @@ MSE loss, lr=1e-3, 400 epochs), just later in the schedule — more converged.
 Re-ran the three Run-2-model evals (MC, Run 2 real, Run 3 real) with the
 new checkpoint. HLLHC eval was not re-run because that uses the separate
 HLLHC v2 wide checkpoint (`hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100`).
+
+## 2026-04-15 — Peak-finder threshold sweep + back to 0.2 for counts
+
+Added `--integral-threshold` CLI flag to `run_eval_pvf.py` and
+`run_eval_pvf_run3.py` so the peak-area threshold can be overridden per
+run. Wrote `src/pv_finder/diagnostics/threshold_scan.py` which caches
+model output from N events once, then sweeps both peak-finder knobs
+independently:
+
+1. `integral_threshold` over [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40,
+   0.50, 0.60, 0.70] with `threshold` fixed at 0.01.
+2. `threshold` (peak amplitude) over [0.001, 0.002, 0.005, 0.010, 0.020,
+   0.050, 0.100, 0.200] with `integral_threshold` fixed at 0.5.
+
+Ran the scan on **Run 2 MC** (Model B ep300, 300 evt, AMVF = 28.44/evt)
+and **HLLHC PU200** (v2 wide phase2 ep100, 300 evt, AMVF = 96.04/evt) on
+GPUs 1 and 0 in the background. Match window fixed at 0.3 mm for both.
+
+### Integral-threshold scan results
+
+| ith  | MC eff | MC FP/ev | HLLHC eff | HLLHC FP/ev |
+|------|:------:|:--------:|:---------:|:-----------:|
+| 0.10 | 92.5%  | 2.79     | 90.3%     | 8.15        |
+| 0.15 | 92.0%  | 2.40     | 89.2%     | 6.42        |
+| **0.20** | **91.7%** | **2.06** | **88.0%** | **4.94** |
+| 0.25 | 91.2%  | 1.74     | 86.7%     | 3.83        |
+| 0.30 | 90.7%  | 1.43     | 85.4%     | 3.14        |
+| 0.40 | 89.6%  | 0.99     | 82.8%     | 1.99        |
+| 0.50 | 88.5%  | 0.68     | 80.0%     | 1.19        |
+
+0.2 is the clear operating point for the count-based metrics on both
+datasets: +3.2% efficiency on Run 2 MC and +8.0% efficiency on HLLHC vs
+0.5, at modest FP cost (+1.4 and +3.8 per event respectively). Going to
+0.1/0.15 gains diminishing efficiency and adds fakes rapidly.
+
+### Peak-amplitude scan results
+
+Peak amplitude at 0.01 is already at the knee on both datasets — dropping
+to 0.001 buys <0.5% efficiency, going above 0.02 costs several percentage
+points quickly. **Don't touch `threshold = 0.01`.**
+
+### Decision — dual thresholds again
+
+Reverted the 2026-04-15 morning unification (0.5 everywhere). Final design:
+
+- **`INTEGRAL_THRESHOLD = 0.2`** everywhere the count matters
+  (performance stats, `stats_histogram`, `category_counts_hist`,
+  `reco_vs_mu`, training `PARAM_EFF`).
+- **`INTEGRAL_THRESHOLD_RES = 0.5`** only for the σ_vtx_vtx pairwise Δz
+  sigmoid fit (keeps the fit clean of low-integral sidelobes).
+- **`threshold = 0.01`** for peak amplitude on every dataset.
+
+Yes, this is the pre-morning state — but now it's backed by a quantitative
+scan rather than inheritance from mattia_finder. The intentional
+consequence: sidelobe peaks contribute to the fake count (where they
+should show up as "the model has artifacts") but do not contaminate the
+resolution plot (where they would create a spurious close-pair feature).
+
+### What "model resolution is too low" means on HLLHC
+
+Nearest-neighbor truth-PV distance analysis on 300 HLLHC events
+(nTracks≥2): median 1.32 mm, mean 2.52 mm, and 14.9% of adjacent truth
+pairs are within 0.3 mm — well below σ_vtx_vtx = 0.286 mm. Those pairs
+are fundamentally unresolvable by the current model: both truths fall in
+the same 2σ matching window and get absorbed as one "merged" reco peak.
+In the actual ep100 eval, 6.29/evt truths are tagged `tm` (truth merged),
+about 45% of the theoretical ceiling. The rest of the ~14/evt unresolvable
+pairs either lose one endpoint to `missed` or are caught via an off-axis
+reco. This is an architectural ceiling on HLLHC efficiency, not a
+threshold tuning problem.
+
+### Reference reconstruction on HLLHC
+
+Verified that the HLLHC mc21 ROOT file has populated `RecoVertex_*`
+branches (NumRecoVtx ≈ 83–116/evt, ≈80–102 after nTracks≥2 filter,
+median nTracks 6–8, RecoVertex_type ∈ {0, 1}). The loader stores these
+as `amvf_z`/`amvf_ntrks` by historical name — "AMVF" is shorthand for
+"ATLAS adaptive multi-vertex finder", the algorithm family is the same on
+Run 2/3 and HLLHC but the HLLHC ITk tune may not be labeled as "AMVF" in
+the HSG convention. Operationally it's the ATLAS reference primary-vertex
+reconstruction for the sample, which is the right baseline.

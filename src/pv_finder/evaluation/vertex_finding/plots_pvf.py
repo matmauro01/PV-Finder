@@ -256,7 +256,7 @@ def plot_reco_vs_mu(
 ) -> None:
     """Total reconstructed PVs per event vs pileup (μ) — PV-Finder vs AMVF.
 
-    Reuses the `n_pred` (PV-Finder, peak finder with integral_threshold=0.5)
+    Reuses the `n_pred` (PV-Finder, peak finder with integral_threshold=0.2)
     and `n_amvf` (AMVF nTracks≥2 from ROOT) fields already stored in the
     per-event result records. Also overlays `n_truth` as a reference line.
     All three curves are binned by rounded ActualNumOfInt and shown with SEM

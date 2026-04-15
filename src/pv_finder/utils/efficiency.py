@@ -191,7 +191,7 @@ def efficiency(truth, predict, difference, threshold, integral_threshold, min_wi
     This algorithm computes the weighted mean, and uses that.
     This avoids small fluctionations in the input array by requiring .
     a minium total integrated value required to "turn it on"
-    (integral_threshold=0.5) and min_width of 3 bins wide.
+    (integral_threshold=0.2) and min_width of 3 bins wide.
     """
 
     return ValueSet(
