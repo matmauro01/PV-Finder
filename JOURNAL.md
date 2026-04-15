@@ -1278,3 +1278,44 @@ python -u src/pv_finder/training/train_hllhc_e2e.py \
 ```
 
 The v1 config is kept for reference (to diff against the v2 recipe), not deleted.
+
+## 2026-04-15 — Unified `integral_threshold = 0.5` across all evals
+
+Audited every `integral_threshold` usage in the repo:
+
+| Script | Performance | Resolution |
+|--------|:-:|:-:|
+| `run_eval_pvf.py` (MC) | 0.2 | 0.5 |
+| `run_eval_pvf_run3.py` (Run 2/3/HLLHC) | 0.2 | 0.5 (--integral-threshold-res) |
+| `eval_k2h_v2_run2.py` | 0.2 | 0.5 |
+| `training/training.py` (on-the-fly eff in `trainNet`) | 0.2 | — |
+| `diagnostics/run3_track_probability.py` | 0.4 | — |
+| Library defaults (`utils/peak_finding.py`, `per_vertex_visualization/peak_matching.py`) | 0.5 | — |
+
+The dual-threshold design (0.2 performance, 0.5 resolution) quietly hid sidelobe
+artifacts from the resolution plot: sidelobe peaks passed 0.2 → counted as fakes
+in performance, failed 0.5 → never appeared in the pairwise Δz distribution, so
+σ_vtx_vtx looked cleaner than the model's actual output. This was already
+documented in evaluation/vertex_finding.md, but the numbers in the performance
+table and the resolution table were being computed from different peak sets,
+which is quietly wrong when comparing across plots.
+
+**Change**: all eval scripts + training loop + the run3_track_probability
+diagnostic now use `integral_threshold = 0.5` everywhere. The
+`INTEGRAL_THRESHOLD_RES` constant and `--integral-threshold-res` CLI flag are
+kept in place (still 0.5 by default) so historical 0.2 numbers can be
+reproduced if needed, but by default every metric — performance counts,
+efficiency, FP rate, reco_vs_mu, σ_vtx_vtx, training-loop validation
+efficiency — is computed from a single peak set.
+
+**Impact on existing numbers**: all performance metrics (clean/merged/split/fake
+counts, efficiency, FP rate) and the `reco_vs_mu` plot will report different
+numbers from now on. Journal entries predating this change are kept as-is and
+should not be compared directly with post-2026-04-15 numbers. Resolution
+numbers are unchanged (already at 0.5). Training-time `Eff`/`FPR` log lines
+will change values but this does not affect the trained weights — only the
+reported metric during training.
+
+No metric regression on the training of the HLLHC v2 run currently in Phase 2:
+the threshold change only affects what `trainNet`'s validation step *reports*,
+not the MSE loss that drives gradients.

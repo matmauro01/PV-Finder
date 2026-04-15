@@ -62,11 +62,18 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
 | Parameter | Value | Used for |
 |-----------|-------|---------|
 | `threshold` | `1e-2` | Min bin height to start a peak |
-| `INTEGRAL_THRESHOLD` | `0.2` | Min peak area — for performance metrics |
-| `INTEGRAL_THRESHOLD_RES` | `0.5` | Min peak area — for σ_vtx_vtx only |
+| `INTEGRAL_THRESHOLD` | `0.5` | Min peak area — performance metrics |
+| `INTEGRAL_THRESHOLD_RES` | `0.5` | Min peak area — σ_vtx_vtx |
 | `min_width` | `3` bins | Min peak width |
 
-Matches `evaluate_model.py` (0.2) and `calculate_sigma.py` (0.5) in `mattia_finder`.
+**2026-04-15 change: unified to 0.5 across both performance and resolution.** The
+previous 0.2/0.5 split allowed sidelobe peaks to enter the performance count but
+not the resolution plot, which made the model look cleaner than it was. A single
+0.5 threshold everywhere removes that inconsistency — the same peaks feed every
+downstream metric and every plot. Training-loop validation efficiency
+(`PARAM_EFF`) also uses 0.5 now. Historical numbers in the journal that used
+0.2 are kept for reference but should not be compared directly to post-change
+results.
 
 ### ROOT truth vs h5 truth
 
@@ -116,7 +123,7 @@ This table is the ground truth for what is and isn't matched:
 |--------|--------------|-----------|--------|
 | Truth source | ROOT `TruthVertex_z`, nTracks≥2 | Same (via `--root-truth`) | ✅ Matched |
 | h5↔ROOT index mapping | `qibin_test_main_indices_v2.p` | Same | ✅ Matched |
-| Peak finder thresholds (performance) | threshold=0.01, int=0.2, width=3 | Same | ✅ Matched |
+| Peak finder thresholds (performance) | threshold=0.01, int=0.2, width=3 | int=**0.5** (unified) | ⚠️ Intentional deviation (2026-04-15) |
 | Peak finder thresholds (σ) | threshold=0.01, int=0.5, width=3 | Same | ✅ Matched |
 | Pileup variable | `ActualNumOfInt` (float, rounded) | Same when ROOT available | ✅ Matched |
 | Summary pileup filter | μ∈[55,65] | Same | ✅ Matched |
@@ -141,19 +148,27 @@ The **one intentional difference**: we add both `+dz` and `-dz` for each pair, g
 ### σ_vtx_vtx is both output and input
 σ_vtx_vtx is computed from the pairwise Δz distribution, then **used as the matching window** in `compare_res_reco`. This creates a mild circular dependency: a very different model will give a different σ, which changes how clean/merged/fake are counted. Keep this in mind when comparing numbers across very different models.
 
-### Two integral thresholds — CAUTION
+### Integral threshold — unified at 0.5 (2026-04-15)
 
-- `INTEGRAL_THRESHOLD = 0.2` — used for **performance metrics** (finds more peaks, important for fake/efficiency).
-- `INTEGRAL_THRESHOLD_RES = 0.5` — used only for **σ_vtx_vtx** peak finding (stricter, cleaner peaks for the resolution fit). Overridable via `--integral-threshold-res`.
+Both eval scripts now use `integral_threshold = 0.5` for **performance metrics
+and for the σ_vtx_vtx pairwise Δz**. The earlier dual-threshold design
+(`0.2` for performance, `0.5` for resolution) silently hid sidelobe artifacts
+from the resolution plot — sidelobe peaks passed 0.2 and counted as fakes in
+the performance numbers, but failed 0.5 and never appeared in the pairwise Δz
+distribution, so the resolution plot looked clean while the fake rate was
+quietly absorbing the sidelobes. Unifying at 0.5 means the same peak set feeds
+every downstream metric.
 
-**WARNING**: This dual-threshold design hides sidelobe artifacts from the resolution
-plot. Sidelobe peaks have low integral (pass 0.2 but fail 0.5), so they count as
-fakes in performance metrics but don't appear in the resolution plot. This creates
-a misleading impression of clean resolution. The `clean_run3` eval uses a single
-threshold (0.4) for both, which is why its resolution plots show sidelobes.
+- `INTEGRAL_THRESHOLD = 0.5` — performance counts (clean/merged/split/fake,
+  efficiency, FP, the new `reco_vs_mu` plot).
+- `INTEGRAL_THRESHOLD_RES = 0.5` — σ_vtx_vtx pairwise Δz fit. Overridable in
+  `run_eval_pvf_run3.py` via `--integral-threshold-res` if you ever need to
+  compare against historical 0.2 numbers.
+- Training-loop validation efficiency (`PARAM_EFF` in `training/training.py`)
+  also uses 0.5 so the reported eff-during-training matches eval numbers.
 
-Use `--integral-threshold-res 0.2` for honest resolution plots that include all
-peaks counted in performance metrics.
+For reference: `clean_run3` uses `0.4` for both. Our 0.5 is slightly stricter
+but has the same single-threshold property.
 
 ### Pileup filter scope
 μ∈[55,65] applies **only to the printed summary table**. The performance plot and stats histogram use **all events**. Both bounds are overridable via `--mu-min` / `--mu-max` (e.g. `--mu-min 195 --mu-max 205` for HLLHC PU200).
@@ -324,6 +339,6 @@ Outputs: `removal_stats.png` (4-panel summary), `zoom_plots/` (~40 per-vertex
 
 1. **E2E checkpoint extraction** — `tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` was manually extracted. Other epoch checkpoints have not been extracted. Automate if needed.
 
-2. **σ_vtx_vtx fit differences vs clean_run3** — clean_run3 excludes central |x|≤0.3 mm bins from the sigmoid fit and tries a Gaussian notch fit first; PV-Finder fits all bins with a sigmoid only. clean_run3 uses different peak-finding thresholds (threshold=0.02, integral=0.4, width=2 vs our 0.01/0.2/3 for perf, 0.01/0.5/3 for resolution). The dual-threshold design in our code hides sidelobes from the resolution plot (see warning above).
+2. **σ_vtx_vtx fit differences vs clean_run3** — clean_run3 excludes central |x|≤0.3 mm bins from the sigmoid fit and tries a Gaussian notch fit first; PV-Finder fits all bins with a sigmoid only. clean_run3 uses different peak-finding thresholds (threshold=0.02, integral=0.4, width=2 vs our 0.01/0.5/3 unified). The old dual-threshold design (0.2 performance + 0.5 resolution) was unified to 0.5/0.5 on 2026-04-15 to stop hiding sidelobes from the resolution plot.
 
 3. **No nTracks in h5** — the flat h5 `pv` field has only z positions. The nTracks≥2 filter requires ROOT. Running without `--root-truth` gives unfiltered truth (more merged, lower clean counts).

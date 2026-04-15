@@ -308,7 +308,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pvf-integral-threshold",
         type=float,
-        default=0.4,
+        default=0.5,
         help="PVF peak-finding integral threshold",
     )
     parser.add_argument(

@@ -20,7 +20,7 @@ Results = namedtuple("Results", ["epoch", "cost", "val", "time", "eff_val"])
 PARAM_EFF = {
     "difference": 5.0,
     "threshold": 1e-2,
-    "integral_threshold": 0.2,
+    "integral_threshold": 0.5,
     "min_width": 3,
 }
 
