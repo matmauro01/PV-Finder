@@ -211,7 +211,7 @@ def plot_stats(
 
     fig, ax = plt.subplots(figsize=(9.5, 6))
     ax.errorbar(mus, pvf_m, yerr=pvf_e, fmt="-o", ms=5, lw=1.8, capsize=3,
-                color="#1f77b4", label="PV-Finder (Σ clean+merged+split+fake)")  # fmt: skip
+                color="#1f77b4", label="PV-Finder")  # fmt: skip
     ax.errorbar(mus, amvf_m, yerr=amvf_e, fmt="-s", ms=5, lw=1.8, capsize=3,
                 color="#d62728", label="AMVF (nTracks ≥ 2)")  # fmt: skip
 
