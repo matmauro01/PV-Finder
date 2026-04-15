@@ -3,9 +3,9 @@
 Functions, each saves one PNG to output_dir:
   plot_resolution        — pairwise Δz distribution + sigmoid fit
   plot_performance       — reco category fractions + efficiency vs pileup
-  plot_stats             — avg count/event per category vs pileup (all events)
+  plot_stats             — total reco PVs/event vs pileup, PV-Finder vs AMVF
   plot_reco_vs_mu        — total reco PVs/event vs pileup, PV-Finder vs AMVF vs truth
-  plot_category_counts   — per-event distribution of clean/merged/split/fake counts
+  plot_category_counts   — 5-bar summary (total + 4 categories) in high-pileup window
 """
 
 from collections import defaultdict
@@ -174,53 +174,71 @@ def plot_stats(
     output_dir: Path,
     title: str = "",
 ) -> None:
-    """Avg count/event for clean/merged/split/fake vs pileup (all events).
+    """Total reconstructed PVs / event vs pileup — PV-Finder vs AMVF.
 
-    Adjacent-mu bins, mean ± SEM lines per category (mattia_finder style).
-    X-axis: ActualNumOfInt (rounded) when ROOT available, else N truth PVs.
+    Two curves: PV-Finder (`n_pred` = clean+merged+split+fake) and AMVF
+    (nTracks ≥ 2). The AMVF source is `n_amvf` when present (MC eval has
+    RecoVertex_nTracks from ROOT) and falls back to `n_truth` for real-data
+    evaluations (`run_eval_pvf_run3.py`), where `n_truth` already holds the
+    AMVF reference vertex list.
     """
-    sep: dict = defaultdict(
-        lambda: {k: [] for k in ("clean", "merged", "split", "fake")}
-    )
+    if not per_event:
+        return
+
+    amvf_key = "n_amvf" if per_event[0].get("n_amvf") is not None else "n_truth"
+
+    buckets: dict = defaultdict(lambda: {"pvf": [], "amvf": []})
     for r in per_event:
-        p = round(r["mu"]) if root_z_available else r["n_truth"]
-        for k in ("clean", "merged", "split", "fake"):
-            sep[p][k].append(r[k])
+        if root_z_available and r.get("mu") is not None:
+            p = round(r["mu"])
+        else:
+            p = r["n_truth"]
+        buckets[p]["pvf"].append(r["n_pred"])
+        buckets[p]["amvf"].append(r[amvf_key])
 
-    mu_vals = sorted(sep.keys())
-    cats = ("clean", "merged", "split", "fake")
-    mu_binned: list = []
-    means: dict = {k: [] for k in cats}
-    errs: dict = {k: [] for k in cats}
-    for i in range(0, len(mu_vals) - 1, 2):
-        mu_binned.append(0.5 * (mu_vals[i] + mu_vals[i + 1]))
-        for k in cats:
-            data = sep[mu_vals[i]][k] + sep[mu_vals[i + 1]][k]
-            means[k].append(float(np.mean(data)) if data else 0.0)
-            errs[k].append(
-                float(np.std(data) / np.sqrt(len(data))) if len(data) > 1 else 0.0
-            )
+    mus = sorted(buckets.keys())
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for key in cats:
-        ax.errorbar(
-            mu_binned,
-            means[key],
-            yerr=errs[key],
-            fmt=f"-{_MARKERS[key]}",
-            color=_COLORS[key],
-            ms=4,
-            capsize=3,
-            label=key.capitalize(),
-        )
+    def _curve(key):
+        m, e = [], []
+        for mu in mus:
+            vals = buckets[mu][key]
+            m.append(float(np.mean(vals)) if vals else np.nan)
+            e.append(float(np.std(vals) / np.sqrt(len(vals))) if len(vals) > 1 else 0.0)  # fmt: skip
+        return np.array(m), np.array(e)
+
+    pvf_m, pvf_e = _curve("pvf")
+    amvf_m, amvf_e = _curve("amvf")
+
+    fig, ax = plt.subplots(figsize=(9.5, 6))
+    ax.errorbar(mus, pvf_m, yerr=pvf_e, fmt="-o", ms=5, lw=1.8, capsize=3,
+                color="#1f77b4", label="PV-Finder (Σ clean+merged+split+fake)")  # fmt: skip
+    ax.errorbar(mus, amvf_m, yerr=amvf_e, fmt="-s", ms=5, lw=1.8, capsize=3,
+                color="#d62728", label="AMVF (nTracks ≥ 2)")  # fmt: skip
+
     xlabel = "ActualNumOfInt (μ)" if root_z_available else "N truth PVs/evt"
     ax.set_xlabel(xlabel, **_FONT)
-    ax.set_ylabel("Avg count / event", **_FONT)
-    ax.set_title(title or f"PVF Reco Categories vs Pileup — {mode_label}", **_FONT)
+    ax.set_ylabel("Total reconstructed PVs / event", **_FONT)
+    ax.set_title(
+        title
+        or f"Total reconstructed PVs vs pileup — {mode_label}  ({len(per_event)} events)",  # noqa: E501
+        **_FONT,
+    )
     ax.set_ylim(bottom=0)
-    ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
+    ax.legend(fontsize=11, loc="upper left", frameon=True)
     ax.tick_params(labelsize=11)
+
+    overall_pvf = float(
+        np.nanmean([np.mean(buckets[m]["pvf"]) for m in mus if buckets[m]["pvf"]])
+    )
+    overall_amvf = float(
+        np.nanmean([np.mean(buckets[m]["amvf"]) for m in mus if buckets[m]["amvf"]])
+    )
+    txt = f"⟨PV-Finder⟩ = {overall_pvf:.2f}/evt\n⟨AMVF⟩     = {overall_amvf:.2f}/evt"
+    ax.text(0.98, 0.05, txt, transform=ax.transAxes, fontsize=10,
+            va="bottom", ha="right", family="monospace",
+            bbox=dict(boxstyle="round,pad=0.4", fc="wheat", alpha=0.85))  # fmt: skip
+
     plt.tight_layout()
     plt.savefig(output_dir / "stats_histogram.png", dpi=150)
     plt.close()
@@ -319,52 +337,85 @@ def plot_category_counts(
     output_dir: Path,
     title: str = "",
     eval_label: str = "",
+    mu_min: int = 55,
+    mu_max: int = 65,
 ) -> None:
-    """Per-event distribution of clean / merged / split / fake counts.
+    """Mean per-event reco counts as a 5-bar chart in the high-pileup window.
 
-    Four overlaid step-filled histograms on integer-valued bins, one per
-    category. Each legend entry shows the category mean, σ, and total.
-    `eval_label` is written as a small annotation in the upper-right corner
-    so the plot is self-identifying when compared across runs.
+    Bars (left → right): Total, Clean, Merged, Split, Fake. Total is the
+    sum of the four categories (equivalent to `n_pred`).
+
+    Events are filtered to `mu ∈ [mu_min, mu_max]` when pileup is available,
+    otherwise all events are used. The pileup window is written into the
+    default title. Error bars are SEM across events in the window.
     """
-    cats = ("clean", "merged", "split", "fake")
-    data = {k: np.asarray([r[k] for r in per_event], dtype=float) for k in cats}
-    if not per_event or all(v.size == 0 for v in data.values()):
+    if not per_event:
         return
 
-    max_cnt = int(max(v.max() for v in data.values() if v.size))
-    bins = np.arange(-0.5, max_cnt + 1.5, 1.0)
+    events_with_mu = [r for r in per_event if r.get("mu") is not None]
+    if events_with_mu:
+        filt = [r for r in events_with_mu if mu_min <= round(r["mu"]) <= mu_max]
+        mu_desc = f"μ ∈ [{mu_min}, {mu_max}]"
+    else:
+        filt = per_event
+        mu_desc = "all events"
+    if not filt:
+        return
+
+    labels = ("Total", "Clean", "Merged", "Split", "Fake")
+    # Total = sum of the four categories. Use `n_pred` when available, else
+    # compute c+m+s+f which is identical by construction.
+    totals = np.asarray(
+        [
+            r.get("n_pred", r["clean"] + r["merged"] + r["split"] + r["fake"])
+            for r in filt
+        ],  # noqa: E501
+        dtype=float,
+    )
+    cleans = np.asarray([r["clean"] for r in filt], dtype=float)
+    mergeds = np.asarray([r["merged"] for r in filt], dtype=float)
+    splits = np.asarray([r["split"] for r in filt], dtype=float)
+    fakes = np.asarray([r["fake"] for r in filt], dtype=float)
+    stacks = (totals, cleans, mergeds, splits, fakes)
+
+    means = np.array([float(v.mean()) for v in stacks])
+    n = len(filt)
+    sems = np.array([float(v.std() / np.sqrt(n)) if n > 1 else 0.0 for v in stacks])
+
+    colors = ["#555555", _COLORS["clean"], _COLORS["merged"],
+              _COLORS["split"], _COLORS["fake"]]  # fmt: skip
 
     fig, ax = plt.subplots(figsize=(9.5, 6))
-    for k in cats:
-        vals = data[k]
-        mean = float(vals.mean())
-        std = float(vals.std())
-        total = int(vals.sum())
-        label = f"{k.capitalize():<6}  ⟨N⟩={mean:5.2f}  σ={std:4.2f}  Σ={total:>5d}"
-        ax.hist(vals, bins=bins, histtype="stepfilled", alpha=0.28,
-                color=_COLORS[k], edgecolor=_COLORS[k], linewidth=2.2,
-                label=label)  # fmt: skip
-
-    ax.set_xlabel("Count per event", **_FONT)
-    ax.set_ylabel("Events", **_FONT)
-    ax.set_title(title or f"Per-event category counts — {mode_label}", **_FONT)
-    ax.set_xlim(-0.5, max_cnt + 0.5)
-    ax.set_ylim(bottom=0)
-    ax.grid(alpha=0.3)
-    ax.tick_params(labelsize=11)
-    leg = ax.legend(
-        fontsize=10, loc="upper right", framealpha=0.9, prop={"family": "monospace"}
-    )
-    leg.set_title(f"{len(per_event)} events", prop={"size": 10, "weight": "bold"})
-
-    if eval_label:
+    x = np.arange(len(labels))
+    bars = ax.bar(
+        x, means, yerr=sems, capsize=6, color=colors,
+        edgecolor="black", linewidth=1.3, alpha=0.85,
+    )  # fmt: skip
+    # value labels above the bars
+    ymax = float((means + sems).max()) if means.size else 1.0
+    for bar, m, s in zip(bars, means, sems):
         ax.text(
-            0.02, 0.97, eval_label, transform=ax.transAxes, fontsize=9,
-            va="top", ha="left", family="monospace", color="#333333",
-            bbox=dict(boxstyle="round,pad=0.35", fc="#f5f5f5", ec="#cccccc",
-                      alpha=0.9),
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + s + 0.02 * ymax,
+            f"{m:.2f}", ha="center", va="bottom", fontsize=11, fontweight="bold",
         )  # fmt: skip
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=12)
+    ax.set_ylabel("Mean reconstructed PVs / event", **_FONT)
+    ax.set_title(title or f"Per-event reco counts ({mu_desc}) — {mode_label}", **_FONT)
+    ax.set_ylim(bottom=0, top=ymax * 1.18)
+    ax.grid(axis="y", alpha=0.3)
+    ax.tick_params(labelsize=11)
+
+    info = f"{n} events\n{mu_desc}"
+    if eval_label:
+        info = f"{eval_label}\n{info}"
+    ax.text(
+        0.98, 0.97, info, transform=ax.transAxes, fontsize=9,
+        va="top", ha="right", family="monospace", color="#333333",
+        bbox=dict(boxstyle="round,pad=0.35", fc="#f5f5f5", ec="#cccccc", alpha=0.9),
+    )  # fmt: skip
 
     plt.tight_layout()
     plt.savefig(output_dir / "category_counts_hist.png", dpi=150)

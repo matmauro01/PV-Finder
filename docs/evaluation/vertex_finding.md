@@ -33,10 +33,12 @@ All options have sensible defaults — only the model checkpoint is required.
 ```bash
 source venv/bin/activate
 
-# Minimal — E2E model, all defaults (ROOT truth, full test set):
+# Canonical — E2E v1 Run 2 MC model, all defaults:
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
-    --e2e-model model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth \
-    --output-dir outputs/eval_tracks2hist_1ch_e191
+    --e2e-model model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth \
+    --e2e-type v1 \
+    --output-dir outputs/eval_mc_T2HIST_400ep_ep150 \
+    --title "Run 2 MC — T2HIST 400ep ep150" --device 1
 
 # K2H stage-2, custom output dir:
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
@@ -99,21 +101,22 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 |------|----------|
 | `resolution_plot.png` | Pairwise Δz histogram + sigmoid fit → σ_vtx_vtx |
 | `performance_plot.png` | Clean/merged/split/fake fractions and efficiency vs pileup |
-| `stats_histogram.png` | Avg count/event for clean/merged/split/fake vs pileup (all events, mattia_finder style) |
-| `reco_vs_mu.png` | Total reco PVs/event vs pileup — PV-Finder vs AMVF, with truth reference (MC eval only, requires `--root-truth`) |
-| `category_counts_hist.png` | Per-event distribution of clean/merged/split/fake counts (4 overlaid step-filled histograms with ⟨N⟩ / σ / Σ in the legend, checkpoint name + integral_threshold in an annotation box) |
+| `stats_histogram.png` | **Total reconstructed PVs/event vs pileup — PV-Finder (Σ clean+merged+split+fake) vs AMVF** (nTracks≥2). Two curves, SEM error bars, overall-mean annotation box. AMVF source: `n_amvf` (MC eval via `RecoVertex_nTracks`) or `n_truth` (real-data eval, where truth already is AMVF). |
+| `reco_vs_mu.png` | Same idea as `stats_histogram` but also overlays the MC truth reference (dashed gray). MC eval only (requires `--root-truth`). |
+| `category_counts_hist.png` | **5-bar summary** of per-event reco counts in the high-pileup window `μ ∈ [55, 65]`: **Total, Clean, Merged, Split, Fake**. Bars labeled with mean value on top, SEM error bars, pileup window + n_events + checkpoint metadata in the corner box. |
 | `eval_results.pkl` | All per-event results, pred/truth PV positions, fit params |
 
 ## Model Checkpoints
 
-| Model | File |
-|-------|------|
-| E2E v1 ep130 (Qi Bin) | `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130.pyt` |
-| E2E v1 ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` |
-| E2E v2 ep90 (TracksToHist_v2) | `model_weights/T2HIST_v2_100epochs_epoch_90_fullstate.pth` |
-| K2H v1 ep190 | `model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth` |
-| K2H v2 ep190 | `model_weights/K2H_v2_interp_200epochs_epoch_190_fullstate.pth` |
-| T2KDE ep130 | `model_weights/reproduction_KDE_A_z_matmauro_run1_200_epoch_130_fullstate.pth` |
+| Model | File | Notes |
+|-------|------|-------|
+| **E2E v1 ep150 — canonical Run 2 MC E2E model** | `model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth` | 400-epoch Qi Bin reproduction, initialized from T2KDE ep100 + K2H ep150. **Default for all Run 2 MC evals.** |
+| E2E v1 ep130 (Strategy B, older) | `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth` | 50-ep MLP warmup + 400-ep E2E (`train_mlp_hist_then_e2e.py`). Used as the "old Run 2 model" reference in the 2026-04-09 HLLHC-vs-Run2 comparison. |
+| E2E v1 ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` | Manually extracted from a mattia_finder `.pyt` artifact (see Outstanding Issues). |
+| E2E v2 ep90 (TracksToHist_v2) | `model_weights/T2HIST_v2_100epochs_epoch_90_fullstate.pth` | |
+| K2H v1 ep190 | `model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth` | |
+| K2H v2 ep190 | `model_weights/K2H_v2_interp_200epochs_epoch_190_fullstate.pth` | |
+| T2KDE ep130 | `model_weights/reproduction_KDE_A_z_matmauro_run1_200_epoch_130_fullstate.pth` | |
 
 The E2E checkpoint was extracted from the mattia_finder MLflow artifact (`.pyt` full model → state dict) using the `pvfinder` conda env, since the `.pyt` format embeds the `model` module path.
 

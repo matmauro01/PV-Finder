@@ -1348,3 +1348,38 @@ needed — it only uses per-event `clean/merged/split/fake` fields that are
 always computed). `run_eval_pvf_run3.py` is at 499 lines and near the 500-line
 pre-commit limit, so the new plot is wired up in the MC script only for now;
 pulling it into the Run-3 script is a 1-line change once we free up room.
+
+## 2026-04-15 — Canonical Run 2 MC E2E model + plot rework
+
+**Canonical Run 2 MC E2E model decided:**
+`model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth`
+— the 400-epoch Qi Bin reproduction from 2026-03-24, initialized from T2KDE
+ep100 + K2H ep150. Use this one as the default for all Run 2 MC evals going
+forward. The older `e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130` (50-ep
+MLP warmup + 400-ep E2E) is kept for reference — it's what the 2026-04-09
+HLLHC-vs-Run2 comparison used and is referred to as the "old Run 2 model"
+in those entries.
+
+Plot reworks in `plots_pvf.py` (triggered by user request; applies to every
+caller of the eval scripts, MC and real-data):
+
+- **`stats_histogram.png`** — no longer shows four clean/merged/split/fake
+  lines vs pileup. Now shows two curves: PV-Finder `n_pred` (≡ Σ of the four
+  categories) and AMVF (nTracks≥2), both vs rounded μ, with SEM error bars
+  and an overall-mean annotation box. AMVF source is `n_amvf` on MC (from
+  `RecoVertex_nTracks`) and `n_truth` on real data (where the "truth" field
+  already holds AMVF).
+- **`category_counts_hist.png`** — no longer four overlaid step-filled
+  histograms. Now a **5-bar chart** (Total, Clean, Merged, Split, Fake),
+  filtered to `μ ∈ [55, 65]` (default; overridable via `mu_min`/`mu_max`
+  kwargs), with mean values printed above each bar and a corner metadata
+  box carrying the checkpoint stem, integral threshold, n_events, and the
+  pileup window. The pileup window is also in the default title.
+
+`plot_reco_vs_mu.png` is unchanged — it still carries the truth reference
+line, which distinguishes it from the new `stats_histogram.png`.
+
+Matplotlib backend is now forced to `Agg` at the top of `plots_pvf.py` to
+prevent X11 crashes when the launcher SSH session disconnects mid-plot
+(recovered from one such crash earlier today, lost 2550 events of inference
+because the output was written after all plots had been drawn).
