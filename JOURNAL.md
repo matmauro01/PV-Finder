@@ -1383,3 +1383,56 @@ Matplotlib backend is now forced to `Agg` at the top of `plots_pvf.py` to
 prevent X11 crashes when the launcher SSH session disconnects mid-plot
 (recovered from one such crash earlier today, lost 2550 events of inference
 because the output was written after all plots had been drawn).
+
+## 2026-04-15 — Final four evals of the day (canonical models)
+
+Ran four aligned evals with the `integral_threshold = 0.5` unification and the
+reworked plot set (stats_histogram = PVF vs AMVF, category_counts = 5-bar
+summary in the high-pileup window). Output root: `outputs/04_15_2026_output/`.
+
+| # | Data | Script | Model | μ window |
+|---|---|---|---|---|
+| 1 | Run 2 MC (2550 evt) | `run_eval_pvf.py` | `model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth` | [55, 65] |
+| 2 | Run 2 real (2500 evt) | `run_eval_pvf_run3.py --root data/run2/.../_000002.ATLAS_PVFinderData_Run3Data.root` | same Run 2 canonical | [20, 35] |
+| 3 | Run 3 real (2500 evt) | `run_eval_pvf_run3.py --root data/run3/file_3.root` | same Run 2 canonical | [50, 65] |
+| 4 | HLLHC PU200 MC (2550 evt) | `run_eval_pvf_run3.py --root data/run4/Run4_MC21_ITk/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root --e2e-wide` | `model_weights/hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100_fullstate.pth` | [185, 215] |
+
+**AMVF source per eval** — the `stats_histogram` and `category_counts` plots
+need PVF vs AMVF; where the "AMVF" curve comes from depends on the script:
+
+- `run_eval_pvf.py` (Run 2 MC) loads `RecoVertex_nTracks` from the truth ROOT
+  file (`ATLAS_PVFinderData_TruthMatched.root`) and stores it as `n_amvf`.
+- `run_eval_pvf_run3.py` (Run 2 real, Run 3 real, HLLHC PU200 MC) loads AMVF
+  reco vertices via `load_run3_from_root` in `run3_io.py` and stores them as
+  `amvf_z` / `amvf_ntrks`, which the main loop surfaces as the `n_truth`
+  field (AMVF *is* the reference on this script). `plot_stats` falls back to
+  `n_truth` when `n_amvf` is absent, so the same plot function handles both
+  cases transparently.
+
+**Two gotchas found during the run**:
+
+1. `run_eval_pvf.py --root-truth` defaulted to `None`, which silently dropped
+   ROOT-sourced fields (μ, `n_amvf`, nTracks≥2 truth filter). Flipped default
+   to `_DEFAULT_ROOT`. The first MC eval of the day ran without ROOT truth
+   because of this bug — rerun was clean.
+2. HLLHC PU200 pileup is **discrete at μ ∈ {190, 210}** (not a Gaussian
+   around 200). The obvious `--mu-min 195 --mu-max 205` window catches zero
+   events. Used `--mu-min 185 --mu-max 215` to catch both. Noted in
+   `docs/data/run_4.md`.
+
+**HLLHC v2 checkpoint naming convention** — `phase2_epoch_100` is Phase 2
+epoch 100, i.e. **150 effective epochs** counting the 50-epoch Phase 1 MLP
+warmup. The user asks for "epoch 150" when they mean "ep100 after the warmup".
+
+**HLLHC v2 model architecture** (`--e2e-wide` flag, new today):
+
+Same `trackstoHists_UNet_1000` class but with `n_UNetChannels=96` and
+`l_HiddenNodes=[128]×5` (vs default 64 / [100]×5). 680K params vs 359K.
+Loading the v2 checkpoint into the default-width model fails with a shape
+mismatch; the `--e2e-wide` flag extends the `E2E_CONFIG` dict in place before
+instantiation. Verified by loading `phase2_epoch_120_fullstate.pth`
+(subsequently `phase2_epoch_100_fullstate.pth` for the canonical eval).
+
+Also verified the HLLHC ROOT has `RecoVertex_nTracks`, `NumRecoVtx`,
+`ActualNumOfInt` and `TruthVertex_*` branches, so both AMVF reference and
+pileup binning work on HLLHC MC (same as Run 2 MC).

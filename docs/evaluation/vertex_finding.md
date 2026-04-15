@@ -110,8 +110,9 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 
 | Model | File | Notes |
 |-------|------|-------|
-| **E2E v1 ep150 — canonical Run 2 MC E2E model** | `model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth` | 400-epoch Qi Bin reproduction, initialized from T2KDE ep100 + K2H ep150. **Default for all Run 2 MC evals.** |
-| E2E v1 ep130 (Strategy B, older) | `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth` | 50-ep MLP warmup + 400-ep E2E (`train_mlp_hist_then_e2e.py`). Used as the "old Run 2 model" reference in the 2026-04-09 HLLHC-vs-Run2 comparison. |
+| **Run 2 MC — canonical (Model B)** | `model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth` | E2E v1, 400-epoch Qi Bin reproduction, initialized from T2KDE ep100 + K2H ep150. `trackstoHists_UNet_1000` with default width (64 UNet ch, [100]×5 MLP). **Default for all Run 2 MC / Run 2 data / Run 3 data evals.** |
+| **HLLHC PU200 — canonical (v2 wide)** | `model_weights/hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100_fullstate.pth` | E2E v1 **wide** variant (`n_UNetChannels=96`, `l_HiddenNodes=[128]×5`, 680K params). Load via `--e2e-wide`. Phase 2 epoch 100, which is **150 effective epochs** counting the 50-epoch MLP warmup in Phase 1. LR-stable recipe: 1e-4 + 5-ep warmup + cosine decay + grad-clip. |
+| E2E v1 ep130 (Strategy B, older) | `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth` | 50-ep MLP warmup + 400-ep E2E (`train_mlp_hist_then_e2e.py`). The "old Run 2 model" reference used in the 2026-04-09 HLLHC-vs-Run2 comparison. Default-width v1. |
 | E2E v1 ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` | Manually extracted from a mattia_finder `.pyt` artifact (see Outstanding Issues). |
 | E2E v2 ep90 (TracksToHist_v2) | `model_weights/T2HIST_v2_100epochs_epoch_90_fullstate.pth` | |
 | K2H v1 ep190 | `model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth` | |
@@ -202,6 +203,7 @@ Evaluates PV-Finder on real collision data (Run 2 or Run 3), using AMVF reconstr
 |-------|----------|
 | `--t2kde-model` + `--k2h-model` | Tracks → T2KDE (MaskedDNN) → K2H (UNet_1000) |
 | `--e2e-model` + `--e2e-type v1` | Tracks → trackstoHists_UNet_1000 end-to-end |
+| `--e2e-model` + `--e2e-type v1 --e2e-wide` | Same class, but wider (96 UNet ch, [128]×5 MLP) — for the HLLHC v2 checkpoint |
 | `--e2e-model` + `--e2e-type v2` | Tracks → TracksToHist_v2 end-to-end |
 
 The same script also runs on **HLLHC PU200** ROOT files (Run 4) — the tree layout

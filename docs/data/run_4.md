@@ -12,6 +12,9 @@ ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root
 - Tree: `PVFinderData`
 - 99,800 events
 - ~927 tracks/event, ~126 truth primary vertices/event
+- **Pileup is discrete — μ ∈ {190, 210}** (not a continuous distribution around 200).
+  Use `--mu-min 185 --mu-max 215` on the eval scripts to catch both values in the
+  high-pileup summary / category-counts window.
 
 ## Converted HDF5
 
