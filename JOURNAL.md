@@ -1436,3 +1436,16 @@ instantiation. Verified by loading `phase2_epoch_120_fullstate.pth`
 Also verified the HLLHC ROOT has `RecoVertex_nTracks`, `NumRecoVtx`,
 `ActualNumOfInt` and `TruthVertex_*` branches, so both AMVF reference and
 pileup binning work on HLLHC MC (same as Run 2 MC).
+
+## 2026-04-15 — Canonical Run 2 MC checkpoint: ep150 → ep300
+
+Moved the canonical Run 2 MC E2E checkpoint forward from Phase 2 ep150 to
+ep300 on the same 400-epoch reproduction training run:
+
+`model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_300_fullstate.pth`
+
+Same training (`train_tracks_to_hist.py`, init from T2KDE ep100 + K2H ep150,
+MSE loss, lr=1e-3, 400 epochs), just later in the schedule — more converged.
+Re-ran the three Run-2-model evals (MC, Run 2 real, Run 3 real) with the
+new checkpoint. HLLHC eval was not re-run because that uses the separate
+HLLHC v2 wide checkpoint (`hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100`).

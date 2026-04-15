@@ -35,10 +35,10 @@ source venv/bin/activate
 
 # Canonical — E2E v1 Run 2 MC model, all defaults:
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
-    --e2e-model model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth \
+    --e2e-model model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_300_fullstate.pth \
     --e2e-type v1 \
-    --output-dir outputs/eval_mc_T2HIST_400ep_ep150 \
-    --title "Run 2 MC — T2HIST 400ep ep150" --device 1
+    --output-dir outputs/eval_mc_T2HIST_400ep_ep300 \
+    --title "Run 2 MC — T2HIST 400ep ep300" --device 1
 
 # K2H stage-2, custom output dir:
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
@@ -110,7 +110,7 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 
 | Model | File | Notes |
 |-------|------|-------|
-| **Run 2 MC — canonical (Model B)** | `model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_150_fullstate.pth` | E2E v1, 400-epoch Qi Bin reproduction, initialized from T2KDE ep100 + K2H ep150. `trackstoHists_UNet_1000` with default width (64 UNet ch, [100]×5 MLP). **Default for all Run 2 MC / Run 2 data / Run 3 data evals.** |
+| **Run 2 MC — canonical (Model B, ep300)** | `model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_300_fullstate.pth` | E2E v1, 400-epoch Qi Bin reproduction, initialized from T2KDE ep100 + K2H ep150. `trackstoHists_UNet_1000` with default width (64 UNet ch, [100]×5 MLP). **Default for all Run 2 MC / Run 2 data / Run 3 data evals.** Previously used ep150 — moved to ep300 on 2026-04-15 (later in the 400-epoch schedule, more converged). |
 | **HLLHC PU200 — canonical (v2 wide)** | `model_weights/hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100_fullstate.pth` | E2E v1 **wide** variant (`n_UNetChannels=96`, `l_HiddenNodes=[128]×5`, 680K params). Load via `--e2e-wide`. Phase 2 epoch 100, which is **150 effective epochs** counting the 50-epoch MLP warmup in Phase 1. LR-stable recipe: 1e-4 + 5-ep warmup + cosine decay + grad-clip. |
 | E2E v1 ep130 (Strategy B, older) | `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth` | 50-ep MLP warmup + 400-ep E2E (`train_mlp_hist_then_e2e.py`). The "old Run 2 model" reference used in the 2026-04-09 HLLHC-vs-Run2 comparison. Default-width v1. |
 | E2E v1 ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` | Manually extracted from a mattia_finder `.pyt` artifact (see Outstanding Issues). |
