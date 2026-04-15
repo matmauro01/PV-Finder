@@ -40,7 +40,12 @@ from efficiency_res_optimized_atlas import (  # noqa: E402
     pv_locations_updated_res,
     suppress_neighbor_peaks,
 )
-from plots_pvf import plot_performance, plot_resolution, plot_stats  # noqa: E402
+from plots_pvf import (  # noqa: E402
+    plot_category_counts,
+    plot_performance,
+    plot_resolution,
+    plot_stats,
+)
 
 Z_MIN, Z_MAX = -240.0, 240.0  # mm
 N_BINS_FULL, N_BINS_SUB = 12000, 1000
@@ -418,20 +423,16 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
           f"sigma={sigma:.4f} mm  (overall eff={overall_eff:.4f} "
           f"{tot_tc+tot_tm}/{tot_truth})")  # fmt: skip
 
-    # --- Plots ---
     print("\n--- Generating Plots ---")
-    perf_title = (
-        args.title if args.title else f"PVF Performance — Real Data\n({mode_label})"
-    )
+    t = args.title or f"PVF — Real Data\n({mode_label})"
     plot_performance(per_event, overall_eff, fp_rate, sigma, has_mu,
-                     mode_label, outdir, title=perf_title)  # fmt: skip
-    print(f"  Saved: {outdir / 'performance_plot.png'}")
-    stats_title = (
-        args.title if args.title else f"PVF Reco Categories — Real Data\n({mode_label})"
-    )
-    plot_stats(per_event, has_mu, mode_label, outdir,
-               title=stats_title)  # fmt: skip
-    print(f"  Saved: {outdir / 'stats_histogram.png'}")
+                     mode_label, outdir, title=t)  # fmt: skip
+    plot_stats(per_event, has_mu, mode_label, outdir, title=t)
+    ckpt = Path(args.e2e_model or args.k2h_model or "").stem
+    plot_category_counts(per_event, mode_label, outdir, title="",
+        eval_label=f"ckpt: {ckpt}\nintegral_threshold = {INTEGRAL_THRESHOLD}",
+        mu_min=args.mu_min, mu_max=args.mu_max)  # fmt: skip
+    print(f"  Saved plots to: {outdir}")
 
     # --- Save results ---
     results = dict(
