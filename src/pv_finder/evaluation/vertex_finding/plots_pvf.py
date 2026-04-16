@@ -246,7 +246,8 @@ def plot_stats(
         **_TITLE_FONT,
     )
     ax.set_ylim(bottom=0)
-    _xlim(ax, mus)
+    if mus:
+        ax.set_xlim(left=0, right=max(mus) * 1.05)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=10, loc="upper left", frameon=True)
     ax.tick_params(labelsize=11)
