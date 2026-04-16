@@ -1530,3 +1530,20 @@ as `amvf_z`/`amvf_ntrks` by historical name — "AMVF" is shorthand for
 Run 2/3 and HLLHC but the HLLHC ITk tune may not be labeled as "AMVF" in
 the HSG convention. Operationally it's the ATLAS reference primary-vertex
 reconstruction for the sample, which is the right baseline.
+
+## 2026-04-16 — Integral threshold: back to 0.5 for both
+
+Reverted the dual-threshold design (0.2 perf + 0.5 resolution) to a single
+unified threshold of **0.5 for both** performance and resolution. Changed
+`INTEGRAL_THRESHOLD = 0.5` default in both `run_eval_pvf.py` and
+`run_eval_pvf_run3.py`. `INTEGRAL_THRESHOLD_RES` stays at 0.5.
+
+Rationale: the dual-threshold was defensible (scan showed 0.2 is the knee
+for counts on both Run 2 MC and HLLHC) but made the counts and resolution
+plot inconsistent — sidelobes contributed to FP but didn't show up in
+pairwise Δz. Unified 0.5 gives consistent accounting across both metrics,
+matching the `clean_run3` reference approach.
+
+HL-LHC PU200 needs explicit override: peaks are shallower due to PU200
+track density spread. Pass `--integral-threshold 0.2 --integral-threshold-res 0.2`
+for HL-LHC evals to avoid losing real vertices.

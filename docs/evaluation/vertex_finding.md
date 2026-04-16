@@ -61,32 +61,27 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
 
 ### Peak-finding thresholds
 
-| Parameter | Value | Used for |
+| Parameter | Value (default) | Used for |
 |-----------|-------|---------|
 | `threshold` | `1e-2` | Min bin height to start a peak |
-| `INTEGRAL_THRESHOLD` | `0.2` | Min peak area — performance counts (clean/merged/split/fake, efficiency, FP, all peak-count plots) |
-| `INTEGRAL_THRESHOLD_RES` | `0.5` | Min peak area — σ_vtx_vtx pairwise Δz fit only |
+| `INTEGRAL_THRESHOLD` | `0.5` | Min peak area — performance counts (clean/merged/split/fake, efficiency, FP, all peak-count plots) |
+| `INTEGRAL_THRESHOLD_RES` | `0.5` | Min peak area — σ_vtx_vtx pairwise Δz fit |
 | `min_width` | `3` bins | Min peak width |
 
-**Dual-threshold by design (2026-04-15, after scan investigation):**
-Performance counts use `0.2`, σ_vtx_vtx uses `0.5`. Rationale:
+**Unified-threshold (2026-04-16):** Both performance and resolution use `0.5`
+by default on Run 2 / Run 3 / MC. This is consistent and filters small sidelobe
+peaks out of both metrics. Rationale:
 
-- A 300-event `threshold_scan.py` on both Run 2 MC and HLLHC showed 0.5 is
-  significantly below the knee of the efficiency-vs-fake curve on both
-  datasets (Run 2 MC: 88.5% @ 0.5 → 91.7% @ 0.2 for +1.4 FP/evt; HLLHC:
-  80.0% @ 0.5 → 88.0% @ 0.2 for +3.8 FP/evt). 0.2 recovers real peaks the
-  model legitimately produces.
-- The resolution threshold stays at 0.5 because the pairwise Δz sigmoid fit
-  is sensitive to low-integral sidelobes — letting them into the fit pulls
-  σ_vtx_vtx toward artificial small values. 0.5 keeps only peaks that are
-  clearly resolved pairs.
-- Training-loop `PARAM_EFF` validation uses 0.2 to match the eval counts.
-- Peak amplitude threshold stays at `0.01` on both datasets — the scan
-  confirmed it's already at the knee of its knob (below 0.01 buys nothing,
-  above 0.02 starts hurting).
+- Dual-threshold (`0.2` perf + `0.5` res) was misleading: sidelobes counted as
+  fakes in performance but were hidden from the resolution plot. Using `0.5`
+  for both ensures consistent accounting.
+- The `clean_run3` reference eval uses a single threshold (`0.4`) — same spirit.
+- History: original sidelobe investigation thought E2E training had fixed the
+  problem, but it was actually the stricter resolution threshold hiding them.
 
-Full scan results are in `outputs/04_15_2026_output/thr_scan_{mc,hllhc}/`
-and archived in the 2026-04-15 journal entry.
+**HL-LHC PU200 override:** PU200 peaks are shallower (track density spread across
+more vertices). Pass `--integral-threshold 0.2 --integral-threshold-res 0.2` to
+avoid losing real vertices. Full scan results in `outputs/04_15_2026_output/thr_scan_hllhc/`.
 
 ### ROOT truth vs h5 truth
 
@@ -165,39 +160,21 @@ The **one intentional difference**: we add both `+dz` and `-dz` for each pair, g
 ### σ_vtx_vtx is both output and input
 σ_vtx_vtx is computed from the pairwise Δz distribution, then **used as the matching window** in `compare_res_reco`. This creates a mild circular dependency: a very different model will give a different σ, which changes how clean/merged/fake are counted. Keep this in mind when comparing numbers across very different models.
 
-### Integral threshold — 0.2 for counts, 0.5 for resolution (2026-04-15)
+### Integral threshold — 0.5 for both (2026-04-16)
 
-Dual-threshold design, chosen after scanning both knobs on both datasets:
+Unified threshold: both performance and resolution use `0.5` by default
+(`INTEGRAL_THRESHOLD = 0.5`, `INTEGRAL_THRESHOLD_RES = 0.5`). This is
+consistent: peaks counted as fakes in performance also appear in the
+resolution plot's pairwise Δz. Small sidelobe peaks (integral < 0.5)
+are filtered out of both. Overridable via `--integral-threshold` and
+`--integral-threshold-res`.
 
-- **`integral_threshold = 0.2`** for every count-based metric (clean /
-  merged / split / fake, efficiency, FP rate, `stats_histogram`,
-  `category_counts_hist`, `reco_vs_mu`, training-loop validation). This is
-  the `INTEGRAL_THRESHOLD` constant + `--integral-threshold` CLI flag.
-- **`integral_threshold_res = 0.5`** for the σ_vtx_vtx pairwise-Δz sigmoid
-  fit only. This is `INTEGRAL_THRESHOLD_RES` + `--integral-threshold-res`.
-- **`threshold = 0.01`** for peak amplitude on all datasets (unchanged).
+**HL-LHC PU200 override:** peaks are shallower due to PU200 track density
+spread. Pass `--integral-threshold 0.2 --integral-threshold-res 0.2`
+explicitly for HL-LHC evals to avoid losing real vertices.
 
-The dual threshold is back by design: the scan showed 0.2 is clearly the
-right operating point for counts (much higher efficiency at modest fake
-cost), but including those extra low-integral peaks in the resolution
-pairwise Δz distribution pulls the sigmoid fit toward small σ — σ_vtx_vtx
-needs a cleaner peak set to fit correctly. The 0.5 resolution threshold is
-strict on purpose.
-
-Yes, this does mean sidelobe peaks can contribute to the fake count (where
-we want to see them) without contaminating the resolution plot (where they
-would look like a spurious close-pair feature). That's the intent.
-
-- `INTEGRAL_THRESHOLD = 0.5` — performance counts (clean/merged/split/fake,
-  efficiency, FP, the new `reco_vs_mu` plot).
-- `INTEGRAL_THRESHOLD_RES = 0.5` — σ_vtx_vtx pairwise Δz fit. Overridable in
-  `run_eval_pvf_run3.py` via `--integral-threshold-res` if you ever need to
-  compare against historical 0.2 numbers.
-- Training-loop validation efficiency (`PARAM_EFF` in `training/training.py`)
-  also uses 0.5 so the reported eff-during-training matches eval numbers.
-
-For reference: `clean_run3` uses `0.4` for both. Our 0.5 is slightly stricter
-but has the same single-threshold property.
+For reference: `clean_run3` uses `0.4` for both. Our 0.5 is slightly
+stricter but same single-threshold property.
 
 ### Pileup filter scope
 μ∈[55,65] applies **only to the printed summary table**. The performance plot and stats histogram use **all events**. Both bounds are overridable via `--mu-min` / `--mu-max` (e.g. `--mu-min 195 --mu-max 205` for HLLHC PU200).

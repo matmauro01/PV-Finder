@@ -58,7 +58,7 @@ from plots_pvf import (  # noqa: E402
 Z_MIN, Z_MAX = -240.0, 240.0  # mm
 N_BINS_FULL, N_BINS_SUB, N_SUBEVENTS = 12000, 1000, 12
 BIN_WIDTH = (Z_MAX - Z_MIN) / N_BINS_FULL  # 0.04 mm/bin
-THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH = 1e-2, 0.2, 3
+THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH = 1e-2, 0.5, 3
 INTEGRAL_THRESHOLD_RES = 0.5  # stricter threshold for the σ_vtx_vtx pairwise Δz fit
 FIT_P0 = [1000.0, 10.0, 30.0, 0.8]  # sigmoid fit initial params [a, b, c, rcc]
 
