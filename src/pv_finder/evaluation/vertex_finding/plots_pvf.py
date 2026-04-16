@@ -445,7 +445,7 @@ def plot_category_counts(
             color=colors, edgecolor=edges, linewidth=1.5, alpha=0.55, hatch="///",
             label="AMVF",
             error_kw=dict(ecolor="#222", elinewidth=1.2, capsize=5))  # fmt: skip
-        ax.legend(fontsize=11, loc="upper right")
+        ax.legend(fontsize=11, loc="upper left")
         for b, m in zip(bars, pvf_means):
             ax.text(b.get_x() + b.get_width() / 2, b.get_height(),
                 f"{m:.1f}", ha="center", va="bottom",
