@@ -118,6 +118,7 @@ def load_root_truth(path: str) -> tuple:
         tree["TruthVertex_nTracks"].array(library="np"),
         tree["ActualNumOfInt"].array(library="np"),
         tree["RecoVertex_nTracks"].array(library="np"),
+        tree["RecoVertex_z"].array(library="np"),
     )
 
 
@@ -169,12 +170,14 @@ def run_e2e(
         return _stitch(model(torch.from_numpy(trk).float().to(device)))
 
 
-def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu, n_amvf=None):
+def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu, n_amvf=None,
+             amvf_c=None, amvf_m=None, amvf_s=None, amvf_f=None):  # fmt: skip
     """Build a per-event result dict."""
     return dict(
         event_idx=eidx, n_truth=nt, n_pred=np_,
         clean=c, merged=m, split=s, fake=f, eff=eff,
         tc=tc, tm=tm, tmiss=tmiss, mu=mu, n_amvf=n_amvf,
+        amvf_clean=amvf_c, amvf_merged=amvf_m, amvf_split=amvf_s, amvf_fake=amvf_f,
     )  # fmt: skip
 
 
@@ -216,7 +219,7 @@ def main(args: argparse.Namespace) -> None:
         mode_label = "K2H only (analytical KDE_A_z input)"
 
     # Load ROOT truth + qibin index map (always uses defaults)
-    root_z = root_n = root_mu = root_rv_n = qibin = None
+    root_z = root_n = root_mu = root_rv_n = root_rv_z_all = qibin = None
     if args.root_truth:
         qibin_path = Path(_DEFAULT_QIBIN)
         if not qibin_path.exists():
@@ -225,7 +228,9 @@ def main(args: argparse.Namespace) -> None:
                 "Run from repo root or ensure configs/qibin_test_main_indices_v2.p exists."
             )
         print("\n--- Loading ROOT Truth (nTracks >= 2 filter) ---")
-        root_z, root_n, root_mu, root_rv_n = load_root_truth(args.root_truth)
+        root_z, root_n, root_mu, root_rv_n, root_rv_z_all = load_root_truth(
+            args.root_truth
+        )
         with open(qibin_path, "rb") as fp:
             qibin = list(pickle.load(fp))
         print(f"  qibin: {len(qibin)} entries  ({qibin_path})")
@@ -311,16 +316,20 @@ def main(args: argparse.Namespace) -> None:
 
     for i, (p_pvs, h5t) in enumerate(zip(all_pred, all_truth)):
         eidx = int(event_indices[i])
-        n_amvf = None
+        n_amvf = amvf_bins = None
         if root_z is not None:
             ridx = qibin[i]
             ze = np.asarray(root_z[ridx], dtype=np.float64)
             ne = np.asarray(root_n[ridx], dtype=np.float64)
             mu = float(root_mu[ridx])
-            n_amvf = int(np.sum(np.asarray(root_rv_n[ridx]) >= 2))
+            rv_n = np.asarray(root_rv_n[ridx])
+            n_amvf = int(np.sum(rv_n >= 2))
             t_pvs = mm_to_bins(ze[ne >= 2])
             p_cmp = mm_to_bins(p_pvs)
             win = sig_bins
+            # AMVF positions (bin units) for category computation
+            root_rv_z = np.asarray(root_rv_z_all[ridx], dtype=np.float64)
+            amvf_bins = mm_to_bins(root_rv_z[rv_n >= 2])
         else:
             t_pvs, p_cmp, win, mu = h5t, p_pvs, sigma, None
 
@@ -349,9 +358,19 @@ def main(args: argparse.Namespace) -> None:
         tot_tm += ntm
         tot_tmiss += ntmiss
         tot_truth += nt
+        # AMVF categories (same matching window as PV-Finder)
+        ac = am = as_ = af = None
+        if amvf_bins is not None and len(amvf_bins) > 0:
+            res_a, _, _ = compare_res_reco(
+                t_pvs, amvf_bins, win * np.ones(len(amvf_bins)), debug=0
+            )
+            ac, am, as_, af = (
+                res_a.reco_clean, res_a.reco_merged,
+                res_a.reco_split, res_a.reco_fake,
+            )  # fmt: skip
         per_event.append(_evt_rec(
             eidx, nt, np_, res.reco_clean, res.reco_merged, res.reco_split, res.reco_fake,
-            eff, ntc, ntm, ntmiss, mu, n_amvf,
+            eff, ntc, ntm, ntmiss, mu, n_amvf, ac, am, as_, af,
         ))  # fmt: skip
         if i < 5 or i % 50 == 0:
             print(

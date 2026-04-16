@@ -407,53 +407,64 @@ def plot_category_counts(
             return
 
     labels = ("Total", "Clean", "Merged", "Split", "Fake")
-    totals = np.asarray(
-        [
-            r.get("n_pred", r["clean"] + r["merged"] + r["split"] + r["fake"])
-            for r in filt
-        ],  # noqa: E501
-        dtype=float,
-    )
-    cleans = np.asarray([r["clean"] for r in filt], dtype=float)
-    mergeds = np.asarray([r["merged"] for r in filt], dtype=float)
-    splits = np.asarray([r["split"] for r in filt], dtype=float)
-    fakes = np.asarray([r["fake"] for r in filt], dtype=float)
-    stacks = (totals, cleans, mergeds, splits, fakes)
-
-    means = np.array([float(v.mean()) for v in stacks])
     n = len(filt)
-    sems = np.array([float(v.std() / np.sqrt(n)) if n > 1 else 0.0 for v in stacks])
 
-    # Vivid, saturated palette (distinct from the muted _COLORS used elsewhere)
+    def _stats(keys):
+        m, s = [], []
+        for k in keys:
+            v = np.asarray([r.get(k, 0) or 0 for r in filt], dtype=float)
+            m.append(float(v.mean()))
+            s.append(float(v.std() / np.sqrt(n)) if n > 1 else 0.0)
+        return np.array(m), np.array(s)
+
+    pvf_means, pvf_sems = _stats(("n_pred", "clean", "merged", "split", "fake"))
+    has_amvf = any(r.get("amvf_clean") is not None for r in filt)
+    if has_amvf:
+        amvf_means, amvf_sems = _stats(
+            ("n_amvf", "amvf_clean", "amvf_merged", "amvf_split", "amvf_fake")
+        )
+
     vivid = {
-        "total": "#2C3E50",  # slate navy
-        "clean": "#3498DB",  # bright azure
-        "merged": "#2ECC71",  # emerald
-        "split": "#E74C3C",  # alizarin
-        "fake": "#F39C12",  # vivid orange
-    }
+        "total": "#2C3E50", "clean": "#3498DB", "merged": "#2ECC71",
+        "split": "#E74C3C", "fake": "#F39C12",
+    }  # fmt: skip
     colors = [vivid[k] for k in ("total", "clean", "merged", "split", "fake")]
     edges = ["#1a2530", "#1f6396", "#1b8449", "#962a1f", "#9c600a"]
 
-    fig, ax = plt.subplots(figsize=(10.5, 6.8))
+    fig, ax = plt.subplots(figsize=(11.5, 6.8))
     fig.patch.set_facecolor("white")
     ax.set_facecolor("#fafbfc")
     x = np.arange(len(labels))
-    bars = ax.bar(
-        x, means, width=0.72, yerr=sems,
-        color=colors, edgecolor=edges, linewidth=1.8, alpha=0.95,
-        error_kw=dict(ecolor="#222", elinewidth=1.5, capsize=7, capthick=1.4),
-    )  # fmt: skip
-
-    ymax = float((means + sems).max()) if means.size else 1.0
-    pad = 0.025 * ymax
-    for bar, m, s in zip(bars, means, sems):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + s + pad,
-            f"{m:.2f}", ha="center", va="bottom",
-            fontsize=14, fontweight="bold", color="#1a1a1a",
-        )  # fmt: skip
+    if has_amvf:
+        w = 0.36
+        bars = ax.bar(x - w / 2, pvf_means, width=w, yerr=pvf_sems,
+            color=colors, edgecolor=edges, linewidth=1.5, alpha=0.95,
+            label="PV-Finder",
+            error_kw=dict(ecolor="#222", elinewidth=1.2, capsize=5))  # fmt: skip
+        bars_a = ax.bar(x + w / 2, amvf_means, width=w, yerr=amvf_sems,
+            color=colors, edgecolor=edges, linewidth=1.5, alpha=0.55, hatch="///",
+            label="AMVF",
+            error_kw=dict(ecolor="#222", elinewidth=1.2, capsize=5))  # fmt: skip
+        ax.legend(fontsize=11, loc="upper right")
+        for b, m in zip(bars, pvf_means):
+            ax.text(b.get_x() + b.get_width() / 2, b.get_height(),
+                f"{m:.1f}", ha="center", va="bottom",
+                fontsize=10, fontweight="bold", color="#1a1a1a")  # fmt: skip
+        for b, m in zip(bars_a, amvf_means):
+            ax.text(b.get_x() + b.get_width() / 2, b.get_height(),
+                f"{m:.1f}", ha="center", va="bottom",
+                fontsize=10, fontweight="bold", color="#555")  # fmt: skip
+        ymax = float(np.maximum(pvf_means + pvf_sems, amvf_means + amvf_sems).max())
+    else:
+        bars = ax.bar(x, pvf_means, width=0.72, yerr=pvf_sems,
+            color=colors, edgecolor=edges, linewidth=1.8, alpha=0.95,
+            error_kw=dict(ecolor="#222", elinewidth=1.5, capsize=7))  # fmt: skip
+        pad = 0.025 * float((pvf_means + pvf_sems).max())
+        for b, m, s in zip(bars, pvf_means, pvf_sems):
+            ax.text(b.get_x() + b.get_width() / 2, b.get_height() + s + pad,
+                f"{m:.2f}", ha="center", va="bottom",
+                fontsize=14, fontweight="bold", color="#1a1a1a")  # fmt: skip
+        ymax = float((pvf_means + pvf_sems).max())
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=14, fontweight="semibold")
