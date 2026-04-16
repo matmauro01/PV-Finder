@@ -43,6 +43,7 @@ from efficiency_res_optimized_atlas import (  # noqa: E402
 from plots_pvf import (  # noqa: E402
     plot_category_counts,
     plot_performance,
+    plot_reco_vs_mu,
     plot_resolution,
     plot_stats,
 )
@@ -327,12 +328,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
 
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
-    plot_title = (
-        args.title if args.title else f"PVF Resolution — Real Data\n({mode_label})"
-    )
+    ds = args.dataset_name or "Real Data"
     plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
-                    title=plot_title)  # fmt: skip
-    print(f"  Saved: {outdir / 'resolution_plot.png'}")
+        title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
 
     # --- Performance metrics ---
     sig_bins = sigma / BIN_WIDTH
@@ -427,14 +425,17 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
           f"{tot_tc+tot_tm}/{tot_truth})")  # fmt: skip
 
     print("\n--- Generating Plots ---")
-    t = args.title or f"PVF — Real Data\n({mode_label})"
+    t = args.title or f"PVF — {ds}\n({mode_label})"
     plot_performance(per_event, overall_eff, fp_rate, sigma, has_mu,
                      mode_label, outdir, title=t)  # fmt: skip
     plot_stats(per_event, has_mu, mode_label, outdir, title=t)
+    if has_mu:
+        plot_reco_vs_mu(per_event, mode_label, outdir, title=t)
     ckpt = Path(args.e2e_model or args.k2h_model or "").stem
     plot_category_counts(per_event, mode_label, outdir, title="",
         eval_label=f"ckpt: {ckpt}\nintegral_threshold = {args.integral_threshold}",
-        mu_min=args.mu_min, mu_max=args.mu_max)  # fmt: skip
+        mu_min=args.mu_min, mu_max=args.mu_max,
+        all_events=args.mu_min >= 100)  # fmt: skip
     print(f"  Saved plots to: {outdir}")
 
     # --- Save results ---
@@ -494,5 +495,6 @@ if __name__ == "__main__":
     parser.add_argument("--integral-threshold-res", type=float, default=0.5)
     parser.add_argument("--e2e-wide", action="store_true",
                         help="HLLHC v2 wide variant (96 UNet ch, [128]*5 MLP)")  # fmt: skip
-    parser.add_argument("--title", default="", help="Plot title")
+    parser.add_argument("--title", default="")
+    parser.add_argument("--dataset-name", default="", dest="dataset_name")
     main(parser.parse_args())

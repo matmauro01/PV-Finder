@@ -296,8 +296,9 @@ def main(args: argparse.Namespace) -> None:
 
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
+    ds = args.dataset_name or "MC"
     plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
-                    title=args.title)  # fmt: skip
+        title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
     print(f"  Saved: {outdir / 'resolution_plot.png'}")
 
     # Performance metrics
@@ -407,19 +408,16 @@ def main(args: argparse.Namespace) -> None:
 
     print("\n--- Generating Plots ---")
     has_mu = root_z is not None
+    t = args.title or f"PVF — {ds}\n({mode_label})"
     plot_performance(per_event, overall_eff, fp_rate, sigma, has_mu, mode_label,
-                     outdir, title=args.title)  # fmt: skip
-    print(f"  Saved: {outdir / 'performance_plot.png'}")
-    plot_stats(per_event, has_mu, mode_label, outdir, title=args.title)
-    print(f"  Saved: {outdir / 'stats_histogram.png'}")
+                     outdir, title=t)  # fmt: skip
+    plot_stats(per_event, has_mu, mode_label, outdir, title=t)
     if has_mu:
-        plot_reco_vs_mu(per_event, mode_label, outdir, title=args.title)
-        print(f"  Saved: {outdir / 'reco_vs_mu.png'}")
+        plot_reco_vs_mu(per_event, mode_label, outdir, title=t)
     ckpt_name = Path(args.e2e_model or args.k2h_model).stem
-    eval_label = f"ckpt: {ckpt_name}\nintegral_threshold = {args.integral_threshold}"
     plot_category_counts(per_event, mode_label, outdir, title=args.title,
-                         eval_label=eval_label)  # fmt: skip
-    print(f"  Saved: {outdir / 'category_counts_hist.png'}")
+        eval_label=f"ckpt: {ckpt_name}\nintegral_threshold = {args.integral_threshold}")  # fmt: skip
+    print(f"  Saved plots to: {outdir}")
 
     results = dict(
         mode="e2e" if args.e2e_model else "stage2",
@@ -467,4 +465,5 @@ if __name__ == "__main__":
                         dest="integral_threshold",
                         help=f"Peak-finder integral threshold (default {INTEGRAL_THRESHOLD})")  # fmt: skip
     parser.add_argument("--title", default="", help="Plot title (used for all plots)")
+    parser.add_argument("--dataset-name", default="", dest="dataset_name")
     main(parser.parse_args())

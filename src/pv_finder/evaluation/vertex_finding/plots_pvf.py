@@ -25,7 +25,26 @@ _COLORS = {
     "fake": "#7f7f7f",
 }
 _MARKERS = {"clean": "o", "merged": "s", "split": "^", "fake": "v"}
-_FONT = {"fontsize": 13}
+_FONT = {"fontsize": 12}
+_TITLE_FONT = {"fontsize": 11}
+
+
+def _xlim(ax, vals, pad=0.05):
+    """Set x-limits from min/max of vals with padding (handles narrow ranges)."""
+    if not vals:
+        return
+    lo, hi = min(vals), max(vals)
+    span = hi - lo
+    if span < 1:
+        span = max(1, hi * 0.1)
+    ax.set_xlim(left=max(0, lo - span * pad), right=hi + span * pad)
+
+
+def _short_label(mode_label: str, max_len: int = 55) -> str:
+    """Truncate long mode_label for plot titles."""
+    if len(mode_label) <= max_len:
+        return mode_label
+    return mode_label[: max_len - 3] + "..."
 
 
 def plot_resolution(
@@ -73,8 +92,8 @@ def plot_resolution(
         )
     ax.set_xlabel("Δz between reconstructed PV pairs (mm)", **_FONT)
     ax.set_ylabel("Counts", **_FONT)
-    ax.set_title(title or f"PVF Resolution — {mode_label}", **_FONT)
-    ax.legend(fontsize=11)
+    ax.set_title(title or f"PVF Resolution — {_short_label(mode_label)}", **_TITLE_FONT)
+    ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     ax.set_ylim(bottom=0)
     ax.tick_params(labelsize=11)
@@ -123,8 +142,10 @@ def plot_performance(
             label=key.capitalize(),
         )
     ax.set_ylabel("Fraction of reconstructed PVs", **_FONT)
-    ax.set_title(title or f"PVF Performance — {mode_label}", **_FONT)
-    ax.legend(fontsize=11)
+    ax.set_title(
+        title or f"PVF Performance — {_short_label(mode_label)}", **_TITLE_FONT
+    )
+    ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     ax.tick_params(labelsize=11)
 
@@ -145,9 +166,8 @@ def plot_performance(
     ax.set_xlabel(xlabel, **_FONT)
     ax.set_ylabel("Efficiency (matched / truth)", **_FONT)
     ax.set_ylim(0, 1.1)
-    if pu_vals:
-        ax.set_xlim(left=0, right=max(pu_vals) * 1.05)
-    ax.legend(fontsize=11)
+    _xlim(ax, pu_vals)
+    ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     ax.tick_params(labelsize=11)
 
@@ -215,21 +235,20 @@ def plot_stats(
     ax.errorbar(mus, pvf_m, yerr=pvf_e, fmt="-o", ms=5, lw=1.8, capsize=3,
                 color="#1f77b4", label="PV-Finder")  # fmt: skip
     ax.errorbar(mus, amvf_m, yerr=amvf_e, fmt="-s", ms=5, lw=1.8, capsize=3,
-                color="#d62728", label="AMVF (nTracks ≥ 2)")  # fmt: skip
+                color="#d62728", label="AMVF")  # fmt: skip
 
     xlabel = "ActualNumOfInt (μ)" if root_z_available else "N truth PVs/evt"
     ax.set_xlabel(xlabel, **_FONT)
     ax.set_ylabel("Total reconstructed PVs / event", **_FONT)
     ax.set_title(
         title
-        or f"Total reconstructed PVs vs pileup — {mode_label}  ({len(per_event)} events)",  # noqa: E501
-        **_FONT,
+        or f"Total reco PVs vs pileup — {_short_label(mode_label)}  ({len(per_event)} evts)",  # noqa: E501
+        **_TITLE_FONT,
     )
     ax.set_ylim(bottom=0)
-    if mus:
-        ax.set_xlim(left=0, right=max(mus) * 1.05)
+    _xlim(ax, mus)
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=11, loc="upper left", frameon=True)
+    ax.legend(fontsize=10, loc="upper left", frameon=True)
     ax.tick_params(labelsize=11)
 
     overall_pvf = float(
@@ -299,22 +318,22 @@ def plot_reco_vs_mu(
     has_amvf = np.any(~np.isnan(amvf_m))
     if has_amvf:
         ax.errorbar(mus, amvf_m, yerr=amvf_e, fmt="-s", ms=5, lw=1.8, capsize=3,
-                    color="#d62728", label="AMVF (nTracks≥2)", zorder=2)  # fmt: skip
+                    color="#d62728", label="AMVF", zorder=2)  # fmt: skip
     ax.plot(mus, tr_m, "--", lw=1.5, color="#555555", alpha=0.8,
-            label="Truth PVs (nTracks≥2)", zorder=1)  # fmt: skip
+            label="Truth PVs", zorder=1)  # fmt: skip
 
     n_evt = sum(len(buckets[m]["pvf"]) for m in mus)
     ax.set_xlabel("ActualNumOfInt (μ)", **_FONT)
     ax.set_ylabel("Avg reconstructed PVs / event", **_FONT)
     ax.set_title(
-        title or f"Reconstructed vertices vs pileup — {mode_label}  ({n_evt} events)",
-        **_FONT,
+        title
+        or f"Reco vertices vs pileup — {_short_label(mode_label)}  ({n_evt} evts)",
+        **_TITLE_FONT,
     )
     ax.set_ylim(bottom=0)
-    if mus:
-        ax.set_xlim(left=0, right=max(mus) * 1.05)
+    _xlim(ax, mus)
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=11, loc="upper left", frameon=True)
+    ax.legend(fontsize=10, loc="upper left", frameon=True)
     ax.tick_params(labelsize=11)
 
     if has_amvf:
@@ -345,6 +364,7 @@ def plot_category_counts(
     eval_label: str = "",
     mu_min: int = 55,
     mu_max: int = 65,
+    all_events: bool = False,
 ) -> None:
     """Mean per-event reco counts as a 5-bar chart in the high-pileup window.
 
@@ -358,19 +378,23 @@ def plot_category_counts(
     if not per_event:
         return
 
-    events_with_mu = [r for r in per_event if r.get("mu") is not None]
-    if not events_with_mu:
-        # Pileup unavailable (ROOT truth not loaded) — refuse to draw a
-        # "high pileup" plot rather than silently include everything.
-        print(
-            f"  [plot_category_counts] skipped: no per-event mu "
-            f"(need --root-truth); cannot filter to [{mu_min}, {mu_max}]"
-        )
-        return
-    filt = [r for r in events_with_mu if mu_min <= round(r["mu"]) <= mu_max]
-    if not filt:
-        print(f"  [plot_category_counts] skipped: 0 events in μ ∈ [{mu_min}, {mu_max}]")
-        return
+    if all_events:
+        filt = list(per_event)
+    else:
+        events_with_mu = [r for r in per_event if r.get("mu") is not None]
+        if not events_with_mu:
+            # Pileup unavailable — refuse to draw a filtered plot.
+            print(
+                f"  [plot_category_counts] skipped: no per-event mu "
+                f"(need --root-truth); cannot filter to [{mu_min}, {mu_max}]"
+            )
+            return
+        filt = [r for r in events_with_mu if mu_min <= round(r["mu"]) <= mu_max]
+        if not filt:
+            print(
+                f"  [plot_category_counts] skipped: 0 events in μ ∈ [{mu_min}, {mu_max}]"
+            )
+            return
 
     labels = ("Total", "Clean", "Merged", "Split", "Fake")
     totals = np.asarray(
@@ -424,10 +448,10 @@ def plot_category_counts(
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=14, fontweight="semibold")
     ax.set_ylabel("Mean reconstructed PVs / event", fontsize=14, fontweight="semibold")
-    mu_desc = f"μ ∈ [{mu_min}, {mu_max}]"
+    mu_desc = "all events" if all_events else f"μ ∈ [{mu_min}, {mu_max}]"
     ax.set_title(
-        title or f"Per-event reco counts, {mu_desc}  —  {mode_label}",
-        fontsize=15, fontweight="bold", pad=14,
+        title or f"Per-event reco counts, {mu_desc}  —  {_short_label(mode_label)}",
+        fontsize=11, fontweight="bold", pad=10,
     )  # fmt: skip
     ax.set_ylim(bottom=0, top=ymax * 1.28)
     ax.set_axisbelow(True)
