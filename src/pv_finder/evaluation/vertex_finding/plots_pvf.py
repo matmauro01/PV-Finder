@@ -230,15 +230,18 @@ def plot_stats(
 
     pvf_m, pvf_e = _curve("pvf")
     amvf_m, amvf_e = _curve("amvf")
+    counts = np.array([len(buckets[m]["pvf"]) for m in mus])
 
-    fig, ax = plt.subplots(figsize=(9.5, 6))
+    fig, (ax, ax2) = plt.subplots(
+        2, 1, figsize=(9.5, 7.5), sharex=True,
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.08},
+    )  # fmt: skip
     ax.errorbar(mus, pvf_m, yerr=pvf_e, fmt="-o", ms=5, lw=1.8, capsize=3,
                 color="#1f77b4", label="PV-Finder")  # fmt: skip
     ax.errorbar(mus, amvf_m, yerr=amvf_e, fmt="-s", ms=5, lw=1.8, capsize=3,
                 color="#d62728", label="AMVF")  # fmt: skip
 
     xlabel = "ActualNumOfInt (μ)" if root_z_available else "N truth PVs/evt"
-    ax.set_xlabel(xlabel, **_FONT)
     ax.set_ylabel("Total reconstructed PVs / event", **_FONT)
     ax.set_title(
         title
@@ -251,6 +254,13 @@ def plot_stats(
     ax.grid(alpha=0.3)
     ax.legend(fontsize=10, loc="upper left", frameon=True)
     ax.tick_params(labelsize=11)
+
+    # Bottom panel: event counts per μ bin (diagnostic for dips in the curves)
+    ax2.bar(mus, counts, width=0.9, color="#888888", alpha=0.7, edgecolor="#444")
+    ax2.set_xlabel(xlabel, **_FONT)
+    ax2.set_ylabel("Events / bin", fontsize=10)
+    ax2.grid(alpha=0.3, axis="y")
+    ax2.tick_params(labelsize=10)
 
     overall_pvf = float(
         np.nanmean([np.mean(buckets[m]["pvf"]) for m in mus if buckets[m]["pvf"]])
