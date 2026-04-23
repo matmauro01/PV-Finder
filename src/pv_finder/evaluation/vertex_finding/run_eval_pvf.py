@@ -435,7 +435,8 @@ def main(args: argparse.Namespace) -> None:
         plot_reco_vs_mu(per_event, mode_label, outdir, title=t)
     ckpt_name = Path(args.e2e_model or args.k2h_model).stem
     plot_category_counts(per_event, mode_label, outdir, title=args.title,
-        eval_label=f"ckpt: {ckpt_name}\nintegral_threshold = {args.integral_threshold}")  # fmt: skip
+        eval_label=f"ckpt: {ckpt_name}\nintegral_threshold = {args.integral_threshold}",
+        truth_pvs_per_evt=ant)  # fmt: skip
     print(f"  Saved plots to: {outdir}")
 
     results = dict(

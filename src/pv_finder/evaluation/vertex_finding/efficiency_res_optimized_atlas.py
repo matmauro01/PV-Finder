@@ -176,121 +176,110 @@ def suppress_neighbor_peaks(
 
 
 def compare_res_reco(target_PVs_loc, pred_PVs_loc, reco_res, debug):
+    """Classify reco and truth vertices into clean/merged/split/fake/missed.
+
+    Uses greedy closest-first matching: all (reco, truth) pairs within the
+    matching window are sorted by distance, then greedily assigned 1-to-1.
+    After assignment, leftover reco with unmatched truth in their window are
+    "merged"; leftover reco with multiple truth assigned are resolved via
+    split logic.
+
+    Parameters
+    ----------
+    target_PVs_loc : ndarray
+        Truth vertex z positions (bin units). Should be filtered to nTracks>=2.
+    pred_PVs_loc : ndarray
+        Predicted (reco) vertex z positions (bin units).
+    reco_res : ndarray
+        Matching window per reco vertex (bin units), same length as pred_PVs_loc.
+    debug : int
+        Print debug output if > 0.
+
+    Returns
+    -------
+    (PerformanceInfo, truth_classification, localdensity)
     """
+    n_truth = len(target_PVs_loc)
+    n_reco = len(pred_PVs_loc)
 
-    Inputs argument:
-      * target_PVs_loc:
-          Numpy array of z positions (in terms of bin #) of the TruthVertex objects. ensure that the list is filtered to require ntrks>=4
+    # --- Pass 1: build candidate pairs and greedy closest-first assignment ---
+    # Collect all (reco_i, truth_j, distance) pairs within matching window
+    pairs = []
+    # Also track which truth vertices fall within each reco's window
+    reco_truth_neighbors = [[] for _ in range(n_reco)]
+    for ri in range(n_reco):
+        dists = np.abs(target_PVs_loc - pred_PVs_loc[ri])
+        for tj in np.where(dists <= reco_res[ri])[0]:
+            pairs.append((ri, int(tj), float(dists[tj])))
+            reco_truth_neighbors[ri].append(int(tj))
 
-      * pred_PVs_loc:
-          Numpy array of computed z positions (in terms of bin #) of the predicted PVs (using KDEs)
+    # Sort by distance (closest first) and greedily assign 1-to-1
+    pairs.sort(key=lambda x: x[2])
+    reco_assigned = {}  # ri -> tj
+    truth_assigned = {}  # tj -> ri
+    for ri, tj, _ in pairs:
+        if ri not in reco_assigned and tj not in truth_assigned:
+            reco_assigned[ri] = tj
+            truth_assigned[tj] = ri
 
-      * reco_res:
-          Numpy array with the "reco" resolution as a function of width of predicted KDE signal
+    # --- Pass 2: classify ---
+    reco_cls = np.empty(n_reco, dtype=object)
+    truth_cls = np.empty(n_truth, dtype=object)
 
-      * debug:
-          flag to print output for debugging purposes
+    # Classify assigned reco: merged if unmatched truth in window, else clean
+    for ri in range(n_reco):
+        neighbors = reco_truth_neighbors[ri]
+        if ri not in reco_assigned:
+            # Unassigned reco: "split" if it had truth in its window (those
+            # truth were claimed by closer reco), "fake" otherwise
+            if neighbors:
+                reco_cls[ri] = "split"
+            else:
+                reco_cls[ri] = "fake"
+        else:
+            # Check if any truth in this reco's window is unmatched (missed)
+            unmatched_neighbors = [tj for tj in neighbors if tj not in truth_assigned]
+            if unmatched_neighbors:
+                reco_cls[ri] = "merged"
+                for tj in unmatched_neighbors:
+                    truth_assigned[tj] = ri  # claim them
+            else:
+                reco_cls[ri] = "clean"
 
+    # Truth classification
+    for tj in range(n_truth):
+        if tj in truth_assigned:
+            ri = truth_assigned[tj]
+            if reco_cls[ri] == "merged":
+                truth_cls[tj] = "merged"
+            else:
+                truth_cls[tj] = "clean"
+        else:
+            truth_cls[tj] = "missed"
 
-    Returns:
-        PerformanceInfo named tuple
-    """
+    if debug:
+        for ri in range(n_reco):
+            tj = reco_assigned.get(ri, -1)
+            print(
+                f"  reco {ri}: {reco_cls[ri]}, assigned to truth {tj}, "
+                f"neighbors={reco_truth_neighbors[ri]}"
+            )
 
-    truth_classification = [[]] * len(target_PVs_loc)
-    reco_classification = [[]] * len(pred_PVs_loc)
-    truth_assignment = [[]] * len(target_PVs_loc)
-    reco_assignment = [[]] * len(pred_PVs_loc)
-
-    num_merged = []
-
-    # iterate through predicted PV locations
-    for i, pred_loc in enumerate(pred_PVs_loc):
-        # get all truth vertices within (pred_loc-res,pred_loc+res)
-        where_truth = np.argwhere(np.abs(target_PVs_loc - pred_loc) <= reco_res[i])
-
-        # takes care of all fake predictions
-        if len(where_truth) == 0:
-            reco_classification[i] = reco_classification[i] + ["fake"]
-            reco_assignment[i] = reco_assignment[i] + [-1]
-
-        # takes care of sparse truth assigments (no other surrounding vertices)
-        if len(where_truth) == 1:
-            where = where_truth[0][0]
-
-            reco_classification[i] = reco_classification[i] + ["clean"]
-            truth_assignment[where] = truth_assignment[where] + [i]
-            truth_classification[where] = truth_classification[where] + ["clean"]
-            reco_assignment[i] = reco_assignment[i] + [where]
-
-        # takes care of dense cases (merged)
-        if len(where_truth) > 1:
-            num_merged.append(len(where_truth))
-
-            reco_classification[i] = reco_classification[i] + ["merged"]
-            for j in where_truth:
-                reco_assignment[i] = reco_assignment[i] + [j[0]]
-                truth_assignment[j[0]] = truth_assignment[j[0]] + [i]
-                truth_classification[j[0]] = truth_classification[j[0]] + ["merged"]
-
-    # take care of remaining missing truth PVs
-    for i in range(len(truth_classification)):
-        if len(truth_classification[i]) == 0:
-            truth_assignment[i] = truth_assignment[i] + [-1]
-            truth_classification[i] = truth_classification[i] + ["missed"]
-
-    # handling multiple classifications (split vertices)
-    for i in range(len(truth_classification)):
-        if len(truth_classification[i]) > 1:
-            where_clean = np.argwhere(np.array(truth_classification[i]) == "clean")
-            where_merged = np.argwhere(np.array(truth_classification[i]) == "merged")
-
-            # "clean" in list cases
-            if len(where_clean) > 1:
-                # decide which clean assignment is best
-                reco_keys = np.array(truth_assignment[i])[
-                    np.array(where_clean).reshape((len(where_clean),))
-                ]
-                diff = (
-                    np.abs(target_PVs_loc[i] - pred_PVs_loc[reco_keys])
-                    / reco_res[reco_keys]
-                )
-                best_key = reco_keys[np.argmin(diff)]
-
-                # assign split vertices
-                for k in reco_keys:
-                    if not k == best_key:
-                        reco_classification[k] = ["split"]
-                        reco_assignment[k] = [i]
-
-            if len(where_merged) > 1:
-                truth_classification[i] = ["merged"]
-
-            if len(truth_classification[i]) > 1:
-                truth_classification[i] = ["merged"]
-
-    # add up each category
-    truth_classification = np.array(truth_classification).reshape(
-        len(truth_classification),
-    )
-    reco_classification = np.array(reco_classification).reshape(
-        len(reco_classification),
-    )
-    # calculates local pileup density
+    # Local pileup density (unchanged from original)
     bins_1mm = 12000 / (240 - (-240))
-    localdensity = np.zeros(len(target_PVs_loc))
-    for i in range(len(target_PVs_loc)):
+    localdensity = np.zeros(n_truth)
+    for i in range(n_truth):
         localdensity[i] = (
             sum(np.abs(target_PVs_loc[i] - target_PVs_loc) <= bins_1mm) / 2
         )
 
-    # calculate number of merged, split, fake, clean
-    reco_merged = sum(reco_classification == "merged")
-    reco_split = sum(reco_classification == "split")
-    reco_clean = sum(reco_classification == "clean")
-    reco_fake = sum(reco_classification == "fake")
+    reco_merged = int(np.sum(reco_cls == "merged"))
+    reco_split = int(np.sum(reco_cls == "split"))
+    reco_clean = int(np.sum(reco_cls == "clean"))
+    reco_fake = int(np.sum(reco_cls == "fake"))
 
     return (
         PerformanceInfo(reco_merged, reco_split, reco_clean, reco_fake),
-        truth_classification,
+        truth_cls,
         localdensity,
     )

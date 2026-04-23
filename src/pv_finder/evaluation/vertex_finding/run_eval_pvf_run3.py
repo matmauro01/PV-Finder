@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""PV-Finder evaluation on real/MC data (Run 2 / Run 3 / HLLHC).
-
-Reference: AMVF vertices (nTracks >= 2). Models: --e2e-model OR --t2kde-model + --k2h-model.
-"""
+"""PV-Finder evaluation on real/MC data (Run 2 / Run 3 / HLLHC)."""
 
 from __future__ import annotations
 
@@ -52,8 +49,6 @@ Z_MIN, Z_MAX = -240.0, 240.0  # mm
 N_BINS_FULL, N_BINS_SUB = 12000, 1000
 BIN_WIDTH = (Z_MAX - Z_MIN) / N_BINS_FULL  # 0.04 mm/bin
 THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH = 1e-2, 0.5, 3
-INTEGRAL_THRESHOLD_RES = 0.5  # stricter threshold for the σ_vtx_vtx pairwise Δz fit
-FIT_P0 = [1000.0, 10.0, 30.0, 0.8]
 MODEL_PAD_VAL = -240.0
 
 # fmt: off
@@ -140,67 +135,60 @@ def _stitch(out: torch.Tensor) -> np.ndarray:
     return (a if a.ndim > 1 else a[np.newaxis, :]).reshape(-1).astype(np.float32)
 
 
-def run_full_pipeline(
+def run_inference(
     subevents: list[np.ndarray],
-    t2kde: torch.nn.Module,
-    k2h: torch.nn.Module,
     device: torch.device,
+    t2kde: torch.nn.Module | None = None,
+    k2h: torch.nn.Module | None = None,
+    e2e: torch.nn.Module | None = None,
 ) -> np.ndarray:
-    """T2KDE + K2H pipeline on 12 subevent tensors -> (12000,) histogram."""
+    """Run model inference on 12 subevent tensors -> (12000,) histogram."""
     mx = max(t.shape[1] for t in subevents)
     padded = np.stack([_pad_to_length(t, mx) for t in subevents])
+    inp = torch.from_numpy(padded).float().to(device)
     with torch.no_grad():
-        kde = t2kde(torch.from_numpy(padded).float().to(device))
-        hist = k2h(kde.unsqueeze(1))
+        if e2e is not None:
+            hist = e2e(inp)
+        else:
+            hist = k2h(t2kde(inp).unsqueeze(1))
     return _stitch(hist)
 
 
-def run_e2e_inference(
-    subevents: list[np.ndarray],
-    model: torch.nn.Module,
-    device: torch.device,
-) -> np.ndarray:
-    """E2E model on 12 subevent tensors -> (12000,) histogram."""
-    mx = max(t.shape[1] for t in subevents)
-    padded = np.stack([_pad_to_length(t, mx) for t in subevents])
-    with torch.no_grad():
-        hist = model(torch.from_numpy(padded).float().to(device))
-    return _stitch(hist)
-
-
-def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu, beam_z):  # noqa: PLR0913
+def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu, beam_z,  # noqa: PLR0913
+             n_amvf=None, amvf_c=None, amvf_m=None, amvf_s=None, amvf_f=None):  # fmt: skip
+    """Build per-event result dict."""
     return dict(event_idx=eidx, n_truth=nt, n_pred=np_, clean=c, merged=m,
                 split=s, fake=f, eff=eff, tc=tc, tm=tm, tmiss=tmiss,
-                mu=mu, beam_z=beam_z)  # fmt: skip
+                mu=mu, beam_z=beam_z, n_amvf=n_amvf,
+                amvf_clean=amvf_c, amvf_merged=amvf_m,
+                amvf_split=amvf_s, amvf_fake=amvf_f)  # fmt: skip
 
 
 def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
-    print("=" * 65)
-    print("  PV-Finder Run 3 Evaluation")
-    print("=" * 65)
+    print("=" * 65, "\n  PV-Finder Run 3 / HL-LHC Evaluation\n", "=" * 65, sep="\n")
     if args.device >= 0 and torch.cuda.is_available():
         device = torch.device(f"cuda:{args.device}")
-        print(f"\nDevice: GPU {args.device} -- "
-              f"{torch.cuda.get_device_name(args.device)}")  # fmt: skip
+        print(
+            f"\nDevice: GPU {args.device} -- {torch.cuda.get_device_name(args.device)}"
+        )
     else:
         device = torch.device("cpu")
         print("\nDevice: CPU")
-
-    has_pipeline = args.t2kde_model and args.k2h_model
-    has_e2e = args.e2e_model is not None
+    has_pipeline, has_e2e = (
+        bool(args.t2kde_model and args.k2h_model),
+        args.e2e_model is not None,
+    )
     if not has_pipeline and not has_e2e:
-        raise ValueError(
-            "Provide either --e2e-model OR both --t2kde-model and --k2h-model."
-        )
-
+        raise ValueError("Provide --e2e-model OR both --t2kde-model and --k2h-model.")
     print("\n--- Loading Models ---")
     t2kde = k2h = e2e = None
     if has_e2e:
         e2e_type = getattr(args, "e2e_type", "v1")
         if e2e_type == "v2":
-            t2kde_sub = MaskedDNN(**T2KDE_CONFIG)
-            k2h_sub = UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
-            e2e = TracksToHist_v2(t2kde_sub, k2h_sub)
+            e2e = TracksToHist_v2(
+                MaskedDNN(**T2KDE_CONFIG),
+                UNet_1000_v2(n=64, n_features=1, dropout_p=0.0),
+            )
         else:
             cfg = dict(E2E_CONFIG)
             if getattr(args, "e2e_wide", False):
@@ -211,38 +199,40 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     else:
         t2kde = MaskedDNN(**T2KDE_CONFIG)
         load_ckpt(args.t2kde_model, t2kde, device)
-        if args.k2h_type == "v2":
-            k2h = UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
-        else:
-            k2h = UNet_1000(**K2H_CONFIG)
+        k2h = (
+            UNet_1000_v2(n=64, n_features=1, dropout_p=0.0)
+            if args.k2h_type == "v2"
+            else UNet_1000(**K2H_CONFIG)
+        )
         load_ckpt(args.k2h_model, k2h, device)
         mode_label = (
             f"T2KDE+K2H ({Path(args.t2kde_model).stem} + {Path(args.k2h_model).stem})"
         )
-
     print("\n--- Loading Data ---")
+    load_kw = dict(
+        max_events=args.max_events,
+        min_tracks=args.min_tracks,
+        min_amvf_vtx=args.min_amvf_vtx,
+    )
     if args.root:
         events = load_run3_from_root(
             args.root,
-            max_events=args.max_events,
-            min_tracks=args.min_tracks,
-            min_amvf_vtx=args.min_amvf_vtx,
+            **load_kw,
             entry_start=args.entry_start,
             entry_stop=args.entry_stop,
         )
     else:
-        events = load_run3_from_npz(
-            args.npz,
-            max_events=args.max_events,
-            min_tracks=args.min_tracks,
-            min_amvf_vtx=args.min_amvf_vtx,
-        )
+        events = load_run3_from_npz(args.npz, **load_kw)
     n_events = len(events)
     if n_events == 0:
         print("ERROR: no events loaded after filtering.")
         sys.exit(1)
     has_mu = any(e.mu is not None for e in events)
-
+    has_truth = events[0].truth_z is not None
+    if has_truth:
+        print("  MC truth detected — TruthVertex as truth, AMVF evaluated separately")
+    else:
+        print("  No MC truth — using AMVF (RecoVertex) as truth reference")
     if args.smooth_sigma > 0:
         print(f"\n  Peak-finding smoothing: sigma={args.smooth_sigma} bins "
               f"({args.smooth_sigma * BIN_WIDTH:.3f} mm)")  # fmt: skip
@@ -256,10 +246,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
 
     for i, event in enumerate(events):
         subevents = build_subevent_inputs(event)
-        if has_e2e:
-            ph = run_e2e_inference(subevents, e2e, device)
-        else:
-            ph = run_full_pipeline(subevents, t2kde, k2h, device)
+        ph = run_inference(subevents, device, t2kde=t2kde, k2h=k2h, e2e=e2e)
         ph_peaks = (
             gaussian_filter1d(ph, sigma=args.smooth_sigma)
             if args.smooth_sigma > 0
@@ -285,9 +272,14 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         for ii in range(len(p_pvs_r_sh)):
             for jj in range(ii + 1, len(p_pvs_r_sh)):
                 pairwise_dz.append(float(p_pvs_r_sh[ii] - p_pvs_r_sh[jj]))
-        t_pvs = event.amvf_z.copy()
-        if not args.no_correct_beam:
-            t_pvs = t_pvs - event.beam_z
+        if has_truth:
+            t_pvs = (
+                event.truth_z.copy()
+            )  # MC truth (detector frame, no beam correction)
+        else:
+            t_pvs = event.amvf_z.copy()  # fallback: AMVF as truth
+            if not args.no_correct_beam:
+                t_pvs = t_pvs - event.beam_z
         if i < 5 or i % 50 == 0:
             print(f"  evt {i:3d}/{n_events}: truth={len(t_pvs)} "
                   f"pred={len(p_pvs)} max={ph.max():.4f}")  # fmt: skip
@@ -299,33 +291,24 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     print(f"\n  done: pred={tp:,} ({tp/n_events:.1f}/evt) "
           f"truth={tt:,} ({tt/n_events:.1f}/evt)")  # fmt: skip
 
-    # --- Resolution ---
+    # --- Resolution (sigma_vtx_vtx) ---
     print("\n--- Resolution (sigma_vtx_vtx) ---")
     dz_arr = np.array(pairwise_dz, dtype=np.float64)
     bins_r = np.linspace(-6.0, 6.0, 61)
     ctrs = 0.5 * (bins_r[:-1] + bins_r[1:])
     cnts, _ = np.histogram(dz_arr, bins=bins_r)
     sigma, popt = 0.5, None
-    # Adaptive initial guess: a ~ dip depth, c ~ baseline, b ~ steepness, rcc ~ 0.5mm
-    baseline = float(np.median(cnts))
-    dip = baseline - float(cnts.min())
+    baseline, dip = float(np.median(cnts)), float(np.median(cnts)) - float(cnts.min())
     p0 = [max(dip, 1.0), 10.0, max(baseline, 1.0), 0.5]
     try:
-        popt, pcov = curve_fit(
-            sigmoid_fit,
-            ctrs,
-            cnts.astype(float),
-            p0=p0,
-            maxfev=10000,
-            bounds=([0, 0, 0, 0], [np.inf, np.inf, np.inf, np.inf]),
-        )
+        popt, pcov = curve_fit(sigmoid_fit, ctrs, cnts.astype(float), p0=p0,
+            maxfev=10000, bounds=([0, 0, 0, 0], [np.inf, np.inf, np.inf, np.inf]))  # fmt: skip
         sigma = float(abs(popt[3]))
         serr = float(np.sqrt(np.diag(pcov))[3])
         print(f"  sigma_vtx_vtx = {sigma:.4f} +/- {serr:.4f} mm "
               f"({sigma/BIN_WIDTH:.1f} bins)")  # fmt: skip
     except RuntimeError as exc:
         print(f"  WARNING: fit failed ({exc}). Default sigma={sigma} mm")
-
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
     ds = args.dataset_name or "Real Data"
@@ -334,8 +317,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
 
     # --- Performance metrics ---
     sig_bins = sigma / BIN_WIDTH
+    tsrc = "MC truth (TruthVertex, nTracks>=2)" if has_truth else "AMVF (nTracks>=2)"
     print(f"\n--- Performance (window={sigma:.4f} mm={sig_bins:.1f} bins) ---")
-    print("  Truth source: AMVF vertices (nTracks >= 2)")
+    print(f"  Truth source: {tsrc}")
     tot_c = tot_m = tot_s = tot_f = tot_tc = tot_tm = tot_tmiss = tot_truth = 0
     per_event: list[dict] = []
 
@@ -350,9 +334,21 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         if np_ == 0:
             tot_truth += nt
             tot_tmiss += nt
+            # AMVF categories even when PV-Finder has 0 predictions
+            ac0 = am0 = as0 = af0 = n_amvf0 = None
+            if has_truth:
+                amvf_bins = mm_to_bins(event.amvf_z)
+                n_amvf0 = len(amvf_bins)
+                ac0 = am0 = as0 = af0 = 0
+                if n_amvf0 > 0:
+                    r0, _, _ = compare_res_reco(
+                        t_bins, amvf_bins, sig_bins * np.ones(n_amvf0), debug=0
+                    )
+                    ac0, am0, as0, af0 = (r0.reco_clean, r0.reco_merged,
+                                           r0.reco_split, r0.reco_fake)  # fmt: skip
             per_event.append(_evt_rec(
                 event.event_idx, nt, 0, 0, 0, 0, 0, 0.0, 0, 0, nt,
-                mu, event.beam_z))  # fmt: skip
+                mu, event.beam_z, n_amvf0, ac0, am0, as0, af0))  # fmt: skip
             continue
         res, tc_arr, _ = compare_res_reco(
             t_bins, p_bins, sig_bins * np.ones(np_), debug=0
@@ -369,10 +365,24 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         tot_tm += ntm
         tot_tmiss += ntmiss
         tot_truth += nt
+        # AMVF categories: compare AMVF reco against truth (when truth != AMVF)
+        # No beam correction on AMVF here — both truth and AMVF are in
+        # detector frame, matching the MC eval (run_eval_pvf.py) behavior.
+        ac = am = as_ = af = n_amvf = None
+        if has_truth:
+            amvf_bins = mm_to_bins(event.amvf_z)
+            n_amvf = len(amvf_bins)
+            ac = am = as_ = af = 0
+            if n_amvf > 0:
+                res_a, _, _ = compare_res_reco(
+                    t_bins, amvf_bins, sig_bins * np.ones(n_amvf), debug=0
+                )
+                ac, am, as_, af = (res_a.reco_clean, res_a.reco_merged,
+                                   res_a.reco_split, res_a.reco_fake)  # fmt: skip
         per_event.append(_evt_rec(
             event.event_idx, nt, np_, res.reco_clean, res.reco_merged,
             res.reco_split, res.reco_fake, eff, ntc, ntm, ntmiss,
-            mu, event.beam_z))  # fmt: skip
+            mu, event.beam_z, n_amvf, ac, am, as_, af))  # fmt: skip
         if i < 5 or i % 50 == 0:
             print(f"  evt {i:3d}: t={nt} p={np_} C={res.reco_clean} "
                   f"M={res.reco_merged} S={res.reco_split} "
@@ -382,47 +392,43 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     overall_eff = (tot_tc + tot_tm) / tot_truth if tot_truth else 0.0
     fp_rate = tot_f / nsc if nsc else 0.0
 
+    # fmt: off
     MU_MIN, MU_MAX = args.mu_min, args.mu_max
     if has_mu:
-        sevts = [
-            r
-            for r in per_event
-            if r["mu"] is not None and MU_MIN <= round(r["mu"]) <= MU_MAX
-        ]
+        sevts = [r for r in per_event
+                 if r["mu"] is not None and MU_MIN <= round(r["mu"]) <= MU_MAX]
         mu_lbl = f"mu in [{MU_MIN},{MU_MAX}] (ActualNumOfInt)"
     else:
         sevts, mu_lbl = per_event, "all pileup"
     ns = len(sevts)
     print(f"\n  Summary filter: {mu_lbl} -> {ns}/{nsc} events")
-
-    def avg(k: str) -> float:
-        return float(np.mean([r[k] for r in sevts])) if sevts else 0.0
-
+    def avg(k): return float(np.mean([r[k] for r in sevts])) if sevts else 0.0
     ac, am, as_, af = avg("clean"), avg("merged"), avg("split"), avg("fake")
     atc, atm, atmiss, ant = avg("tc"), avg("tm"), avg("tmiss"), avg("n_truth")
-    ftc = sum(r["tc"] for r in sevts)
-    ftm = sum(r["tm"] for r in sevts)
-    ft = sum(r["n_truth"] for r in sevts)
-    ff = sum(r["fake"] for r in sevts)
+    ftc, ftm = sum(r["tc"] for r in sevts), sum(r["tm"] for r in sevts)
+    ft, ff = sum(r["n_truth"] for r in sevts), sum(r["fake"] for r in sevts)
     feff = (ftc + ftm) / ft if ft else 0.0
     ffp = ff / ns if ns else 0.0
     print(f"\n  --- Summary ({ns} events, {mu_lbl}) ---")
-    for lbl, cnt, ref in [
-        ("truth PVs/evt", ant, None),
-        ("  tc (clean)", atc, ant),
-        ("  tm (merged)", atm, ant),
-        ("  missed", atmiss, ant),
-        ("reco PVs/evt", ac + am + as_ + af, None),
-        ("  clean", ac, ant),
-        ("  merged", am, ant),
-        ("  split", as_, ant),
-        ("  fake", af, ant),
-    ]:
-        pct = f"{100 * cnt / ref:5.1f}%" if ref and ref > 0 else "  --"
+    for lbl, cnt, ref in [("truth PVs/evt", ant, None), ("  tc (clean)", atc, ant),
+            ("  tm (merged)", atm, ant), ("  missed", atmiss, ant),
+            ("reco PVs/evt", ac+am+as_+af, None), ("  clean", ac, ant),
+            ("  merged", am, ant), ("  split", as_, ant), ("  fake", af, ant)]:
+        pct = f"{100*cnt/ref:5.1f}%" if ref and ref > 0 else "  --"
         print(f"  {lbl:<24} {cnt:>7.2f}  {pct}")
     print(f"  Eff={feff:.4f} ({ftc+ftm}/{ft})  FP={ffp:.4f}/evt  "
           f"sigma={sigma:.4f} mm  (overall eff={overall_eff:.4f} "
-          f"{tot_tc+tot_tm}/{tot_truth})")  # fmt: skip
+          f"{tot_tc+tot_tm}/{tot_truth})")
+    if has_truth:
+        a_ant = avg("n_amvf")
+        aac, aam, aas, aaf = (avg("amvf_clean"), avg("amvf_merged"),
+                               avg("amvf_split"), avg("amvf_fake"))
+        print(f"\n  --- AMVF Summary ({ns} events) ---")
+        for lbl, cnt, ref in [("AMVF PVs/evt", a_ant, None), ("  clean", aac, ant),
+                ("  merged", aam, ant), ("  split", aas, ant), ("  fake", aaf, ant)]:
+            pct = f"{100*cnt/ref:5.1f}%" if ref and ref > 0 else "  --"
+            print(f"  {lbl:<24} {cnt:>7.2f}  {pct}")
+    # fmt: on
 
     print("\n--- Generating Plots ---")
     t = args.title or f"PVF — {ds}\n({mode_label})"
@@ -432,69 +438,61 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     if has_mu:
         plot_reco_vs_mu(per_event, mode_label, outdir, title=t)
     ckpt = Path(args.e2e_model or args.k2h_model or "").stem
+    truth_avg = ant if has_truth else None
     plot_category_counts(per_event, mode_label, outdir, title="",
         eval_label=f"ckpt: {ckpt}\nintegral_threshold = {args.integral_threshold}",
         mu_min=args.mu_min, mu_max=args.mu_max,
-        all_events=args.mu_min >= 100)  # fmt: skip
+        all_events=args.mu_min >= 100,
+        truth_pvs_per_evt=truth_avg)  # fmt: skip
     print(f"  Saved plots to: {outdir}")
 
     # --- Save results ---
-    results = dict(
-        mode="e2e" if has_e2e else "pipeline",
-        sigma_vtx_vtx_mm=sigma,
-        overall_efficiency=overall_eff, fp_rate_per_evt=fp_rate,
+    results = dict(mode="e2e" if has_e2e else "pipeline", sigma_vtx_vtx_mm=sigma,
+        overall_efficiency=overall_eff, fp_rate_per_evt=fp_rate, has_truth=has_truth,
         n_events=nsc, total_truth_pvs=tot_truth,
         total_clean=tot_c, total_merged=tot_m, total_split=tot_s, total_fake=tot_f,
         total_truth_clean=tot_tc, total_truth_merged=tot_tm, total_truth_missed=tot_tmiss,
         per_event=per_event, pred_pvs_mm=all_pred, truth_pvs_mm=all_truth,
-        pairwise_dz_mm=dz_arr,
-        fit_params=popt.tolist() if popt is not None else None,
+        pairwise_dz_mm=dz_arr, fit_params=popt.tolist() if popt is not None else None,
         t2kde_checkpoint=args.t2kde_model, k2h_checkpoint=args.k2h_model,
-        e2e_checkpoint=args.e2e_model,
-        data_source="root" if args.root else "npz",
-        correct_beam=not args.no_correct_beam,
-        smooth_sigma=args.smooth_sigma,
-        nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio,
-    )  # fmt: skip
+        e2e_checkpoint=args.e2e_model, data_source="root" if args.root else "npz",
+        correct_beam=not args.no_correct_beam, smooth_sigma=args.smooth_sigma,
+        nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio)  # fmt: skip
     pkl_path = outdir / "eval_results.pkl"
     with open(pkl_path, "wb") as fp:
         pickle.dump(results, fp)
-    print(f"  Saved: {pkl_path}")
-    print(f"\n=== Done ===  (output: {args.output_dir})")
+    print(f"  Saved: {pkl_path}\n=== Done ===  (output: {args.output_dir})")
 
 
+# fmt: off
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="PV-Finder Run 3 evaluation",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    data_grp = parser.add_mutually_exclusive_group(required=True)
-    data_grp.add_argument("--npz", help="NPZ cache file path")
-    data_grp.add_argument("--root", help="ROOT file path")
-    parser.add_argument("--e2e-model", default=None, dest="e2e_model")
-    parser.add_argument("--e2e-type", default="v1", choices=["v1", "v2"],
-                        dest="e2e_type", help="E2E model class (v1=trackstoHists_UNet_1000, v2=TracksToHist_v2)")  # fmt: skip
-    parser.add_argument("--t2kde-model", default=None, dest="t2kde_model")
-    parser.add_argument("--k2h-model", default=None, dest="k2h_model")
-    parser.add_argument("--k2h-type", default="v1", choices=["v1", "v2"],
-                        dest="k2h_type", help="K2H model class (v1=UNet_1000, v2=UNet_1000_v2)")  # fmt: skip
-    parser.add_argument("--max-events", type=int, default=0, dest="max_events")
-    parser.add_argument("--min-tracks", type=int, default=1, dest="min_tracks")
-    parser.add_argument("--min-amvf-vtx", type=int, default=1, dest="min_amvf_vtx")
-    parser.add_argument("--entry-start", type=int, default=0, dest="entry_start")
-    parser.add_argument("--entry-stop", type=int, default=None, dest="entry_stop")
-    parser.add_argument("--no-correct-beam", action="store_true")
-    parser.add_argument("--output-dir", default="outputs/eval_pvf_run3")
-    parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--smooth-sigma", type=float, default=0.0)
-    parser.add_argument("--nms-min-sep", type=float, default=0.0)
-    parser.add_argument("--nms-max-ratio", type=float, default=0.3)
-    parser.add_argument("--mu-min", type=int, default=55)
-    parser.add_argument("--mu-max", type=int, default=65)
-    parser.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
-    parser.add_argument("--integral-threshold-res", type=float, default=0.5)
-    parser.add_argument("--e2e-wide", action="store_true",
-                        help="HLLHC v2 wide variant (96 UNet ch, [128]*5 MLP)")  # fmt: skip
-    parser.add_argument("--title", default="")
-    parser.add_argument("--dataset-name", default="", dest="dataset_name")
-    main(parser.parse_args())
+    pa = argparse.ArgumentParser(description="PV-Finder Run 3 evaluation",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    dg = pa.add_mutually_exclusive_group(required=True)
+    dg.add_argument("--npz", help="NPZ cache file path")
+    dg.add_argument("--root", help="ROOT file path")
+    pa.add_argument("--e2e-model", default=None, dest="e2e_model")
+    pa.add_argument("--e2e-type", default="v1", choices=["v1","v2"], dest="e2e_type")
+    pa.add_argument("--t2kde-model", default=None, dest="t2kde_model")
+    pa.add_argument("--k2h-model", default=None, dest="k2h_model")
+    pa.add_argument("--k2h-type", default="v1", choices=["v1","v2"], dest="k2h_type")
+    pa.add_argument("--max-events", type=int, default=0, dest="max_events")
+    pa.add_argument("--min-tracks", type=int, default=1, dest="min_tracks")
+    pa.add_argument("--min-amvf-vtx", type=int, default=1, dest="min_amvf_vtx")
+    pa.add_argument("--entry-start", type=int, default=0, dest="entry_start")
+    pa.add_argument("--entry-stop", type=int, default=None, dest="entry_stop")
+    pa.add_argument("--no-correct-beam", action="store_true")
+    pa.add_argument("--output-dir", default="outputs/eval_pvf_run3")
+    pa.add_argument("--device", type=int, default=0)
+    pa.add_argument("--smooth-sigma", type=float, default=0.0)
+    pa.add_argument("--nms-min-sep", type=float, default=0.0)
+    pa.add_argument("--nms-max-ratio", type=float, default=0.3)
+    pa.add_argument("--mu-min", type=int, default=55)
+    pa.add_argument("--mu-max", type=int, default=65)
+    pa.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
+    pa.add_argument("--integral-threshold-res", type=float, default=0.5)
+    pa.add_argument("--e2e-wide", action="store_true")
+    pa.add_argument("--title", default="")
+    pa.add_argument("--dataset-name", default="", dest="dataset_name")
+    main(pa.parse_args())
+# fmt: on

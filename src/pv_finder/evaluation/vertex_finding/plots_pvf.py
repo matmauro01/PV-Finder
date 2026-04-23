@@ -1,15 +1,8 @@
-"""plots_pvf.py — Plotting helpers for run_eval_pvf.py.
-
-Functions, each saves one PNG to output_dir:
-  plot_resolution        — pairwise Δz distribution + sigmoid fit
-  plot_performance       — reco category fractions + efficiency vs pileup
-  plot_stats             — total reco PVs/event vs pileup, PV-Finder vs AMVF
-  plot_reco_vs_mu        — total reco PVs/event vs pileup, PV-Finder vs AMVF vs truth
-  plot_category_counts   — 5-bar summary (total + 4 categories) in high-pileup window
-"""
+"""Plotting helpers for run_eval_pvf.py and run_eval_pvf_run3.py."""
 
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
 import matplotlib
 
@@ -375,6 +368,7 @@ def plot_category_counts(
     mu_min: int = 55,
     mu_max: int = 65,
     all_events: bool = False,
+    truth_pvs_per_evt: Optional[float] = None,
 ) -> None:
     """Mean per-event reco counts as a 5-bar chart in the high-pileup window.
 
@@ -485,6 +479,8 @@ def plot_category_counts(
         ax.spines[spine].set_linewidth(1.2)
 
     info = f"{n} events\n{mu_desc}"
+    if truth_pvs_per_evt is not None:
+        info += f"\ntruth PVs/evt = {truth_pvs_per_evt:.1f}"
     if eval_label:
         info = f"{eval_label}\n{info}"
     ax.text(

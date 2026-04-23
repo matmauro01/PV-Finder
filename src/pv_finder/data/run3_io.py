@@ -14,11 +14,13 @@ import numpy as np
 
 
 class Run3Event(NamedTuple):
-    """Single Run 3 event with tracks and AMVF truth vertices.
+    """Single Run 3 event with tracks, AMVF reco vertices, and optional MC truth.
 
     All arrays are float32. Lengths of track arrays (z0, d0, ...) are
     equal within an event.  ``amvf_z`` and ``amvf_ntrks`` contain only
-    vertices with nTracks >= 2.
+    vertices with nTracks >= 2.  ``truth_z`` and ``truth_ntrks`` are
+    populated from ``TruthVertex_z``/``TruthVertex_nTracks`` branches
+    when available (HL-LHC MC); ``None`` for real data (Run 3 NPZ).
     """
 
     z0: np.ndarray
@@ -32,6 +34,8 @@ class Run3Event(NamedTuple):
     mu: float | None
     event_idx: int
     n_tracks: int
+    truth_z: np.ndarray | None = None
+    truth_ntrks: np.ndarray | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +118,15 @@ def load_run3_from_root(
         "BeamPosZ",
         "ActualNumOfInt",
     ]
+    # Check for MC truth branches (present in HL-LHC MC, absent in real data)
+    available = set(tree.keys())
+    has_truth = "TruthVertex_z" in available and "TruthVertex_nTracks" in available
+    if has_truth:
+        branches += ["TruthVertex_z", "TruthVertex_nTracks"]
+        print("[run3_io]   Found TruthVertex branches — loading MC truth vertices")
+    else:
+        print("[run3_io]   No TruthVertex branches — truth_z will be None")
+
     events: list[Run3Event] = []
     n_skipped = 0
     n_read = 0
@@ -141,6 +154,14 @@ def load_run3_from_root(
                 n_skipped += 1
                 continue
 
+            # MC truth vertices (nTracks >= 2 filter, same as AMVF)
+            truth_z = truth_ntrks = None
+            if has_truth:
+                truth_z, truth_ntrks = _filter_amvf(
+                    np.asarray(chunk["TruthVertex_z"][i], dtype=np.float32),
+                    np.asarray(chunk["TruthVertex_nTracks"][i], dtype=np.float32),
+                )
+
             events.append(
                 Run3Event(
                     z0=z0,
@@ -156,6 +177,8 @@ def load_run3_from_root(
                     mu=float(chunk["ActualNumOfInt"][i]),
                     event_idx=entry_start + n_read - 1,
                     n_tracks=len(z0),
+                    truth_z=truth_z,
+                    truth_ntrks=truth_ntrks,
                 )
             )
 

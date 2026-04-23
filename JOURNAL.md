@@ -1547,3 +1547,49 @@ matching the `clean_run3` reference approach.
 HL-LHC PU200 needs explicit override: peaks are shallower due to PU200
 track density spread. Pass `--integral-threshold 0.2 --integral-threshold-res 0.2`
 for HL-LHC evals to avoid losing real vertices.
+
+---
+
+## 2026-04-23 — HL-LHC MC truth support + vertex matching fix
+
+### MC truth auto-detection in run_eval_pvf_run3.py
+
+The HL-LHC ROOT file has both `TruthVertex_z` (MC truth) and `RecoVertex_z`
+(AMVF reco). Previously the script used AMVF as truth for all data — correct
+for real data (Run 2/3) but wrong for HL-LHC MC where proper MC truth exists.
+
+Changes:
+- **run3_io.py**: `Run3Event` gains optional `truth_z`/`truth_ntrks` fields.
+  `load_run3_from_root` auto-detects `TruthVertex_z` branches and loads them.
+  NPZ files (no truth) → fields remain None.
+- **run_eval_pvf_run3.py**: When truth detected, uses TruthVertex as ground
+  truth and evaluates AMVF as a separate reco algorithm (categories shown in
+  the bar chart). No beam correction on truth or AMVF in this mode (both in
+  detector frame, matching MC eval behavior).
+- **plots_pvf.py**: `plot_category_counts` gains `truth_pvs_per_evt` param,
+  shown in the info box when available. Both MC and HL-LHC eval scripts pass it.
+
+### Vertex matching algorithm rewrite (compare_res_reco)
+
+The old algorithm processed each reco vertex independently: if reco R saw 2
+truth vertices in its window, R was always classified "merged" — even if
+another reco R2 was a better match for one of those truth vertices. This
+inflated the merged count, especially at PU200 where vertices are densely
+packed (~1 mm apart, matching window ~0.3-0.5 mm).
+
+New algorithm: **greedy closest-first matching**.
+1. Build all valid (reco, truth) pairs within matching windows
+2. Sort by distance, greedily assign 1-to-1 (closest first)
+3. Classify leftovers: unmatched reco with no truth in window = fake;
+   unmatched reco with truth in window (claimed by closer reco) = split;
+   assigned reco with unmatched truth in window = merged
+
+This correctly classifies two reco vertices near two close truth vertices as
+two "clean" matches instead of two "merged".
+
+### Per-vertex visualization for HL-LHC (run4)
+
+New script `run_per_vertex_run4.py` in per_vertex_visualization/. Loads HL-LHC
+ROOT events, runs both the Run 2 model and the HL-LHC model, produces side-by-
+side per-vertex plots. Supports `.pyt` (full object) and `.pth` (fullstate)
+checkpoint formats.

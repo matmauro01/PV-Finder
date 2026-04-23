@@ -72,10 +72,13 @@ def main():
     plot_stats(per_event, has_mu, mode_label, outdir, title=t)
     if has_mu:
         plot_reco_vs_mu(per_event, mode_label, outdir, title=t)
+    has_truth = any(r.get("amvf_clean") is not None for r in per_event)
+    truth_avg = float(np.mean([r["n_truth"] for r in per_event])) if has_truth else None
     plot_category_counts(per_event, mode_label, outdir, title="",
         eval_label=f"ckpt: {ckpt}\nintegral_threshold = {args.integral_threshold}",
         mu_min=args.mu_min, mu_max=args.mu_max,
-        all_events=args.mu_min >= 100)  # fmt: skip
+        all_events=args.mu_min >= 100,
+        truth_pvs_per_evt=truth_avg)  # fmt: skip
     print(f"  Done: {outdir}")
 
 

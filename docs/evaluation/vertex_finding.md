@@ -157,6 +157,23 @@ The **one intentional difference**: we add both `+dz` and `-dz` for each pair, g
 - Not available without ROOT — falls back to N truth PVs.
 - Distinct from `NumRecoVtx` (number of reconstructed AMVF vertices, also in ROOT) and from N truth PVs (from h5/ROOT after nTracks≥2 filter).
 
+### Vertex matching algorithm (compare_res_reco)
+
+`compare_res_reco` classifies each reco vertex as clean/merged/split/fake and
+each truth vertex as clean/merged/missed. Uses **greedy closest-first matching**:
+
+1. Build all (reco, truth) pairs within the matching window (±σ_vtx_vtx bins)
+2. Sort by distance, greedily assign 1-to-1 (closest pairs first)
+3. Classify: assigned reco with no unmatched truth in window = **clean**;
+   assigned reco with unmatched truth in window = **merged**; unassigned reco
+   with truth in window (claimed by closer reco) = **split**; unassigned reco
+   with no truth in window = **fake**
+
+This replaced an older per-reco-independent algorithm (2026-04-23) that inflated
+the merged count: if reco R saw truth T1 and T2, it was always "merged" even if
+another reco R2 was a better match for T2. The greedy algorithm correctly assigns
+R→T1 and R2→T2 as two clean matches.
+
 ### σ_vtx_vtx is both output and input
 σ_vtx_vtx is computed from the pairwise Δz distribution, then **used as the matching window** in `compare_res_reco`. This creates a mild circular dependency: a very different model will give a different σ, which changes how clean/merged/fake are counted. Keep this in mind when comparing numbers across very different models.
 
@@ -242,13 +259,14 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
     --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
     --max-events 2500 --output-dir outputs/eval_pvf_run2
 
-# HLLHC PU200 — same script, custom pileup window:
+# HLLHC PU200 — same script, custom pileup window + threshold override:
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
-    --root data/run4/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \
-    --e2e-model model_weights/hllhc_pu200_mlp50_e2e400_phase2_epoch_100_fullstate.pth \
-    --e2e-type v1 --mu-min 195 --mu-max 205 \
+    --root data/run4/Run4_MC21_ITk/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \
+    --e2e-model model_weights/hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100_fullstate.pth \
+    --e2e-type v1 --e2e-wide --mu-min 190 --mu-max 220 \
+    --integral-threshold 0.2 --integral-threshold-res 0.2 \
     --max-events 2550 --output-dir outputs/eval_hllhc_ep100 \
-    --title "PVF — HLLHC PU200 — ep100"
+    --dataset-name "HL-LHC PU200"
 ```
 
 ### Real Data vs MC Differences
@@ -257,16 +275,27 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
 |--------|----------------------|-------------------------------|
 | Data format | Flat HDF5 with pre-split subevents | ROOT or NPZ with variable-length track arrays |
 | Pre-computed KDEs | Available (Stage 2 shortcut) | Not available — must run full pipeline |
-| Ground truth | MC truth PVs | AMVF vertices (nTracks >= 2) |
+| Ground truth | MC truth PVs | AMVF vertices (nTracks >= 2); **or MC truth (TruthVertex_z) when available (HL-LHC MC)** — AMVF then evaluated as a separate reco algorithm |
 | Beam correction | Not needed (MC beam at origin) | **Applied by default** (subtracts BeamPosZ from AMVF z) |
 | Pileup (μ) | ActualNumOfInt from ROOT | ActualNumOfInt from ROOT; unavailable from NPZ |
 | Subevent building | Pre-split in HDF5 | Built on-the-fly from track z0 positions |
 | Run 2 specifics | — | μ ≈ 25–30 peak, BeamPosZ ≈ -2.5 mm |
 | Run 3 specifics | — | μ ≈ 60 peak, BeamPosZ varies |
 
+### MC Truth Auto-Detection (HL-LHC)
+
+When the ROOT file contains `TruthVertex_z` and `TruthVertex_nTracks` branches
+(e.g. HL-LHC MC), the script automatically uses MC truth as ground truth and
+evaluates AMVF as a separate reco algorithm — producing AMVF category bars in
+the `category_counts_hist.png` plot alongside PV-Finder. When truth branches
+are absent (real data), AMVF remains the ground truth reference.
+
 ### Beam Correction
 
-Beam correction is **on by default** (`--no-correct-beam` to disable). AMVF vertex z positions are beam-corrected while PVFinder operates in the detector frame (from track z0). Subtracting BeamPosZ from AMVF z aligns the two coordinate systems. Without correction, you'll see a systematic ~BeamPosZ offset and artificially low efficiency.
+Beam correction is **on by default** (`--no-correct-beam` to disable) for real
+data where AMVF serves as truth. When MC truth is detected, no beam correction
+is applied to truth or AMVF — both are in the detector frame, matching the MC
+eval behavior.
 
 ### Outputs
 
