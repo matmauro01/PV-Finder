@@ -1593,3 +1593,61 @@ New script `run_per_vertex_run4.py` in per_vertex_visualization/. Loads HL-LHC
 ROOT events, runs both the Run 2 model and the HL-LHC model, produces side-by-
 side per-vertex plots. Supports `.pyt` (full object) and `.pth` (fullstate)
 checkpoint formats.
+
+---
+
+## 2026-05-03 — Resolution analysis + v3 model architecture
+
+### Resolution bump investigation
+
+Thorough analysis of the pairwise Δz bump at ±0.5-1.5 mm on HL-LHC PU200
+(2500 events, ep100). Compared PV-Finder, AMVF, and truth distributions.
+
+Key findings:
+- Truth distribution is **flat** (no structure) — the bump is purely a
+  reconstruction artifact, not physics
+- **AMVF has a 6x larger bump** than PV-Finder (9.6% vs 5.4% above baseline)
+- PV-Finder has **better resolution** (99.4% dip depth vs AMVF's 95.9%)
+- PV-Finder's bump is mostly noise (2 bins marginally >2σ)
+- NMS is harmful at PU200: kills 2.5 real peaks per fake removed
+  (genuine close vertex pairs have similar height ratios to sidelobes)
+
+Plots saved to `outputs/04_23_2026_output/resolution_comparison/`.
+Full analysis: `docs/research/resolution_bump_analysis.md`.
+
+### Eval pipeline improvements
+
+- Added `--save-histograms` flag to `run_eval_pvf_run3.py`: stores raw
+  12000-bin histograms in pkl (~115 MB extra for 2500 events). Enables
+  post-hoc analysis without re-running GPU inference.
+- Added `--peak-threshold` flag to control peak amplitude threshold
+  (previously hardcoded at 0.01).
+- Added `pred_heights` to eval pkl for peak height analysis.
+- Added `visualize_fakes.py` diagnostic: generates zoom plots centered
+  on fake peaks, sorted by proximity to nearest matched peak.
+
+### v3 model architecture (10x scaled UNet_v2 with 4-channel latent)
+
+Designed a scaled model for HL-LHC PU200 training:
+
+| | v1 default (Run 2) | v2 wide (HL-LHC) | v3 (HL-LHC) |
+|---|---:|---:|---:|
+| Architecture | trackstoHists_UNet_1000 | trackstoHists_UNet_1000 | TracksToHist_v2 |
+| UNet channels | 64 | 96 | 280 |
+| MLP hidden | [100]×5 | [128]×5 | [128]×5 |
+| n_latent_channels | 1 | 1 | 4 |
+| Upsampling | ConvTranspose | ConvTranspose | Interp+Conv |
+| Bottleneck | 8x (125 bins) | 8x (125 bins) | 4x (250 bins) |
+| First kernel | k=25 | k=25 | k=15 |
+| Total params | 359K | 681K | 3,548K |
+
+v3 improvements:
+- **4 latent channels**: MLP outputs 4 spatial representations of tracks
+  (vs 1), giving the UNet richer input for peak placement
+- **Interp upsampling**: eliminates ConvTranspose checkerboard artifacts
+- **4x bottleneck**: 250 bins satisfies Nyquist for peak widths (~0.28 mm)
+- **k=15 first kernel**: 0.6 mm correlation (vs 1.0 mm), reduces sidelobes
+
+Training recipe: 50 epochs Phase 1 (MLP warmup) + 200 epochs Phase 2 (E2E),
+LR=5e-5 with 7-epoch warmup + cosine decay, gradient clipping max_norm=1.0.
+Data: 99,800 events (838K training subevents), batch_size=128.

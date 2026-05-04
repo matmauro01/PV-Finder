@@ -28,7 +28,8 @@ from tqdm import tqdm
 from pv_finder.data.collectdata_poca_KDE import (
     collect_data_poca_ATLAS as collect_data_poca,
 )
-from pv_finder.models.autoencoder_models import trackstoHists_UNet_1000
+from pv_finder.models.autoencoder_models import MaskedDNN, trackstoHists_UNet_1000
+from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2
 from pv_finder.training.train_mlp_hist_then_e2e import (
     _squeeze_hist,
     forward_mlp_hist,
@@ -67,15 +68,33 @@ def setup_logging(log_folder: Path, runname: str) -> Path:
 
 
 def build_model(configs: dict, device: torch.device) -> nn.Module:
-    """Instantiate `trackstoHists_UNet_1000` with config-driven width."""
+    """Instantiate model from config. Supports v1 (trackstoHists_UNet_1000) and v2."""
     mc = configs["models_config"]
-    model = trackstoHists_UNet_1000(
-        n_InputFeatures=mc["n_input_features"],
-        n_LatentChannels=mc["n_latent_channels"],
-        dropout=mc["dropout"],
-        n_UNetChannels=mc.get("n_unet_channels", 64),
-        l_HiddenNodes=list(mc.get("l_hidden_nodes", [100, 100, 100, 100, 100])),
-    )
+    model_type = mc.get("model_type", "v1")
+    if model_type == "v2":
+        n_latent = mc.get("n_latent_channels", 1)
+        t2kde = MaskedDNN(
+            input_size=mc["n_input_features"],
+            hidden_nodes=list(mc.get("l_hidden_nodes", [100] * 5)),
+            output_size=1000 * n_latent,
+            leaky_param=0.01,
+            maskVal=-240.0,
+            predScaleFactor=0.001,
+        )
+        k2h = UNet_1000_v2(
+            n=mc.get("n_unet_channels", 64),
+            n_features=n_latent,
+            dropout_p=mc["dropout"],
+        )
+        model = TracksToHist_v2(t2kde, k2h)
+    else:
+        model = trackstoHists_UNet_1000(
+            n_InputFeatures=mc["n_input_features"],
+            n_LatentChannels=mc["n_latent_channels"],
+            dropout=mc["dropout"],
+            n_UNetChannels=mc.get("n_unet_channels", 64),
+            l_HiddenNodes=list(mc.get("l_hidden_nodes", [100] * 5)),
+        )
     return model.to(device)
 
 
@@ -116,6 +135,21 @@ def _noop_progress(iterable, **_kwargs):
     return iterable
 
 
+def _is_v2(model: nn.Module) -> bool:
+    return isinstance(model, TracksToHist_v2)
+
+
+def _get_param_groups_v2(model: TracksToHist_v2):
+    """Separate MLP (t2kde) and UNet (k2h) parameters for v2 models."""
+    return list(model.t2kde.parameters()), list(model.k2h.parameters())
+
+
+def _forward_mlp_v2(model: TracksToHist_v2, inputs: torch.Tensor) -> torch.Tensor:
+    """Phase 1 forward: run only the MLP (t2kde) part of a v2 model."""
+    kde = model.t2kde(inputs)  # (B, n_latent * 1000)
+    return kde.view(kde.shape[0], model.n_latent, 1000)  # (B, n_latent, 1000)
+
+
 def _load_model_state(path: str, model: nn.Module) -> int:
     """Load only the model_state from a fullstate checkpoint.
 
@@ -131,6 +165,13 @@ def _load_model_state(path: str, model: nn.Module) -> int:
 # ---------------------------------------------------------------------------
 # Phase 1: MLP warmup (UNet frozen)
 # ---------------------------------------------------------------------------
+def _phase1_forward(model: nn.Module, inputs: torch.Tensor) -> torch.Tensor:
+    """Phase 1 MLP-only forward, dispatching by model type."""
+    if _is_v2(model):
+        return _squeeze_hist(_forward_mlp_v2(model, inputs))
+    return _squeeze_hist(forward_mlp_hist(model, inputs))
+
+
 def train_phase1_epoch(
     model: nn.Module,
     loader,
@@ -147,7 +188,7 @@ def train_phase1_epoch(
         inputs = inputs.to(device).float()
         target_hist = target_split.to(device).float()[:, 0, :]
         optimizer.zero_grad()
-        pred = _squeeze_hist(forward_mlp_hist(model, inputs))
+        pred = _phase1_forward(model, inputs)
         loss = loss_fn(pred, target_hist)
         loss.backward()
         _clip_and_step(model, optimizer, max_norm)
@@ -165,7 +206,7 @@ def validate_phase1_epoch(
     for inputs, target_split in loader:
         inputs = inputs.to(device).float()
         target_hist = target_split.to(device).float()[:, 0, :]
-        pred = _squeeze_hist(forward_mlp_hist(model, inputs))
+        pred = _phase1_forward(model, inputs)
         total += loss_fn(pred, target_hist).item()
     return total / len(loader)
 
@@ -174,7 +215,10 @@ def run_phase1(
     model: nn.Module, data, configs: dict, device: torch.device, save_folder: Path
 ) -> None:
     train_loader, val_loader = data
-    mlp_params, unet_params = get_parameter_groups(model)
+    if _is_v2(model):
+        mlp_params, unet_params = _get_param_groups_v2(model)
+    else:
+        mlp_params, unet_params = get_parameter_groups(model)
     for p in unet_params:
         p.requires_grad = False
     optimizer = torch.optim.Adam(

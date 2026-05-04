@@ -95,16 +95,22 @@ class TracksToHist_v2(nn.Module):
     Unlike trackstoHists_UNet_1000 (which duplicates both architectures inline),
     this class wraps the standalone models as submodules. Weight loading is trivial:
     load each submodule's checkpoint into model.t2kde / model.k2h directly.
+
+    Supports multi-channel latent: if n_latent_channels > 1, the MLP output
+    (B, n_latent * 1000) is reshaped to (B, n_latent, 1000) before the UNet.
     """
 
     def __init__(self, t2kde: MaskedDNN, k2h: UNet_1000_v2):
         super().__init__()
         self.t2kde = t2kde
         self.k2h = k2h
+        self.n_latent = k2h.enc1[0].in_channels  # infer from UNet first conv
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        kde = self.t2kde(x)  # (B, 1000)
-        return self.k2h(kde.unsqueeze(1))  # (B, 1, 1000) → (B, 1000)
+        kde = self.t2kde(x)  # (B, n_latent * 1000)
+        b = kde.shape[0]
+        kde = kde.view(b, self.n_latent, 1000)  # (B, n_latent, 1000)
+        return self.k2h(kde)  # (B, 1000)
 
     @staticmethod
     def from_checkpoints(
