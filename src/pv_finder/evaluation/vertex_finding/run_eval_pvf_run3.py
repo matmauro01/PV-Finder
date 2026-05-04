@@ -242,6 +242,8 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     print(f"\n--- Inference ({n_events} events x {N_SUBEVENTS} subevents) ---")
     all_pred: list[np.ndarray] = []
     all_truth: list[np.ndarray] = []
+    all_heights: list[np.ndarray] = []
+    all_hists: list[np.ndarray] = []
     pairwise_dz: list[float] = []
 
     for i, event in enumerate(events):
@@ -253,10 +255,10 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             else ph
         )
         p_pvs, p_hts, *_ = pv_locations_updated_res(
-            ph_peaks, THRESHOLD, args.integral_threshold, MIN_WIDTH
+            ph_peaks, args.peak_threshold, args.integral_threshold, MIN_WIDTH
         )
         p_pvs_r, p_hts_r, *_ = pv_locations_updated_res(
-            ph_peaks, THRESHOLD, args.integral_threshold_res, MIN_WIDTH
+            ph_peaks, args.peak_threshold, args.integral_threshold_res, MIN_WIDTH
         )
         if args.nms_min_sep > 0:
             keep = suppress_neighbor_peaks(
@@ -284,7 +286,10 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             print(f"  evt {i:3d}/{n_events}: truth={len(t_pvs)} "
                   f"pred={len(p_pvs)} max={ph.max():.4f}")  # fmt: skip
         all_pred.append(p_pvs)
+        all_heights.append(p_hts)
         all_truth.append(t_pvs)
+        if args.save_histograms:
+            all_hists.append(ph.copy())
 
     tp = sum(len(p) for p in all_pred)
     tt = sum(len(t) for t in all_truth)
@@ -446,53 +451,60 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         truth_pvs_per_evt=truth_avg)  # fmt: skip
     print(f"  Saved plots to: {outdir}")
 
-    # --- Save results ---
-    results = dict(mode="e2e" if has_e2e else "pipeline", sigma_vtx_vtx_mm=sigma,
+    # fmt: off
+    results = dict(
+        mode="e2e" if has_e2e else "pipeline", sigma_vtx_vtx_mm=sigma,
         overall_efficiency=overall_eff, fp_rate_per_evt=fp_rate, has_truth=has_truth,
         n_events=nsc, total_truth_pvs=tot_truth,
         total_clean=tot_c, total_merged=tot_m, total_split=tot_s, total_fake=tot_f,
         total_truth_clean=tot_tc, total_truth_merged=tot_tm, total_truth_missed=tot_tmiss,
-        per_event=per_event, pred_pvs_mm=all_pred, truth_pvs_mm=all_truth,
+        per_event=per_event, pred_pvs_mm=all_pred, pred_heights=all_heights,
+        truth_pvs_mm=all_truth, histograms=all_hists if args.save_histograms else None,
         pairwise_dz_mm=dz_arr, fit_params=popt.tolist() if popt is not None else None,
         t2kde_checkpoint=args.t2kde_model, k2h_checkpoint=args.k2h_model,
         e2e_checkpoint=args.e2e_model, data_source="root" if args.root else "npz",
         correct_beam=not args.no_correct_beam, smooth_sigma=args.smooth_sigma,
-        nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio)  # fmt: skip
+        nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio)
+    # fmt: on
     pkl_path = outdir / "eval_results.pkl"
     with open(pkl_path, "wb") as fp:
         pickle.dump(results, fp)
     print(f"  Saved: {pkl_path}\n=== Done ===  (output: {args.output_dir})")
 
 
-# fmt: off
+def _cli() -> argparse.Namespace:
+    """Parse CLI arguments."""
+    a = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    g = a.add_mutually_exclusive_group(required=True)
+    g.add_argument("--npz")
+    g.add_argument("--root")
+    a.add_argument("--e2e-model", default=None, dest="e2e_model")
+    a.add_argument("--e2e-type", default="v1", choices=["v1", "v2"], dest="e2e_type")
+    a.add_argument("--t2kde-model", default=None, dest="t2kde_model")
+    a.add_argument("--k2h-model", default=None, dest="k2h_model")
+    a.add_argument("--k2h-type", default="v1", choices=["v1", "v2"], dest="k2h_type")
+    a.add_argument("--max-events", type=int, default=0, dest="max_events")
+    a.add_argument("--min-tracks", type=int, default=1, dest="min_tracks")
+    a.add_argument("--min-amvf-vtx", type=int, default=1, dest="min_amvf_vtx")
+    a.add_argument("--entry-start", type=int, default=0, dest="entry_start")
+    a.add_argument("--entry-stop", type=int, default=None, dest="entry_stop")
+    a.add_argument("--no-correct-beam", action="store_true")
+    a.add_argument("--output-dir", default="outputs/eval_pvf_run3")
+    a.add_argument("--device", type=int, default=0)
+    a.add_argument("--smooth-sigma", type=float, default=0.0)
+    a.add_argument("--nms-min-sep", type=float, default=0.0)
+    a.add_argument("--nms-max-ratio", type=float, default=0.3)
+    a.add_argument("--mu-min", type=int, default=55)
+    a.add_argument("--mu-max", type=int, default=65)
+    a.add_argument("--peak-threshold", type=float, default=THRESHOLD)
+    a.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
+    a.add_argument("--integral-threshold-res", type=float, default=0.5)
+    a.add_argument("--e2e-wide", action="store_true")
+    a.add_argument("--save-histograms", action="store_true")
+    a.add_argument("--title", default="")
+    a.add_argument("--dataset-name", default="", dest="dataset_name")
+    return a.parse_args()
+
+
 if __name__ == "__main__":
-    pa = argparse.ArgumentParser(description="PV-Finder Run 3 evaluation",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    dg = pa.add_mutually_exclusive_group(required=True)
-    dg.add_argument("--npz", help="NPZ cache file path")
-    dg.add_argument("--root", help="ROOT file path")
-    pa.add_argument("--e2e-model", default=None, dest="e2e_model")
-    pa.add_argument("--e2e-type", default="v1", choices=["v1","v2"], dest="e2e_type")
-    pa.add_argument("--t2kde-model", default=None, dest="t2kde_model")
-    pa.add_argument("--k2h-model", default=None, dest="k2h_model")
-    pa.add_argument("--k2h-type", default="v1", choices=["v1","v2"], dest="k2h_type")
-    pa.add_argument("--max-events", type=int, default=0, dest="max_events")
-    pa.add_argument("--min-tracks", type=int, default=1, dest="min_tracks")
-    pa.add_argument("--min-amvf-vtx", type=int, default=1, dest="min_amvf_vtx")
-    pa.add_argument("--entry-start", type=int, default=0, dest="entry_start")
-    pa.add_argument("--entry-stop", type=int, default=None, dest="entry_stop")
-    pa.add_argument("--no-correct-beam", action="store_true")
-    pa.add_argument("--output-dir", default="outputs/eval_pvf_run3")
-    pa.add_argument("--device", type=int, default=0)
-    pa.add_argument("--smooth-sigma", type=float, default=0.0)
-    pa.add_argument("--nms-min-sep", type=float, default=0.0)
-    pa.add_argument("--nms-max-ratio", type=float, default=0.3)
-    pa.add_argument("--mu-min", type=int, default=55)
-    pa.add_argument("--mu-max", type=int, default=65)
-    pa.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
-    pa.add_argument("--integral-threshold-res", type=float, default=0.5)
-    pa.add_argument("--e2e-wide", action="store_true")
-    pa.add_argument("--title", default="")
-    pa.add_argument("--dataset-name", default="", dest="dataset_name")
-    main(pa.parse_args())
-# fmt: on
+    main(_cli())

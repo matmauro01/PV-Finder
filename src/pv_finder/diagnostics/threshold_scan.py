@@ -89,14 +89,14 @@ def _build_model(dataset: str, device: torch.device):
 
 
 def _run_inference_hllhc(model, device, n_events):
-    from run_eval_pvf_run3 import build_subevent_inputs, run_e2e_inference
+    from run_eval_pvf_run3 import build_subevent_inputs, run_inference
 
     events = load_run3_from_root(HLLHC_ROOT, max_events=n_events, min_tracks=1,
         min_amvf_vtx=1, entry_start=0, entry_stop=None)  # fmt: skip
     hists, truths_mm = [], []
     for ev in events:
         subs = build_subevent_inputs(ev)
-        hists.append(run_e2e_inference(subs, model, device))
+        hists.append(run_inference(subs, device, e2e=model))
         truths_mm.append(np.asarray(ev.amvf_z, dtype=np.float64))
     return hists, truths_mm, f"HLLHC PU200 ({len(events)} evt)"
 
@@ -198,6 +198,10 @@ def main():
     parser.add_argument("--max-events", type=int, default=300)
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--match-window-mm", type=float, default=0.3)
+    parser.add_argument("--peak-thr", type=float, default=DEFAULT_THR,
+        help="Fixed peak amplitude threshold for integral scan")  # fmt: skip
+    parser.add_argument("--integral-thr", type=float, default=DEFAULT_ITH,
+        help="Fixed integral threshold for peak scan")  # fmt: skip
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 
@@ -216,9 +220,9 @@ def main():
     print(f"  inference done in {time.time() - t0:.1f}s  ({len(hists)} events)")
 
     print(f"\n[{args.dataset}] INTEGRAL threshold scan "
-          f"(peak threshold fixed at {DEFAULT_THR})")  # fmt: skip
+          f"(peak threshold fixed at {args.peak_thr})")  # fmt: skip
     int_rows, amvf = _scan_1d(hists, truths_mm, vary="integral", values=INTEGRAL_GRID,
-                              fixed_thr=DEFAULT_THR, fixed_ith=None,
+                              fixed_thr=args.peak_thr, fixed_ith=None,
                               match_win_mm=args.match_window_mm)  # fmt: skip
     print(f"  AMVF/truth per evt: {amvf:.2f}")
     print(f"{'ith':>6} | {'eff':>6} {'FP/ev':>6} {'Pred':>6} {'C':>5} {'M':>4} {'S':>4} {'F':>5}")  # fmt: skip
@@ -228,9 +232,9 @@ def main():
               f"{r['split']:>4.2f} {r['fake']:>5.2f}")  # fmt: skip
 
     print(f"\n[{args.dataset}] PEAK threshold scan "
-          f"(integral threshold fixed at {DEFAULT_ITH})")  # fmt: skip
+          f"(integral threshold fixed at {args.integral_thr})")  # fmt: skip
     peak_rows, _ = _scan_1d(hists, truths_mm, vary="peak", values=PEAK_GRID,
-                            fixed_thr=None, fixed_ith=DEFAULT_ITH,
+                            fixed_thr=None, fixed_ith=args.integral_thr,
                             match_win_mm=args.match_window_mm)  # fmt: skip
     print(f"{'thr':>8} | {'eff':>6} {'FP/ev':>6} {'Pred':>6} {'C':>5} {'M':>4} {'S':>4} {'F':>5}")  # fmt: skip
     for r in peak_rows:
@@ -242,7 +246,7 @@ def main():
         pickle.dump(dict(
             dataset=args.dataset, label=label, ckpt=ckpt_stem,
             match_window_mm=args.match_window_mm, amvf_per_evt=amvf,
-            default_thr=DEFAULT_THR, default_ith=DEFAULT_ITH,
+            default_thr=args.peak_thr, default_ith=args.integral_thr,
             integral_scan=int_rows, peak_scan=peak_rows,
         ), fp)  # fmt: skip
     _plot(out_dir, label, amvf, int_rows, peak_rows)
