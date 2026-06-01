@@ -1651,3 +1651,47 @@ v3 improvements:
 Training recipe: 50 epochs Phase 1 (MLP warmup) + 200 epochs Phase 2 (E2E),
 LR=5e-5 with 7-epoch warmup + cosine decay, gradient clipping max_norm=1.0.
 Data: 99,800 events (838K training subevents), batch_size=128.
+
+---
+
+## 2026-06-01 — AMVF z-resolution vs N_Tracks (Figure 12 reproduction)
+
+Rewrote `src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py` to use the
+canonical AMVF--truth residual method instead of the earlier CRLB proxy.
+
+**Why the rewrite**: Colleague feedback confirmed (and Qi Bin's
+`sample_plotting_code.py` implied) that vertex errors are not needed for this
+plot — the standard approach is to match each AMVF reco vertex to a truth
+vertex, then look at the spread of dz = z_AMVF - z_truth per truth N_Tracks
+bin. `RecoVertex_ErrZ` being empty in the HL-LHC ntuples is irrelevant.
+
+**Method**:
+1. Load HL-LHC PU200 ttbar ROOT via `pv_finder.data.run3_io.load_run3_from_root`
+   (already exposes TruthVertex_z + TruthVertex_nTracks).
+2. Per event: greedy closest-first 1-to-1 match within +/- 2 mm (~90%
+   matching efficiency).
+3. Bin matched pairs by truth N_Tracks (26 bins, 2..140). Per bin: ROOT
+   `TH1F` of dz, Gaussian fit (`TF1 "gaus"`, range +/- 2.5*RMS) -> sigma(n).
+4. Fit `sigma(n) = a/n^b + c` via `TGraphErrors.Fit(TF1)`.
+5. Plot with PyROOT + atlasplots, mimicking Qi Bin's sample plotting style
+   (red star marker `MARKER_AMVF=29`, dashed fit line, ATLAS label, TLatex
+   tags). Requires `PYTHONPATH=/usr/local/anaconda3/lib/python3.8/site-packages`
+   to find ROOT 6.24 — the script prepends this automatically.
+
+**Result (20 000 events, 1.71M matched pairs)**:
+- `a = 171.99 +/- 8.96 um`
+- `b = 0.7241 +/- 0.0179`
+- `c = 0.00 +/- 0.14 um`
+
+These are the (a, b, c) we will use to set per-vertex Gaussian widths for
+the target histograms in HL-LHC PV-Finder training. Matches the qualitative
+shape of ATL-PHYS-PUB-2023-011 Figure 12 (b ~ 0.7, no irreducible floor at
+PU200).
+
+Deleted `sample_plotting_code.py` from repo root after extracting style cues.
+
+Script: `src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py`
+Artifacts: `outputs/06_01_2026_output/amvf_resolution_residuals/`
+  - `amvf_resolution_vs_ntracks.png`
+  - `fit_params.json`
+  - `vertex_data.npz`

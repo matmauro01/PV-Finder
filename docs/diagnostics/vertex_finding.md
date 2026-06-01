@@ -227,3 +227,53 @@ Location: `src/pv_finder/scratch/data_exploration.ipynb`
 
 Covers: basic stats, 1D distributions, 2D correlations, track multiplicity, beam spot,
 and direct ROOT file exploration (requires `uproot`).
+
+## AMVF Resolution vs N_Tracks (Figure 12 reproduction)
+
+Reproduces the AMVF z-resolution-vs-N_Tracks plot from ATL-PHYS-PUB-2023-011 Fig. 12
+on HL-LHC PU200 ttbar MC, and extracts the (a, b, c) parameters of
+`sigma_z(n) = a / n^b + c` for setting target-histogram Gaussian widths during
+PV-Finder training.
+
+Script: `src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py`
+
+### Method
+
+1. Load HL-LHC PU200 ttbar ROOT via `pv_finder.data.run3_io.load_run3_from_root`
+   (exposes AMVF reco vertices + `TruthVertex_z` + `TruthVertex_nTracks`).
+2. Per event: greedy closest-first 1-to-1 match between AMVF reco and truth
+   within `--match-window` (default 2 mm). ~90% AMVF vertices match.
+3. Bin matched pairs by truth N_Tracks (26 bins, 2 to 140). Per bin: build a
+   `TH1F` of `dz = z_AMVF - z_truth` and fit a Gaussian (`TF1 "gaus"`,
+   range ±2.5·RMS) to extract sigma(n).
+4. Fit `sigma(n) = a / n^b + c` to the (centre, sigma) points using
+   `TGraphErrors.Fit(TF1)` with parameter limits.
+5. Plot with PyROOT + atlasplots mimicking Qi Bin's `sample_plotting_code.py`
+   style (red star marker `MARKER_AMVF=29`, dashed power-law fit,
+   `atlasplots.atlas_label`, TLatex tags).
+
+Supports `--replot-from-npz <vertex_data.npz>` for fast iteration without
+re-walking ROOT.
+
+### Dependencies
+
+`PyROOT 6.24` and `atlasplots` are not in the venv -- they live in the system
+anaconda. The script prepends `/usr/local/anaconda3/lib/python3.8/site-packages`
+to `sys.path` automatically. You only need to add `src` for the `pv_finder.*`
+package imports:
+
+```bash
+source venv/bin/activate
+PYTHONPATH=src python -u src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py \
+    --max-events 20000
+```
+
+### Latest fit (HL-LHC PU200 ttbar, 20 000 events, 1.71M matched pairs)
+
+| Param | Value | Units | Interpretation |
+|-------|-------|-------|----------------|
+| `a` | 171.99 ± 8.96 | μm | sigma at n=1 (extrapolated) |
+| `b` | 0.7241 ± 0.0179 | -- | power-law exponent |
+| `c` | 0.00 ± 0.14 | μm | irreducible floor |
+
+Output: `outputs/06_01_2026_output/amvf_resolution_residuals/`
