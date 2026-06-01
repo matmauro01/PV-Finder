@@ -1695,3 +1695,44 @@ Artifacts: `outputs/06_01_2026_output/amvf_resolution_residuals/`
   - `amvf_resolution_vs_ntracks.png`
   - `fit_params.json`
   - `vertex_data.npz`
+
+---
+
+## 2026-06-01 — AMVF resolution: restyle to match paper figure, full-file fit
+
+Updated `amvf_resolution_vs_ntracks.py` after comparing my earlier plot to
+the colleague's `efficiency_example.png` reference (ATL-PHYS-PUB Fig. 12
+style). Key changes:
+
+- **Plot style**: blue filled circles (data, with error bars), red **solid**
+  power-law fit, ATLAS **Simulation Preliminary** label, "Data" / "Fit"
+  legend in upper-right. Dropped the in-plot fit-param caption and the
+  √s/⟨μ⟩ TLatex tags. Y-axis switched to **mm** ("Vertex Resolution (mm)").
+  X-axis labelled "Number of Tracks".
+- **Binning**: per-integer bins for n in [2, 30], progressively wider up to
+  170 (full-file max is 168). Bins with <30 vertices are dropped.
+- **Sample**: full 99 800-event file (8.52M matched AMVF<->truth pairs)
+  instead of the 20 k smoke test.
+
+**Updated fit (full file)**:
+- `a = 178.98 +/- 8.23 um` (= 0.179 mm)
+- `b = 0.7274 +/- 0.0142`
+- `c = 0.00 +/- 0.08 um`
+
+Stable vs the 20 k preview (a 172 -> 179, b 0.724 -> 0.727).
+
+**Critical finding -- compared to the paper reference**: the example image
+the colleague shared is for Run 3 simulated ttbar at ⟨μ⟩=60, 13 TeV, using
+the ATLAS Inner Detector. Our sample is HL-LHC PU200 (⟨μ⟩=200, 14 TeV) on
+the ITk. ITk has ~2x better per-track z0 resolution than the ID, so per-
+vertex sigma is roughly half: at n=2 the example shows ~0.16 mm vs our
+~0.108 mm. **The HL-LHC PV-Finder training should regenerate its target
+histograms with the HL-LHC (a, b, c) above** rather than reuse Run-3 values;
+otherwise the truth Gaussians are ~1.6x wider than the data supports.
+
+**Truth N_Tracks reach**: max in our 99 800-event file is 168
+(p99 = 40, p99.99 = 87). Only 30 vertices have n >= 120, only 3 have
+n >= 140 — the [135, 170) bin gets dropped under the 30-vertex Gaussian
+fit minimum. The x-axis is drawn out to 180 to mirror the example.
+
+Plot: `outputs/06_01_2026_output/amvf_resolution_residuals/amvf_resolution_vs_ntracks.png`

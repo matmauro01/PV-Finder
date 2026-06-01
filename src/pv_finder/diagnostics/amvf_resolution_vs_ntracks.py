@@ -10,8 +10,9 @@ Outputs:
   fit_params.json                  -- a, b, c and per-bin (sigma, sigma_err)
   vertex_data.npz                  -- raw (truth_ntrks, dz_mm) pairs
 
-Style mimics Qi Bin's sample_plotting_code.py (PyROOT + atlasplots,
-ATLAS marker scheme, atlas_label + TLatex tags).
+Style matches the ATLAS efficiency_example.png reference plot: blue filled
+circles for data (with error bars), red solid power-law fit, ATLAS label,
+"Data" / "Fit" legend, axes in mm.
 """
 
 from __future__ import annotations
@@ -33,16 +34,17 @@ if _ANACONDA_SP not in sys.path:
 
 import atlasplots  # noqa: E402
 import ROOT  # noqa: E402
-from ROOT import TF1, TH1F, TCanvas, TGraphErrors, TLatex, TLegend  # noqa: E402
+from ROOT import TF1, TH1F, TCanvas, TGraphErrors, TLegend  # noqa: E402
 
 from pv_finder.data.run3_io import load_run3_from_root  # noqa: E402
 
 ROOT.gROOT.SetBatch(True)
 
-# --- ATLAS marker / colour scheme (matches sample_plotting_code.py) ------
-COLOR_AMVF = 2
-MARKER_AMVF = 29
-MARKER_SIZE = 1.6
+# --- Marker / colour scheme (matches ATLAS example: blue data, red fit) --
+COLOR_DATA = 4  # ROOT kBlue
+COLOR_FIT = 2  # ROOT kRed
+MARKER_DATA = 20  # filled circle (matches MARKER_UNETPP in sample_plotting_code.py)
+MARKER_SIZE = 0.7
 
 DEFAULT_ROOT = (
     "data/run4/Run4_MC21_ITk/"
@@ -50,7 +52,9 @@ DEFAULT_ROOT = (
 )
 DEFAULT_OUT = "outputs/06_01_2026_output/amvf_resolution_residuals"
 
-# Fine integer bins where the bulk of vertices live; coarser at high N_Tracks.
+# Per-integer bins for n<=30 (where most vertices live), then progressively
+# wider edges up to N_Tracks ~ 170 (full dataset max is 168). Bins with
+# <30 vertices are dropped at fit time.
 DEFAULT_BINS = (
     2,
     3,
@@ -66,18 +70,40 @@ DEFAULT_BINS = (
     13,
     14,
     15,
+    16,
     17,
+    18,
     19,
+    20,
+    21,
     22,
+    23,
+    24,
+    25,
     26,
-    31,
+    27,
+    28,
+    29,
+    30,
+    32,
+    34,
+    36,
     38,
-    46,
-    56,
-    68,
-    82,
+    40,
+    42,
+    45,
+    48,
+    51,
+    55,
+    60,
+    65,
+    70,
+    78,
+    88,
     100,
-    140,
+    115,
+    135,
+    170,
 )
 
 
@@ -215,7 +241,7 @@ def aggregate_and_fit_bins(
     for k, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
         mask = (ntrk >= lo) & (ntrk < hi)
         n = int(mask.sum())
-        if n < 50:
+        if n < 30:
             continue
         res = fit_gaussian_dz(dz_mm[mask], name=f"dz_bin{k}_{lo}_{hi}")
         if res is None:
@@ -259,8 +285,7 @@ def fit_power_law(centers: np.ndarray, sigmas_um: np.ndarray) -> TF1:
 def make_plot(
     agg: dict,
     out_path: Path,
-    plot_label: str = "Simulation Internal",
-    pileup_label: str = "#sqrt{s}=14 TeV, t#bar{t}, #LT#mu#GT=200",
+    plot_label: str = "Simulation Preliminary",
 ) -> tuple[float, float, float, float, float, float]:
     """Draw sigma_z(N_Tracks) graph + power-law fit. Returns (a, b, c, da, db, dc)."""
     atlasplots.set_atlas_style()
@@ -274,71 +299,65 @@ def make_plot(
     c1.SetGrid()
     c1.SetTicks(1, 1)
 
+    # Convert um -> mm for plotting (matches ATL-PHYS-PUB-2023-011 Fig. 12 units)
+    sigmas_mm = sigmas / 1000.0
+    sig_errs_mm = sig_errs / 1000.0
+
     x = array("f", centers.tolist())
-    y = array("f", sigmas.tolist())
+    y = array("f", sigmas_mm.tolist())
     ex = array("f", [0.0] * n)
-    ey = array("f", sig_errs.tolist())
+    ey = array("f", sig_errs_mm.tolist())
 
     g = TGraphErrors(n, x, y, ex, ey)
-    g.SetMarkerColor(COLOR_AMVF)
-    g.SetLineColor(COLOR_AMVF)
-    g.SetMarkerStyle(MARKER_AMVF)
+    g.SetMarkerColor(COLOR_DATA)
+    g.SetLineColor(COLOR_DATA)
+    g.SetMarkerStyle(MARKER_DATA)
     g.SetMarkerSize(MARKER_SIZE)
 
-    y_max = float(max(sigmas) * 1.45)
-    x_max = float(centers.max() * 1.05)
-    g.GetXaxis().SetTitle("Truth vertex N_{Tracks}")
-    g.GetYaxis().SetTitle("AMVF #sigma_{z} (#mum)")
+    # x-axis: extend up to the full N_Tracks range observed in data (rounded
+    # up to a round number) so high-multiplicity vertices are always visible.
+    raw_x_max = float(max(centers.max(), DEFAULT_BINS[-1]))
+    x_max = float(int(np.ceil(raw_x_max / 20.0) * 20))
+    y_max = float(max(sigmas_mm) * 1.25)
+    g.GetXaxis().SetTitle("Number of Tracks")
+    g.GetYaxis().SetTitle("Vertex Resolution (mm)")
     g.GetXaxis().SetLimits(0.0, x_max)
     g.GetYaxis().SetRangeUser(0.0, y_max)
 
-    f = fit_power_law(centers, sigmas)
-    f.SetLineColor(COLOR_AMVF)
-    f.SetLineStyle(2)
+    # Fit on mm-scaled values so reported (a, c) in mm; b is unitless.
+    f = fit_power_law(centers, sigmas_mm)
+    f.SetLineColor(COLOR_FIT)
+    f.SetLineStyle(1)
     f.SetLineWidth(2)
     g.Fit(f, "RQ")
 
-    a = float(f.GetParameter(0))
+    a_mm = float(f.GetParameter(0))
     b = float(f.GetParameter(1))
-    c = float(f.GetParameter(2))
-    da = float(f.GetParError(0))
+    c_mm = float(f.GetParameter(2))
+    da_mm = float(f.GetParError(0))
     db = float(f.GetParError(1))
-    dc = float(f.GetParError(2))
+    dc_mm = float(f.GetParError(2))
+
+    # convert to um for return signature (keeps JSON consistent with old format)
+    a = a_mm * 1000.0
+    c = c_mm * 1000.0
+    da = da_mm * 1000.0
+    dc = dc_mm * 1000.0
 
     g.Draw("AP")
     f.Draw("L same")
 
-    # Keep TLatex / TLegend refs alive so PyROOT GC doesn't drop them
+    # Keep TLegend refs alive so PyROOT GC doesn't drop them
     # before SaveAs flushes the canvas.
     keep_alive: list = []
 
-    atlasplots.atlas_label(text=plot_label, x=0.55, y=0.85, size=28)
+    atlasplots.atlas_label(text=plot_label, x=0.20, y=0.85, size=28)
 
-    txt = TLatex()
-    txt.SetNDC(True)
-    txt.SetTextFont(42)
-    txt.SetTextSize(0.030)
-    txt.SetTextAlign(12)
-    txt.DrawLatex(0.55, 0.78, pileup_label)
-    txt.DrawLatex(0.55, 0.73, "AMVF #leftrightarrow truth, greedy match")
-    keep_alive.append(txt)
-
-    fit_txt = TLatex()
-    fit_txt.SetNDC(True)
-    fit_txt.SetTextFont(42)
-    fit_txt.SetTextSize(0.028)
-    fit_txt.SetTextAlign(12)
-    fit_txt.DrawLatex(0.55, 0.66, "#sigma_{z}(n) = a / n^{b} + c")
-    fit_txt.DrawLatex(0.55, 0.61, f"a = {a:.2f} #pm {da:.2f} #mum")
-    fit_txt.DrawLatex(0.55, 0.56, f"b = {b:.3f} #pm {db:.3f}")
-    fit_txt.DrawLatex(0.55, 0.51, f"c = {c:.2f} #pm {dc:.2f} #mum")
-    keep_alive.append(fit_txt)
-
-    legend = TLegend(0.55, 0.36, 0.90, 0.46)
-    legend.AddEntry(g, "AMVF (matched to truth)", "PE")
-    legend.AddEntry(f, "Power-law fit", "L")
+    legend = TLegend(0.65, 0.72, 0.90, 0.85)
+    legend.AddEntry(g, "Data", "PE")
+    legend.AddEntry(f, "Fit", "L")
     legend.SetTextFont(42)
-    legend.SetTextSize(0.028)
+    legend.SetTextSize(0.030)
     legend.SetBorderSize(0)
     legend.SetFillStyle(0)
     legend.Draw()
@@ -384,8 +403,8 @@ def main() -> None:
     )
     p.add_argument(
         "--plot-label",
-        default="Simulation Internal",
-        help="ATLAS plot-label text (e.g. 'Simulation Preliminary').",
+        default="Simulation Preliminary",
+        help="ATLAS plot-label text (e.g. 'Simulation Internal').",
     )
     p.add_argument(
         "--replot-from-npz",

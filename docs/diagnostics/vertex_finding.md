@@ -248,9 +248,10 @@ Script: `src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py`
    range ±2.5·RMS) to extract sigma(n).
 4. Fit `sigma(n) = a / n^b + c` to the (centre, sigma) points using
    `TGraphErrors.Fit(TF1)` with parameter limits.
-5. Plot with PyROOT + atlasplots mimicking Qi Bin's `sample_plotting_code.py`
-   style (red star marker `MARKER_AMVF=29`, dashed power-law fit,
-   `atlasplots.atlas_label`, TLatex tags).
+5. Plot with PyROOT + atlasplots matching the ATL-PHYS-PUB Figure 12 style:
+   blue filled circles for data (error bars), red solid power-law fit,
+   `atlasplots.atlas_label` "Simulation Preliminary", "Data" / "Fit" legend,
+   axes in mm.
 
 Supports `--replot-from-npz <vertex_data.npz>` for fast iteration without
 re-walking ROOT.
@@ -268,12 +269,21 @@ PYTHONPATH=src python -u src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py
     --max-events 20000
 ```
 
-### Latest fit (HL-LHC PU200 ttbar, 20 000 events, 1.71M matched pairs)
+### Latest fit (HL-LHC PU200 ttbar, 99 800 events, 8.52M matched pairs)
 
 | Param | Value | Units | Interpretation |
 |-------|-------|-------|----------------|
-| `a` | 171.99 ± 8.96 | μm | sigma at n=1 (extrapolated) |
-| `b` | 0.7241 ± 0.0179 | -- | power-law exponent |
-| `c` | 0.00 ± 0.14 | μm | irreducible floor |
+| `a` | 178.98 ± 8.23 | μm | sigma at n=1 (extrapolated) |
+| `b` | 0.7274 ± 0.0142 | -- | power-law exponent |
+| `c` | 0.00 ± 0.08 | μm | irreducible floor |
+
+These are notably **smaller** than the Run-3 values reported in the paper
+(~0.16 mm at n=2). Run 3 uses the ATLAS Inner Detector at ⟨μ⟩=60, 13 TeV;
+HL-LHC uses ITk at ⟨μ⟩=200, 14 TeV — ITk has ~2× better per-track z0
+resolution. For HL-LHC PV-Finder training, target-histogram Gaussian widths
+should be regenerated with the HL-LHC (a, b, c) above, not the Run-3 ones.
+
+**Truth N_Tracks range (full file)**: max = 168, p99 = 40, p99.99 = 87.
+Only 30 vertices have N_Tracks ≥ 120; only 3 have ≥ 140.
 
 Output: `outputs/06_01_2026_output/amvf_resolution_residuals/`
