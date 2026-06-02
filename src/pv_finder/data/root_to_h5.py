@@ -175,7 +175,7 @@ def scan_dimensions(
     desc = "Pass 1: scanning dimensions"
 
     for batch in tqdm(
-        tree.iterate(branches, step_size=chunk_size, entry_stop=n_total),
+        tree.iterate(branches, step_size=chunk_size, entry_stop=n_total, library="np"),
         total=math.ceil(n_total / chunk_size),
         desc=desc,
     ):
@@ -316,7 +316,9 @@ def convert(
 
         desc = "Pass 2: converting"
         for batch in tqdm(
-            tree.iterate(_BRANCHES, step_size=chunk_size, entry_stop=n_events),
+            tree.iterate(
+                _BRANCHES, step_size=chunk_size, entry_stop=n_events, library="np"
+            ),
             total=math.ceil(n_events / chunk_size),
             desc=desc,
         ):
