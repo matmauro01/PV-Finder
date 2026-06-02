@@ -1736,3 +1736,44 @@ n >= 140 — the [135, 170) bin gets dropped under the 30-vertex Gaussian
 fit minimum. The x-axis is drawn out to 180 to mirror the example.
 
 Plot: `outputs/06_01_2026_output/amvf_resolution_residuals/amvf_resolution_vs_ntracks.png`
+
+---
+
+## 2026-06-02 — root_to_h5: parametrised resolution presets (hllhc / run3)
+
+Updated `src/pv_finder/data/root_to_h5.py` so the (A, B, C) constants used
+to set per-PV Gaussian widths in the target histogram are no longer
+hardcoded. Added:
+
+- `RESOLUTION_PRESETS` dict at module top with two entries:
+  - `hllhc`: (0.17898, 0.7274, 0.0)  — new fit from 2026-06-01
+  - `run3` : (0.23817443, 0.49491396, -0.000787436)  — legacy
+- `--resolution-preset {hllhc,run3}` CLI flag (default: `hllhc`)
+- `--a-res / --b-res / --c-res` flags for one-off overrides
+- `set_resolution(a, b, c)` helper for programmatic override
+- The chosen (A, B, C) and the formula string are now written into
+  `h5.attrs` (`resolution_a_mm`, `resolution_b`, `resolution_c_mm`,
+  `resolution_formula`) so each HDF5 self-documents which resolution
+  model it used.
+
+**Why**: the colleague flagged `histogram_example.py` (a.k.a.
+`CreatingTargetHistogram.py` upstream) as the script that builds target
+histograms. We already had a port (`root_to_h5.py`) but it was using the
+Run-3 values, which over-blur HL-LHC targets by ~1.6-2.9x. Switching the
+default preset to `hllhc` aligns the training targets with the actual
+ITk vertex resolution. Keeping `run3` as a named preset preserves the
+ability to regenerate Run-3-style HDF5s and to add more presets later
+(e.g. for a future Run-3 fit or a different MC sample).
+
+**Missing branches noted in HL-LHC ROOT**: `histogram_example.py` reads
+`RecoTrack_xslope`, `RecoTrack_yslope`, and 15 `POCAEllipsoid_*` branches
+that are not present in `ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root`.
+The current HL-LHC model uses 7-channel `tracks` (d0, z0, d0_err, z0_err,
+d0_z0_cov, z_start, z_end) + KernelA/B KDE features, none of which need
+the missing branches, so this isn't blocking. If we ever migrate to a
+POCA-ellipsoid feature set we will need an upstream `MakingPOCAdata`
+preprocessing step.
+
+User will launch the regeneration in tmux to write
+`data/run4/hllhc_pu200_training_v2.h5` alongside the existing
+`hllhc_pu200_training.h5`.

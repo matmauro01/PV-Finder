@@ -49,22 +49,45 @@ KDEs at μ≈200 is infeasible (~15–30s/event).
 Truth histograms are generated on the fly using the LHCb Gaussian-CDF method
 (ported from `CreatingTargetHistogram.py`):
 
-- Resolution per truth PV:
-  ```
-  σ = 0.23817443 · ntrks^(-0.49491396) − 0.000787436    (ntrks ≥ 2)
-  σ = BIN_WIDTH                                          (ntrks < 2)
-  ```
+- Resolution per truth PV: `σ = A · ntrks^(-B) + C  (mm)` for ntrks ≥ 2,
+  `σ = BIN_WIDTH` for ntrks < 2.
+- (A, B, C) come from a **resolution preset** selected on the CLI
+  (`--resolution-preset`) and are written to the output `h5.attrs` so the
+  file self-documents which constants it used.
 - Amplitude: Gaussian CDF evaluated at ±5 bins around the PV z position.
 - Scaling: `populate = where((0.15/σ) > 1, (0.15/σ)*populate, populate)`.
 - Channel 0 aggregates PVs with nTracks ≥ 2, channel 1 aggregates the rest.
 
+#### Resolution presets
+
+| Preset  | A (mm)     | B        | C (mm)       | Source |
+|---------|------------|----------|--------------|--------|
+| `hllhc` (default) | 0.17898 | 0.7274 | 0.0 | AMVF↔truth residual fit on HL-LHC PU200 ttbar (ITk), 99 800 events, 2026-06-01 (`src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py`) |
+| `run3`  | 0.23817443 | 0.49491396 | -0.000787436 | Legacy `ResolutionFit_ATLAS.ipynb` (Run-3 ID, ⟨μ⟩≈60) |
+
+Override individual parameters with `--a-res`, `--b-res`, `--c-res` to use
+custom values without editing the file. To register a new preset for a
+recurring sample, add it to `RESOLUTION_PRESETS` in `root_to_h5.py`.
+
 ### Usage
 
 ```bash
+# HL-LHC PU200 ttbar (default preset is 'hllhc')
 python -u src/pv_finder/data/root_to_h5.py \
-    --input  data/run4/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \
-    --output data/run4/hllhc_pu200_training.h5 \
-    --max-events 0                    # 0 = all events
+    --input  data/run4/Run4_MC21_ITk/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \
+    --output data/run4/hllhc_pu200_training_v2.h5 \
+    --max-events 0
+
+# Re-generate with the legacy Run-3 widths
+python -u src/pv_finder/data/root_to_h5.py \
+    --input  <run3.root> \
+    --output <run3_training.h5> \
+    --resolution-preset run3
+
+# One-off override
+python -u src/pv_finder/data/root_to_h5.py \
+    --input <root> --output <h5> \
+    --a-res 0.20 --b-res 0.65 --c-res 0.0
 ```
 
 Optional: `--max-tracks-per-sub` to cap track padding (default: from Pass 1 scan).

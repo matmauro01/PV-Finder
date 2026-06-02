@@ -40,10 +40,36 @@ MASK_VAL = -999999.0
 N_CATS = 2  # channel 0: nTracks>=2, channel 1: nTracks<2
 NTRK_THRESHOLD = 2
 
-# Resolution fit parameters (from ResolutionFit_ATLAS.ipynb)
-A_RES = 0.23817443
-B_RES = 0.49491396
-C_RES = -0.000787436
+# Resolution fit parameters: sigma_z(n) = A * n^(-B) + C  (units mm).
+#
+# Use --resolution-preset on the CLI to pick a preset, or override individually
+# with --a-res / --b-res / --c-res. New presets can be added here whenever a
+# new fit (on Run-3 data, a different MC sample, etc.) is produced by
+# src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py and saved to a
+# fit_params.json in outputs/. The chosen (A, B, C) are written to h5.attrs
+# so each produced HDF5 self-documents which resolution model it used.
+RESOLUTION_PRESETS: dict[str, tuple[float, float, float]] = {
+    # name: (A_mm, B, C_mm)
+    "hllhc": (0.17898, 0.7274, 0.0),
+    "run3": (0.23817443, 0.49491396, -0.000787436),
+}
+RESOLUTION_PRESET_SOURCES: dict[str, str] = {
+    "hllhc": "AMVF<->truth fit on HL-LHC PU200 ttbar (ITk), 99 800 events, "
+    "produced 2026-06-01 by amvf_resolution_vs_ntracks.py "
+    "(see outputs/06_01_2026_output/amvf_resolution_residuals/fit_params.json)",
+    "run3": "Run-3 fit from ResolutionFit_ATLAS.ipynb / "
+    "CreatingTargetHistogram.py upstream (ATLAS Inner Detector, mu~60).",
+}
+DEFAULT_RESOLUTION_PRESET = "hllhc"
+
+A_RES, B_RES, C_RES = RESOLUTION_PRESETS[DEFAULT_RESOLUTION_PRESET]
+
+
+def set_resolution(a_res: float, b_res: float, c_res: float) -> None:
+    """Override the module-level (A, B, C) used by `_compute_sigma`."""
+    global A_RES, B_RES, C_RES
+    A_RES, B_RES, C_RES = a_res, b_res, c_res
+
 
 # Pre-compute the +-5 bin edge offsets for Gaussian CDF target generation.
 # Shape: (2, 11) — row 0 = left edges, row 1 = right edges of 11 bins.
@@ -268,6 +294,10 @@ def convert(
         h5.attrs["max_pv"] = max_pv
         h5.attrs["n_events"] = n_events
         h5.attrs["source_file"] = str(input_path)
+        h5.attrs["resolution_a_mm"] = float(A_RES)
+        h5.attrs["resolution_b"] = float(B_RES)
+        h5.attrs["resolution_c_mm"] = float(C_RES)
+        h5.attrs["resolution_formula"] = "sigma_z(n) = A * n^(-B) + C  [mm]"
 
         # --- Pass 2: fill data ---
         evt_offset = 0
@@ -389,7 +419,50 @@ def main() -> None:
         default=1000,
         help="Events per processing chunk (default: 1000).",
     )
+    parser.add_argument(
+        "--resolution-preset",
+        choices=sorted(RESOLUTION_PRESETS),
+        default=DEFAULT_RESOLUTION_PRESET,
+        help=(
+            "Named (A, B, C) resolution preset. Default is 'hllhc'. "
+            "Use 'run3' to reproduce the legacy ResolutionFit_ATLAS.ipynb "
+            "values. Add new presets to RESOLUTION_PRESETS in this file."
+        ),
+    )
+    parser.add_argument(
+        "--a-res",
+        type=float,
+        default=None,
+        help="Override the A coefficient (mm) of the preset.",
+    )
+    parser.add_argument(
+        "--b-res",
+        type=float,
+        default=None,
+        help="Override the B exponent of the preset.",
+    )
+    parser.add_argument(
+        "--c-res",
+        type=float,
+        default=None,
+        help="Override the C floor (mm) of the preset.",
+    )
     args = parser.parse_args()
+
+    a, b, c = RESOLUTION_PRESETS[args.resolution_preset]
+    if args.a_res is not None:
+        a = args.a_res
+    if args.b_res is not None:
+        b = args.b_res
+    if args.c_res is not None:
+        c = args.c_res
+    set_resolution(a, b, c)
+    print(
+        f"[root_to_h5] resolution: preset={args.resolution_preset!r} -> "
+        f"sigma_z(n) = {a:.6f} * n^(-{b:.6f}) + {c:.6f}  [mm]"
+    )
+    print(f"[root_to_h5]   source: {RESOLUTION_PRESET_SOURCES[args.resolution_preset]}")
+
     convert(
         args.input,
         args.output,
