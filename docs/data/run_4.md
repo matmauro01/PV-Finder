@@ -90,7 +90,14 @@ python -u src/pv_finder/data/root_to_h5.py \
     --a-res 0.20 --b-res 0.65 --c-res 0.0
 ```
 
-Optional: `--max-tracks-per-sub` to cap track padding (default: from Pass 1 scan).
+### Defaults
+
+`--max-tracks-per-sub` (default **1024**) and `--max-pv` (default **300**) skip
+the full-tree Pass-1 scan when both are set. Historical max across HL-LHC PU200
+ROOTs is ~774 tracks/subevent and ~200 PVs/event, so 1024 / 300 give ample
+headroom; LZF compresses the unused padding to ~nothing. If a subevent ever
+exceeds `max_tracks` the summary prints a `WARNING` and lowest-z0 tracks are
+kept. Pass `--max-tracks-per-sub 0` (or `--max-pv 0`) to force the Pass-1 scan.
 
 ## Training
 

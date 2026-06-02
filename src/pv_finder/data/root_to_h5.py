@@ -24,9 +24,7 @@ import uproot
 from scipy.special import ndtr  # vectorised standard-normal CDF in C
 from tqdm import tqdm
 
-# ---------------------------------------------------------------------------
-# Constants — must match feature_loading.py and CreatingTargetHistogram.py
-# ---------------------------------------------------------------------------
+# --- Constants (must match feature_loading.py and CreatingTargetHistogram.py) ---
 Z_MIN = -240.0  # mm
 Z_MAX = 240.0  # mm
 TOTAL_BINS = 12000
@@ -54,27 +52,14 @@ A_RES, B_RES, C_RES = RESOLUTION_PRESETS[DEFAULT_RESOLUTION_PRESET]
 
 
 def set_resolution(a_res: float, b_res: float, c_res: float) -> None:
-    """Override the module-level (A, B, C) used by `_compute_sigma`."""
+    """Override the module-level (A, B, C) resolution parameters."""
     global A_RES, B_RES, C_RES
     A_RES, B_RES, C_RES = a_res, b_res, c_res
 
 
-# Pre-compute the +-5 bin edge offsets for Gaussian CDF target generation.
-# Shape: (2, 11) — row 0 = left edges, row 1 = right edges of 11 bins.
-_BIN_OFFSETS = np.arange(-5, 6)  # [-5, -4, ..., 5]
+_BIN_OFFSETS = np.arange(-5, 6)
 _EDGES = np.array([-BIN_WIDTH / 2, BIN_WIDTH / 2])
-# ProbRange[edge_idx, bin_idx] gives the z-offset from bin center
 _PROB_RANGE_TEMPLATE = BIN_WIDTH * _BIN_OFFSETS[np.newaxis, :] + _EDGES[:, np.newaxis]
-
-
-# --- Helpers ---
-
-
-def _compute_sigma(ntrks: int) -> float:
-    """Vertex resolution from nTracks (matches CreatingTargetHistogram.py)."""
-    if ntrks < NTRK_THRESHOLD:
-        return BIN_WIDTH
-    return A_RES * (ntrks ** (-B_RES)) + C_RES
 
 
 def _build_truth_histogram(pv_z: np.ndarray, pv_ntrks: np.ndarray) -> np.ndarray:
@@ -119,82 +104,94 @@ def _build_truth_histogram(pv_z: np.ndarray, pv_ntrks: np.ndarray) -> np.ndarray
     return hist
 
 
-def _build_subevent_tracks(
+_SUBEVENT_EDGES = np.array(
+    [Z_MIN + k * SUBEVENT_WIDTH for k in range(N_SUBEVENTS + 1)], dtype=np.float64
+)
+
+
+def _build_event_subevent_tracks(
     z0: np.ndarray,
     d0: np.ndarray,
     d0_err: np.ndarray,
     z0_err: np.ndarray,
     d0_z0_cov: np.ndarray,
-    sub_idx: int,
     max_tracks: int,
-) -> tuple[np.ndarray, int]:
-    """Build a (7, max_tracks) padded track tensor for one subevent.
-
-    Returns (tensor, n_tracks_in_subevent).
+) -> tuple[np.ndarray, np.ndarray]:
+    """Build (N_SUBEVENTS, N_FEATURES, max_tracks) tracks for one event via
+    one global stable argsort + searchsorted (replaces 12 boolean masks +
+    12 argsorts). Truncation: take lowest-z0 max_tracks per subevent.
     """
-    z_start = SUBEVENT_STARTS[sub_idx]
-    z_end = z_start + SUBEVENT_WIDTH
+    tensor = np.full((N_SUBEVENTS, N_FEATURES, max_tracks), MASK_VAL, dtype=np.float32)
+    n_per_sub = np.zeros(N_SUBEVENTS, dtype=np.int64)
+    if z0.size == 0:
+        return tensor, n_per_sub
 
-    mask = (z0 >= z_start) & (z0 < z_end)
-    n_trk = int(np.sum(mask))
+    in_range = (z0 >= Z_MIN) & (z0 < _SUBEVENT_EDGES[-1])
+    if not np.any(in_range):
+        return tensor, n_per_sub
 
-    tensor = np.full((N_FEATURES, max_tracks), MASK_VAL, dtype=np.float32)
-    if n_trk == 0:
-        return tensor, 0
+    z0r = z0[in_range]
+    d0r = d0[in_range]
+    d0_err_r = d0_err[in_range]
+    z0_err_r = z0_err[in_range]
+    d0z0r = d0_z0_cov[in_range]
 
-    # Sort by z0 within the subevent (training convention)
-    idx = np.argsort(z0[mask])
-    n_fill = min(n_trk, max_tracks)
-    idx = idx[:n_fill]
+    order = np.argsort(z0r, kind="stable")  # stable so ties are reproducible
+    z0_s = z0r[order]
+    bnd = np.searchsorted(z0_s, _SUBEVENT_EDGES, side="left")
 
-    tensor[0, :n_fill] = d0[mask][idx]
-    tensor[1, :n_fill] = z0[mask][idx]
-    tensor[2, :n_fill] = d0_err[mask][idx]
-    tensor[3, :n_fill] = z0_err[mask][idx]
-    tensor[4, :n_fill] = d0_z0_cov[mask][idx]
-    tensor[5, :n_fill] = z_start
-    tensor[6, :n_fill] = z_end
+    # Apply order once per branch, then slice 12 windows from each.
+    d0_s = d0r[order]
+    d0_err_s = d0_err_r[order]
+    z0_err_s = z0_err_r[order]
+    d0z0_s = d0z0r[order]
 
-    return tensor, n_trk
+    for si in range(N_SUBEVENTS):
+        lo = int(bnd[si])
+        hi = int(bnd[si + 1])
+        n_trk = hi - lo
+        n_per_sub[si] = n_trk
+        if n_trk == 0:
+            continue
+        n_fill = min(n_trk, max_tracks)
+        s = slice(lo, lo + n_fill)
+        tensor[si, 0, :n_fill] = d0_s[s]
+        tensor[si, 1, :n_fill] = z0_s[s]
+        tensor[si, 2, :n_fill] = d0_err_s[s]
+        tensor[si, 3, :n_fill] = z0_err_s[s]
+        tensor[si, 4, :n_fill] = d0z0_s[s]
+        z_start = SUBEVENT_STARTS[si]
+        tensor[si, 5, :n_fill] = z_start
+        tensor[si, 6, :n_fill] = z_start + SUBEVENT_WIDTH
+
+    return tensor, n_per_sub
 
 
-# --- First pass: determine MAX_TRACKS per subevent and MAX_PV ---
+# --- First pass: find MAX_TRACKS per subevent and MAX_PV (skipped by default) ---
 
 
 def scan_dimensions(
-    tree: uproot.TTree,
-    max_events: int,
-    chunk_size: int = 5000,
+    tree: uproot.TTree, max_events: int, chunk_size: int = 5000
 ) -> tuple[int, int, int]:
-    """Scan ROOT tree to find max tracks per subevent and max PVs per event."""
+    """Scan tree to find max tracks per subevent and max PVs per event."""
     n_total = min(tree.num_entries, max_events) if max_events > 0 else tree.num_entries
-    max_trk_sub = 0
-    max_pv = 0
-
+    max_trk_sub, max_pv = 0, 0
     branches = ["RecoTrack_z0", "TruthVertex_z"]
-    desc = "Pass 1: scanning dimensions"
-
     for batch in tqdm(
         tree.iterate(branches, step_size=chunk_size, entry_stop=n_total, library="np"),
         total=math.ceil(n_total / chunk_size),
-        desc=desc,
+        desc="Pass 1: scanning dimensions",
     ):
-        z0_jagged = batch["RecoTrack_z0"]
-        pv_z_jagged = batch["TruthVertex_z"]
-
-        for i in range(len(z0_jagged)):
-            z0 = np.asarray(z0_jagged[i], dtype=np.float32)
+        for i in range(len(batch["RecoTrack_z0"])):
+            z0 = np.asarray(batch["RecoTrack_z0"][i], dtype=np.float32)
             for si in range(N_SUBEVENTS):
                 z_lo = SUBEVENT_STARTS[si]
-                z_hi = z_lo + SUBEVENT_WIDTH
-                n = int(np.sum((z0 >= z_lo) & (z0 < z_hi)))
+                n = int(np.sum((z0 >= z_lo) & (z0 < z_lo + SUBEVENT_WIDTH)))
                 if n > max_trk_sub:
                     max_trk_sub = n
-
-            n_pv = len(pv_z_jagged[i])
+            n_pv = len(batch["TruthVertex_z"][i])
             if n_pv > max_pv:
                 max_pv = n_pv
-
     return n_total, max_trk_sub, max_pv
 
 
@@ -224,15 +221,15 @@ def convert(
     output_path: str,
     max_events: int = 0,
     max_tracks_override: int = 0,
+    max_pv_override: int = 0,
     chunk_size: int = 1000,
     compression: str = "lzf",
     skip_target_y: bool = True,
 ) -> None:
     """Run the full ROOT -> HDF5 conversion.
 
-    ``compression``: HDF5 chunk filter ('lzf' default, 'gzip', or 'none').
-    ``skip_target_y``: omit the full-event target_y (HL-LHC trainer reads
-    only target_y_split — saves the biggest single chunk of disk).
+    Pass 1 (full-tree scan for max_tracks / max_pv) is skipped when both
+    ``max_tracks_override`` and ``max_pv_override`` are positive.
     """
     if compression not in _COMPRESSION_KWARGS:
         raise ValueError(
@@ -241,22 +238,27 @@ def convert(
     comp_kw = _COMPRESSION_KWARGS[compression]
 
     tree = uproot.open(f"{input_path}:PVFinderData")
-
-    # --- Pass 1: dimensions ---
-    n_events, max_trk_sub_data, max_pv_data = scan_dimensions(
-        tree, max_events, chunk_size=chunk_size
+    n_events = (
+        min(int(tree.num_entries), max_events)
+        if max_events > 0
+        else int(tree.num_entries)
     )
-    max_tracks = max_tracks_override if max_tracks_override > 0 else max_trk_sub_data
-    max_pv = max_pv_data
+
+    if max_tracks_override > 0 and max_pv_override > 0:
+        max_tracks, max_pv = max_tracks_override, max_pv_override
+        print(
+            f"[root_to_h5] Skipping Pass 1 (max_tracks={max_tracks}, max_pv={max_pv} provided)"
+        )
+    else:
+        _, sc_mt, sc_mp = scan_dimensions(tree, max_events, chunk_size=chunk_size)
+        max_tracks = max_tracks_override if max_tracks_override > 0 else sc_mt
+        max_pv = max_pv_override if max_pv_override > 0 else sc_mp
     n_subevents = n_events * N_SUBEVENTS
 
-    print("\n--- Dimensions ---")
-    print(f"  Events:              {n_events}")
-    print(f"  Subevents:           {n_subevents}")
-    print(f"  Max tracks/subevent: {max_trk_sub_data} (using {max_tracks})")
-    print(f"  Max PVs/event:       {max_pv}\n")
-
-    # --- Create output HDF5 with pre-allocated datasets ---
+    print(
+        f"\n--- Dimensions --- events={n_events} subevents={n_subevents} "
+        f"max_tracks={max_tracks} max_pv={max_pv}\n"
+    )
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(output_path, "w") as h5:
         ds_tracks = h5.create_dataset(
@@ -349,13 +351,12 @@ def convert(
                 pv_z = np.asarray(batch["TruthVertex_z"][i], dtype=np.float32)
                 pv_ntrks = np.asarray(batch["TruthVertex_nTracks"][i], dtype=np.float32)
 
-                # -- Tracks: build subevents --
-                for si in range(N_SUBEVENTS):
-                    tensor, n_trk = _build_subevent_tracks(
-                        z0, d0, d0_err, z0_err, d0_z0_cov, si, max_tracks
-                    )
-                    tracks_buf[i * N_SUBEVENTS + si] = tensor
-                    trk_counts.append(n_trk)
+                # -- Tracks: all 12 subevents in one vectorised pass --
+                evt_tensor, evt_counts = _build_event_subevent_tracks(
+                    z0, d0, d0_err, z0_err, d0_z0_cov, max_tracks
+                )
+                tracks_buf[i * N_SUBEVENTS : (i + 1) * N_SUBEVENTS] = evt_tensor
+                trk_counts.extend(int(c) for c in evt_counts)
 
                 # -- Truth histogram (full event); kept in scratch even when
                 #    we don't persist `target_y`, because we still split it. --
@@ -363,13 +364,10 @@ def convert(
                 if ty_buf is not None:
                     ty_buf[i] = ty_full
 
-                # -- Split truth histogram into subevents --
-                for si in range(N_SUBEVENTS):
-                    bin_lo = si * SUBEVENT_BINS
-                    bin_hi = bin_lo + SUBEVENT_BINS
-                    ty_split_buf[i * N_SUBEVENTS + si] = ty_full[:, bin_lo:bin_hi]
-
-                # -- PV positions --
+                # Split truth histogram into N_SUBEVENTS contiguous slices
+                ty_split_buf[i * N_SUBEVENTS : (i + 1) * N_SUBEVENTS] = ty_full.reshape(
+                    N_CATS, N_SUBEVENTS, SUBEVENT_BINS
+                ).transpose(1, 0, 2)
                 n_pv = min(len(pv_z), max_pv)
                 pv_buf[i, :n_pv] = pv_z[:n_pv]
 
@@ -385,23 +383,20 @@ def convert(
             evt_offset += bsz
             sub_offset += bsz * N_SUBEVENTS
 
-    # --- Summary statistics ---
     trk_arr = np.array(trk_counts)
-    print("\n--- Summary ---")
-    print(f"  Output:   {output_path}")
-    print(f"  Events:   {n_events}")
-    print(f"  Subevents:{n_subevents}")
+    truncated = int((trk_arr > max_tracks).sum())
+    print(f"\n--- Summary --- Output: {output_path}")
     print(
-        f"  Tracks/sub  mean={trk_arr.mean():.1f}  "
-        f"median={np.median(trk_arr):.0f}  "
-        f"max={trk_arr.max()}  "
-        f"p99={np.percentile(trk_arr, 99):.0f}"
+        f"  Tracks/sub  mean={trk_arr.mean():.1f} median={np.median(trk_arr):.0f} "
+        f"max={trk_arr.max()} p99={np.percentile(trk_arr, 99):.0f} "
+        f"empty={(trk_arr == 0).sum()}/{trk_arr.size}"
     )
-    print(
-        f"  Empty subevents: {(trk_arr == 0).sum()} "
-        f"({100 * (trk_arr == 0).mean():.1f}%)"
-    )
-    target_y_part = (
+    if truncated:
+        print(
+            f"  WARNING: {truncated} subevents had > max_tracks={max_tracks} "
+            "tracks; extras dropped. Bump --max-tracks-per-sub."
+        )
+    ty_part = (
         f"target_y({n_events},{N_CATS},{TOTAL_BINS}) "
         if not skip_target_y
         else "target_y[skipped] "
@@ -409,10 +404,8 @@ def convert(
     print(
         f"  Datasets: tracks({n_subevents},{N_FEATURES},{max_tracks}) "
         f"target_y_split({n_subevents},{N_CATS},{SUBEVENT_BINS}) "
-        f"{target_y_part}"
-        f"pv({n_events},{max_pv})"
+        f"{ty_part}pv({n_events},{max_pv})  compression={compression}"
     )
-    print(f"  Compression: {compression}")
     on_disk_bytes = Path(output_path).stat().st_size
     print(f"  On-disk size: {on_disk_bytes / 1e9:.2f} GB")
 
@@ -435,8 +428,14 @@ def main() -> None:
     parser.add_argument(
         "--max-tracks-per-sub",
         type=int,
-        default=0,
-        help="Override max tracks per subevent (0 = auto-detect).",
+        default=1024,
+        help="Padded tracks-tensor width per subevent (0 = scan via Pass 1).",
+    )
+    parser.add_argument(
+        "--max-pv",
+        type=int,
+        default=300,
+        help="Padded pv-array width per event (0 = scan via Pass 1).",
     )
     parser.add_argument(
         "--chunk-size",
@@ -489,6 +488,7 @@ def main() -> None:
         args.output,
         max_events=args.max_events,
         max_tracks_override=args.max_tracks_per_sub,
+        max_pv_override=args.max_pv,
         chunk_size=args.chunk_size,
         compression=args.compression,
         skip_target_y=not args.keep_target_y,

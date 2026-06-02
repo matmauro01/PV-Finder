@@ -1953,3 +1953,45 @@ Conversion outputs will land at `data/run4/PU200_withTiming_h5/<name>.h5`.
 The user will launch the 8-way parallel conversion in tmux. New training
 config + step-count-based hyperparameter scaling lands in a follow-up
 commit.
+
+---
+
+## 2026-06-02 — Converter: vectorise subevent build + skip Pass 1 by default
+
+Cumulative converter optimisations after observing that sneezy was
+overloaded (load avg 118 on 96 cores from other users) and 8-way parallel
+conversions were running 13-17x slower than my isolated benchmark would
+predict. Two changes:
+
+1. **Vectorise `_build_subevent_tracks`** -> new
+   `_build_event_subevent_tracks`. The 12 boolean masks + 12 argsorts per
+   event become one global stable argsort + one `np.searchsorted` for the
+   12 subevent boundaries. Per-feature reordering done once instead of 12
+   times. Output: same set of tracks per subevent as before, but now with
+   *deterministic* tie-break ordering (the old per-subevent argsort was
+   quicksort, which depends on memory layout). Verified per-subevent
+   counts identical (918 179 / 918 179 live tracks on the 1000-event
+   smoke set) and contents bit-identical modulo within-subevent
+   ordering.
+
+2. **Skip Pass 1 by default.** CLI `--max-tracks-per-sub` default changed
+   from `0` (scan) to `1024`; new `--max-pv` default `300`. Historical
+   max across HL-LHC PU200 ROOTs is 774 tracks/subevent and ~200
+   PVs/event, so 1024 / 300 give comfortable headroom; LZF compresses
+   the unused padding to ~nothing. The full-tree Pass-1 scan is now
+   only run if the user explicitly passes `0`. Saves ~30-60 s per file
+   on top of ~12 % of total per-file time. If max_tracks is ever
+   exceeded at write time, the summary prints a `WARNING` line.
+
+End-to-end on a 1000-event slice (isolated machine):
+  pre-vectorise + Pass 1: ~2.8 ms/event
+  vectorised + skip Pass 1: ~2.6 ms/event
+
+Cumulative speedup from the very first version of the code: ~10x in
+isolation. Under heavy contention the per-process throughput shrinks
+but the relative gain still applies. Per-file projection under load
+should drop the user's currently-observed ~60 ms/event toward ~25-30
+ms/event.
+
+Also tightens the summary output: dataset shapes + max-tracks warning +
+on-disk size all on three lines.
