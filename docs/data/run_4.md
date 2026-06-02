@@ -104,3 +104,40 @@ Config: `configs/vertex_finding/config_hllhc_pu200_e2e.yml`.
 ## Beam spot
 
 Simulation is already centered; no beam-spot subtraction required (unlike Run 3).
+
+## PU200 *with timing* samples (`data/run4/PU200_withTiming/`)
+
+A larger re-production (~2.94 M events) that adds **HGTD timing** branches
+(`RecoTrack_Time`, `RecoTrack_TimeResolution`) on top of the standard branch set.
+Same `PVFinderData` tree and 7-channel track layout as the original PU200 file.
+
+| Sample (DSID) | r-tag(s) | files | events | pileup |
+|---|---|---|---|---|
+| 601229 ttbar SingleLep | r16438 | 1 | 99,800 | fixed μ = 200 |
+| 601229 ttbar SingleLep | r16443 | 1 | 100,000 | **flat μ ≈ 0–210** (mean ~100) |
+| 601229 ttbar SingleLep | r16633 | 1 | 99,800 | fixed μ = 200 |
+| 601229 ttbar SingleLep | r16638 | 1 | 99,800 | **flat μ ≈ 0–210** (mean ~100) |
+| 601237 ttbar all-hadronic | r16633 | 6 (`_1`..`_6`) | ~2,541,000 | fixed μ = 200 |
+
+**Use the fixed-μ=200 tags (r16438, r16633, 601237) for PU200 training.**
+r16443 / r16638 carry a flat pileup spectrum (a broad-μ sample, not "PU200").
+The per-*track* parameter shapes are identical across all tags; only the
+per-event pileup/multiplicity differs.
+
+### Timing branches
+
+- `-1` is the **no-timing sentinel**. Mask it (`Time > -0.999`) before using.
+- Only **~3.9 %** of tracks carry real timing — the HGTD covers the forward
+  region, and tracks here are capped at |η|<2.5, so only the |η| ≈ 2.4–2.5 edge
+  slice gets a time. Acceptance is 0 below |η|≈2.25, rising to ~70–100 % at 2.5.
+- Real `Time` ≈ 0 ± 0.2 ns; `TimeResolution` is discrete at ~20 / 25 / 35 ps
+  (HGTD hit-multiplicity layers).
+
+### QA
+
+`src/pv_finder/diagnostics/timing_data_qa.py` produces overlaid tracking-parameter
+distributions across all samples (+ the old no-timing file as reference). The
+2026-06-02 QA confirmed the data is healthy (see
+`outputs/06_02_2026_output/timing_data_qa/README.md`). Note: `RecoTrack_chisq`
+and `RecoVertex_chisq` are empty in these ntuples (pre-existing upstream
+non-fill, also empty in the original PU200 file).

@@ -1654,6 +1654,73 @@ Data: 99,800 events (838K training subevents), batch_size=128.
 
 ---
 
+## 2026-05-04 — v3 training: LR was too low, 3-GPU sweep launched
+
+### Initial v3 result
+
+v3 (3.55M params) trained at LR=5e-5 converged at the **same performance**
+as v2 (680K params, LR=1e-4). Loss plateaued after ~30 epochs. The 4 latent
+channels are diverse (inter-channel correlation 0.03) so the architecture is
+working — the model was simply under-learning due to conservative LR.
+
+### 3-GPU parallel sweep
+
+| Run | GPU | Strategy | Key settings |
+|-----|-----|----------|-------------|
+| A | 0 | Aggressive LR + warm restarts | LR=2e-4, Adam, cosine restart T0=50 |
+| B | 1 | SGD with momentum | LR=1e-4, SGD(m=0.9, wd=1e-4), cosine |
+| C | 2 | MSE + TV regularization | LR=1e-4, Adam, tv_lambda=0.1 |
+
+All reuse Phase 1 MLP weights. Early signal: Run A cut loss aggressively
+after 1 epoch (confirming LR diagnosis), Run B much slower (expected for SGD).
+
+### Open question: what if more capacity doesn't help?
+
+If Run A reaches the same plateau as v2 (just faster), it means the extra
+3.55M params don't improve over 680K. Three hypotheses for why:
+
+1. **Loss function bottleneck**: MSE has a fundamental best solution for
+   histogram prediction and both models can represent it. Run C (TV loss)
+   tests this — if a different loss creates a better minimum, MSE was the
+   ceiling.
+2. **Target bottleneck**: truth histograms use fixed-width Gaussians
+   (~0.15 mm). The labels don't contain finer information than what the
+   smaller model already learns.
+3. **Output resolution bottleneck**: 1000 bins/subevent (0.04 mm/bin) may
+   already be representable by 680K params. More params can't improve
+   what's already perfectly fit.
+
+Will evaluate at epoch 50-100 and explore further.
+
+---
+
+## 2026-05-04 — Peak classification study: track features don't help at PU200
+
+Investigated post-hoc peak classification to reduce fake rate (4.8%, 9892/208082
+peaks across 2500 HL-LHC PU200 events). Built 18-feature classifier combining
+track counts/quality, histogram shape, and neighborhood context.
+
+**Key result**: Track features add negligible AUC (+0.002) over histogram shape
+alone. Peak height is the dominant discriminator (53% importance). A simple
+height threshold of 0.05 achieves 96.1% real kept / 50.1% fake removed — nearly
+matching the full GBT classifier (96.6% / 62.7% at thr=0.7).
+
+**Why**: At PU200 with ~200 PVs and ~700 tracks, track density is ~1.5/mm
+everywhere. 17% of truth PVs have ≤2 tracks within ±0.5mm, making them
+indistinguishable from fakes by track count. Track uncertainties (z0_err, d0
+significance) also don't discriminate well — nearby tracks at fake positions
+have similar quality to those at real positions.
+
+**Conclusion**: Post-hoc track-based filtering is not the right approach for
+PU200 fake reduction. The real opportunity is in the model training:
+peak-aware loss, confidence head, or architectural changes.
+
+Script: `src/pv_finder/diagnostics/peak_classifier.py`
+Full analysis: `docs/research/peak_classification_study.md`
+Artifacts: `outputs/05_04_2026_output/peak_classifier_full/`
+
+---
+
 ## 2026-06-01 — AMVF z-resolution vs N_Tracks (Figure 12 reproduction)
 
 Rewrote `src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py` to use the
@@ -1678,15 +1745,27 @@ bin. `RecoVertex_ErrZ` being empty in the HL-LHC ntuples is irrelevant.
    tags). Requires `PYTHONPATH=/usr/local/anaconda3/lib/python3.8/site-packages`
    to find ROOT 6.24 — the script prepends this automatically.
 
-**Result (20 000 events, 1.71M matched pairs)**:
-- `a = 171.99 +/- 8.96 um`
-- `b = 0.7241 +/- 0.0179`
-- `c = 0.00 +/- 0.14 um`
+**Result (full file, 99 800 events, 8.52M matched pairs)**:
+- `a = 178.98 +/- 8.23 um` (= 0.179 mm)
+- `b = 0.7274 +/- 0.0142`
+- `c = 0.00 +/- 0.08 um`
 
 These are the (a, b, c) we will use to set per-vertex Gaussian widths for
-the target histograms in HL-LHC PV-Finder training. Matches the qualitative
-shape of ATL-PHYS-PUB-2023-011 Figure 12 (b ~ 0.7, no irreducible floor at
-PU200).
+the target histograms in HL-LHC PV-Finder training. They are notably
+**different from the Run 3 values** in the paper (~0.16 mm at n=2,
+i.e. ~1.6x wider) because the ITk has ~2x better per-track z0 resolution
+than the Run 3 Inner Detector. If the HL-LHC training currently uses
+Run-3 (a, b, c), the target-histogram Gaussians are too wide and should
+be regenerated with the values above.
+
+**Maximum truth N_Tracks in full file**: 168 (p99 = 40, p99.99 = 87).
+Only 30 truth vertices have N_Tracks >= 120 and only 3 have >= 140;
+the highest plotted bin is centered at N_Tracks ~ 120 (the [135, 170)
+bin gets dropped under the 30-vertex minimum for the Gaussian fit).
+
+Plot style mimics the ATL-PHYS-PUB Figure 12 reference plot:
+blue filled circles for data (with error bars), red solid power-law fit,
+ATLAS Simulation Preliminary label, "Data" / "Fit" legend, axes in mm.
 
 Deleted `sample_plotting_code.py` from repo root after extracting style cues.
 
@@ -1777,3 +1856,47 @@ preprocessing step.
 User will launch the regeneration in tmux to write
 `data/run4/hllhc_pu200_training_v2.h5` alongside the existing
 `hllhc_pu200_training.h5`.
+
+---
+
+## 2026-06-02 — QA of new PU200 *with-timing* data
+
+New larger dataset arrived in `data/run4/PU200_withTiming/` (~2.94 M events, 10
+files) adding HGTD timing branches (`RecoTrack_Time`, `RecoTrack_TimeResolution`)
+to the standard PVFinderData branch set. Built
+`src/pv_finder/diagnostics/timing_data_qa.py` to make basic tracking-parameter
+distributions and confirm the data is sane before training (colleague's request).
+
+The script overlays one curve per sample — the four 601229 reco tags (r16438 /
+r16443 / r16633 / r16638), the pooled 601237 all-hadronic sample (6 part files),
+and the old no-timing PU200 file as a known-good reference. It plots per-track
+kinematics + uncertainties, the timing branches (with the `-1` sentinel masked)
+plus timing-acceptance-vs-|η|, and event-level / truth-vertex sanity panels.
+`--pu200-only` filters to μ>100 for an apples-to-apples PU200 comparison.
+
+**Findings (5000 events/file):**
+
+1. **Data is healthy.** All per-track shapes (d0, z0, pT, η, φ, θ, ErrD0, ErrZ0,
+   d0/ErrD0) overlap across every sample and match the no-timing reference.
+   SingleLep vs all-hadronic differ only in a tiny high-pT tail — consistent with
+   the colleague's note that the process mix is irrelevant for our studies.
+
+2. **Timing branches correct.** `-1` = no-timing sentinel; ~3.9 % of tracks have
+   real timing, all at |η| ≈ 2.4–2.5 (HGTD forward edge; tracks capped at
+   |η|<2.5). Acceptance is 0 below |η|≈2.25. Real Time ≈ 0 ± 0.2 ns; TimeResolution
+   discrete at ~20/25/35 ps (HGTD hit-multiplicity layers).
+
+3. **Two reco tags are NOT fixed-PU200.** r16443 and r16638 carry a **flat
+   pileup spectrum (μ ≈ 0–210, mean ~100)** — ≈480 tracks/evt avg vs ≈922 for the
+   μ=200 tags (r16438, r16633, 601237). Per-track shapes are identical; only
+   per-event pileup differs. Decision: **use the fixed-μ=200 tags for PU200
+   training**; r16443/r16638 are a broad-μ sample (pileup-robustness studies).
+
+4. Other checks pass: BeamPosZ=0 (centred sim), truth-z Gaussian σ≈35 mm,
+   truth-nTracks falls smoothly. `RecoTrack_chisq` / `RecoVertex_chisq` are empty
+   in both new and old files (pre-existing upstream non-fill), excluded from plots.
+
+Outputs: `outputs/06_02_2026_output/timing_data_qa/` (raw) and
+`.../timing_data_qa_pu200only/` (μ>100), each with track/timing/event PNGs,
+`summary.json`, and a `README.md` write-up for the meeting.
+Updated `docs/data/run_4.md`.
