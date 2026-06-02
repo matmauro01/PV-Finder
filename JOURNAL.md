@@ -1900,3 +1900,56 @@ Outputs: `outputs/06_02_2026_output/timing_data_qa/` (raw) and
 `.../timing_data_qa_pu200only/` (μ>100), each with track/timing/event PNGs,
 `summary.json`, and a `README.md` write-up for the meeting.
 Updated `docs/data/run_4.md`.
+
+---
+
+## 2026-06-02 — Data pipeline: compression, skip target_y, multi-file training
+
+Three coordinated changes to prepare for training on the new ~2.74 M-event
+with-timing pool (8 fixed-μ=200 ROOTs):
+
+**1. Lossless compression in `root_to_h5.py`** —
+`--compression {lzf,gzip,none}` (default `lzf`). Smoke test on 200 events
+gave ~8.7x reduction. The padded `tracks` tensor is mostly the MASK_VAL
+constant in the unused tail of each subevent, which LZF compresses to
+near-nothing. No measurable decode overhead at read time. Compression
+filter recorded in `h5.attrs["compression"]`.
+
+**2. Skip the full-event `target_y` by default** — `--keep-target-y` is
+opt-in. The HL-LHC trainer reads only `target_y_split`; `target_y` is the
+biggest single chunk of disk waste at multi-million-event scale.
+`h5.attrs["has_target_y"]` records the choice.
+
+**3. Multi-file dataset support** — new factory
+`make_tracksHists_dataset(paths)` in `src/pv_finder/data/h5_dataset.py`.
+Accepts a single path (legacy) or a list. Per-file `max_tracks_per_subevent`
+read from `h5.attrs`, global max computed, each per-file
+`H5Dataset_tracksHists` right-pads tracks to that width at `__getitem__`
+time so PyTorch batches stack across files with different local maxes.
+Returns a `torch.utils.data.ConcatDataset`. Single-file path unchanged.
+
+Wired through `collect_data_poca_ATLAS` (`tracks-to-hist` branch). YAML
+`data_file:` can now be a string or a list of strings. Other data
+pipelines (KDE-to-hist, poca-to-KDE, etc.) untouched.
+
+Refactor: resolution presets dict moved out of `root_to_h5.py` into
+`src/pv_finder/data/resolution_presets.py` to keep `root_to_h5.py` under
+the 500-line pre-commit cap.
+
+**Subagent review caught one bug**: the `pv` dataset had the compression
+filter but no explicit `chunks=`, so h5py was picking automatic chunking.
+Fixed with `chunks=(min(1000, n_events), max_pv)`. Also added a
+shape-consistency check in `make_tracksHists_dataset` (raises if files
+disagree on `target_y_split.shape[1:]`).
+
+End-to-end smoke test: two 200-event compressed HDF5s with different
+local `max_tracks` (508 vs 476) → ConcatDataset of length 4800 → batch
+shapes `(B, 7, 508)` and `(B, 2, 1000)` → file-B padded tail is bit-equal
+MASK_VAL → file-B live range bit-equal to raw. Compression ratio confirmed
+8.5-8.7x lossless. `getTargetY()` raises a clear `KeyError` on
+`--skip-target-y` files.
+
+Conversion outputs will land at `data/run4/PU200_withTiming_h5/<name>.h5`.
+The user will launch the 8-way parallel conversion in tmux. New training
+config + step-count-based hyperparameter scaling lands in a follow-up
+commit.

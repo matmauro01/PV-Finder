@@ -141,3 +141,43 @@ distributions across all samples (+ the old no-timing file as reference). The
 `outputs/06_02_2026_output/timing_data_qa/README.md`). Note: `RecoTrack_chisq`
 and `RecoVertex_chisq` are empty in these ntuples (pre-existing upstream
 non-fill, also empty in the original PU200 file).
+
+## Scaling the converter for multi-sample training
+
+`root_to_h5.py` now supports two changes designed for the with-timing scale-up
+(~2.74 M fixed-μ=200 events across 8 ROOT files):
+
+- **`--compression {lzf,gzip,none}`** (default `lzf`). LZF compresses the
+  padded `tracks` tensor to roughly 1/8 of its raw size — most of the
+  bytes are the MASK_VAL constant in the unused tail of each subevent,
+  which compresses to near-nothing. Lossless; no measurable read-time
+  overhead.
+- **`--keep-target-y`** (off by default). The HL-LHC end-to-end trainer
+  only reads `target_y_split`; the full-event `target_y (N_evt, 2, 12000)`
+  is the largest single chunk of disk and isn't used. Skipping it cuts
+  another ~120 GB at the 2.74 M-event scale.
+
+Compression and the `has_target_y` flag are written to `h5.attrs` so each
+output file self-documents.
+
+### Multi-file training pool
+
+The training pipeline now accepts a list of HDF5 paths as `data_file`:
+
+```yaml
+# config_hllhc_pu200_e2e_v4.yml
+data_file:
+  - data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601229_e8481_s4494_r16438_PU200.h5
+  - data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601229_e8481_s4494_r16633_PU200.h5
+  - data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_1.h5
+  # ...
+```
+
+`make_tracksHists_dataset` in `src/pv_finder/data/h5_dataset.py` reads each
+file's `max_tracks_per_subevent` attribute, takes the global maximum, and
+right-pads tracks with the mask sentinel at `__getitem__` time so batches
+stack cleanly. Output is a single `torch.utils.data.ConcatDataset`. The
+train/val/test split logic is unchanged; it operates on the combined length.
+
+A single-string `data_file:` still works for legacy configs (no padding,
+no factory overhead).

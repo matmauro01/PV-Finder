@@ -40,27 +40,14 @@ MASK_VAL = -999999.0
 N_CATS = 2  # channel 0: nTracks>=2, channel 1: nTracks<2
 NTRK_THRESHOLD = 2
 
-# Resolution fit parameters: sigma_z(n) = A * n^(-B) + C  (units mm).
-#
-# Use --resolution-preset on the CLI to pick a preset, or override individually
-# with --a-res / --b-res / --c-res. New presets can be added here whenever a
-# new fit (on Run-3 data, a different MC sample, etc.) is produced by
-# src/pv_finder/diagnostics/amvf_resolution_vs_ntracks.py and saved to a
-# fit_params.json in outputs/. The chosen (A, B, C) are written to h5.attrs
-# so each produced HDF5 self-documents which resolution model it used.
-RESOLUTION_PRESETS: dict[str, tuple[float, float, float]] = {
-    # name: (A_mm, B, C_mm)
-    "hllhc": (0.17898, 0.7274, 0.0),
-    "run3": (0.23817443, 0.49491396, -0.000787436),
-}
-RESOLUTION_PRESET_SOURCES: dict[str, str] = {
-    "hllhc": "AMVF<->truth fit on HL-LHC PU200 ttbar (ITk), 99 800 events, "
-    "produced 2026-06-01 by amvf_resolution_vs_ntracks.py "
-    "(see outputs/06_01_2026_output/amvf_resolution_residuals/fit_params.json)",
-    "run3": "Run-3 fit from ResolutionFit_ATLAS.ipynb / "
-    "CreatingTargetHistogram.py upstream (ATLAS Inner Detector, mu~60).",
-}
-DEFAULT_RESOLUTION_PRESET = "hllhc"
+# Resolution fit parameters live in resolution_presets.py — see that module
+# to add a new preset. CLI exposes --resolution-preset (and --a/b/c-res for
+# one-off overrides). The chosen (A, B, C) are also written to h5.attrs.
+from pv_finder.data.resolution_presets import (  # noqa: E402
+    DEFAULT_RESOLUTION_PRESET,
+    RESOLUTION_PRESET_SOURCES,
+    RESOLUTION_PRESETS,
+)
 
 A_RES, B_RES, C_RES = RESOLUTION_PRESETS[DEFAULT_RESOLUTION_PRESET]
 
@@ -79,9 +66,7 @@ _EDGES = np.array([-BIN_WIDTH / 2, BIN_WIDTH / 2])
 _PROB_RANGE_TEMPLATE = BIN_WIDTH * _BIN_OFFSETS[np.newaxis, :] + _EDGES[:, np.newaxis]
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# --- Helpers ---
 
 
 def _norm_cdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
@@ -173,9 +158,7 @@ def _build_subevent_tracks(
     return tensor, n_trk
 
 
-# ---------------------------------------------------------------------------
-# First pass: determine MAX_TRACKS per subevent and MAX_PV
-# ---------------------------------------------------------------------------
+# --- First pass: determine MAX_TRACKS per subevent and MAX_PV ---
 
 
 def scan_dimensions(
@@ -215,9 +198,7 @@ def scan_dimensions(
     return n_total, max_trk_sub, max_pv
 
 
-# ---------------------------------------------------------------------------
-# Second pass: build arrays and write HDF5
-# ---------------------------------------------------------------------------
+# --- Second pass: build arrays and write HDF5 ---
 
 # Branches we actually need from the ROOT file
 _BRANCHES = [
@@ -231,14 +212,34 @@ _BRANCHES = [
 ]
 
 
+_COMPRESSION_KWARGS: dict[str, dict] = {
+    "none": {},
+    "lzf": {"compression": "lzf"},
+    "gzip": {"compression": "gzip", "compression_opts": 4, "shuffle": True},
+}
+
+
 def convert(
     input_path: str,
     output_path: str,
     max_events: int = 0,
     max_tracks_override: int = 0,
     chunk_size: int = 1000,
+    compression: str = "lzf",
+    skip_target_y: bool = True,
 ) -> None:
-    """Run the full ROOT -> HDF5 conversion."""
+    """Run the full ROOT -> HDF5 conversion.
+
+    ``compression``: HDF5 chunk filter ('lzf' default, 'gzip', or 'none').
+    ``skip_target_y``: omit the full-event target_y (HL-LHC trainer reads
+    only target_y_split — saves the biggest single chunk of disk).
+    """
+    if compression not in _COMPRESSION_KWARGS:
+        raise ValueError(
+            f"compression={compression!r} not in {sorted(_COMPRESSION_KWARGS)}"
+        )
+    comp_kw = _COMPRESSION_KWARGS[compression]
+
     tree = uproot.open(f"{input_path}:PVFinderData")
 
     # --- Pass 1: dimensions ---
@@ -264,24 +265,31 @@ def convert(
             dtype=np.float32,
             chunks=(min(120, n_subevents), N_FEATURES, max_tracks),
             fillvalue=MASK_VAL,
+            **comp_kw,
         )
         ds_ty_split = h5.create_dataset(
             "target_y_split",
             shape=(n_subevents, N_CATS, SUBEVENT_BINS),
             dtype=np.float16,
             chunks=(min(120, n_subevents), N_CATS, SUBEVENT_BINS),
+            **comp_kw,
         )
-        ds_ty = h5.create_dataset(
-            "target_y",
-            shape=(n_events, N_CATS, TOTAL_BINS),
-            dtype=np.float16,
-            chunks=(min(10, n_events), N_CATS, TOTAL_BINS),
-        )
+        ds_ty = None
+        if not skip_target_y:
+            ds_ty = h5.create_dataset(
+                "target_y",
+                shape=(n_events, N_CATS, TOTAL_BINS),
+                dtype=np.float16,
+                chunks=(min(10, n_events), N_CATS, TOTAL_BINS),
+                **comp_kw,
+            )
         ds_pv = h5.create_dataset(
             "pv",
             shape=(n_events, max_pv),
             dtype=np.float32,
+            chunks=(min(1000, n_events), max_pv),
             fillvalue=MASK_VAL,
+            **comp_kw,
         )
 
         # Store metadata
@@ -298,6 +306,8 @@ def convert(
         h5.attrs["resolution_b"] = float(B_RES)
         h5.attrs["resolution_c_mm"] = float(C_RES)
         h5.attrs["resolution_formula"] = "sigma_z(n) = A * n^(-B) + C  [mm]"
+        h5.attrs["compression"] = compression
+        h5.attrs["has_target_y"] = bool(not skip_target_y)
 
         # --- Pass 2: fill data ---
         evt_offset = 0
@@ -321,7 +331,11 @@ def convert(
             ty_split_buf = np.zeros(
                 (bsz * N_SUBEVENTS, N_CATS, SUBEVENT_BINS), dtype=np.float64
             )
-            ty_buf = np.zeros((bsz, N_CATS, TOTAL_BINS), dtype=np.float64)
+            ty_buf = (
+                np.zeros((bsz, N_CATS, TOTAL_BINS), dtype=np.float64)
+                if not skip_target_y
+                else None
+            )
             pv_buf = np.full((bsz, max_pv), MASK_VAL, dtype=np.float32)
 
             for i in range(bsz):
@@ -341,9 +355,11 @@ def convert(
                     tracks_buf[i * N_SUBEVENTS + si] = tensor
                     trk_counts.append(n_trk)
 
-                # -- Truth histogram (full event) --
+                # -- Truth histogram (full event); kept in scratch even when
+                #    we don't persist `target_y`, because we still split it. --
                 ty_full = _build_truth_histogram(pv_z, pv_ntrks)
-                ty_buf[i] = ty_full
+                if ty_buf is not None:
+                    ty_buf[i] = ty_full
 
                 # -- Split truth histogram into subevents --
                 for si in range(N_SUBEVENTS):
@@ -360,7 +376,8 @@ def convert(
             ds_ty_split[sub_offset : sub_offset + bsz * N_SUBEVENTS] = (
                 ty_split_buf.astype(np.float16)
             )
-            ds_ty[evt_offset : evt_offset + bsz] = ty_buf.astype(np.float16)
+            if ds_ty is not None and ty_buf is not None:
+                ds_ty[evt_offset : evt_offset + bsz] = ty_buf.astype(np.float16)
             ds_pv[evt_offset : evt_offset + bsz] = pv_buf
 
             evt_offset += bsz
@@ -382,17 +399,23 @@ def convert(
         f"  Empty subevents: {(trk_arr == 0).sum()} "
         f"({100 * (trk_arr == 0).mean():.1f}%)"
     )
+    target_y_part = (
+        f"target_y({n_events},{N_CATS},{TOTAL_BINS}) "
+        if not skip_target_y
+        else "target_y[skipped] "
+    )
     print(
         f"  Datasets: tracks({n_subevents},{N_FEATURES},{max_tracks}) "
         f"target_y_split({n_subevents},{N_CATS},{SUBEVENT_BINS}) "
-        f"target_y({n_events},{N_CATS},{TOTAL_BINS}) "
+        f"{target_y_part}"
         f"pv({n_events},{max_pv})"
     )
+    print(f"  Compression: {compression}")
+    on_disk_bytes = Path(output_path).stat().st_size
+    print(f"  On-disk size: {on_disk_bytes / 1e9:.2f} GB")
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# --- CLI ---
 
 
 def main() -> None:
@@ -423,29 +446,25 @@ def main() -> None:
         "--resolution-preset",
         choices=sorted(RESOLUTION_PRESETS),
         default=DEFAULT_RESOLUTION_PRESET,
-        help=(
-            "Named (A, B, C) resolution preset. Default is 'hllhc'. "
-            "Use 'run3' to reproduce the legacy ResolutionFit_ATLAS.ipynb "
-            "values. Add new presets to RESOLUTION_PRESETS in this file."
-        ),
+        help="Named (A, B, C) preset; see resolution_presets.py.",
+    )
+    parser.add_argument("--a-res", type=float, default=None,
+                        help="Override A (mm).")  # fmt: skip
+    parser.add_argument("--b-res", type=float, default=None,
+                        help="Override B.")  # fmt: skip
+    parser.add_argument("--c-res", type=float, default=None,
+                        help="Override C (mm).")  # fmt: skip
+    parser.add_argument(
+        "--compression",
+        choices=sorted(_COMPRESSION_KWARGS),
+        default="lzf",
+        help="HDF5 chunk filter. 'lzf' (default, fast lossless), 'gzip', 'none'.",
     )
     parser.add_argument(
-        "--a-res",
-        type=float,
-        default=None,
-        help="Override the A coefficient (mm) of the preset.",
-    )
-    parser.add_argument(
-        "--b-res",
-        type=float,
-        default=None,
-        help="Override the B exponent of the preset.",
-    )
-    parser.add_argument(
-        "--c-res",
-        type=float,
-        default=None,
-        help="Override the C floor (mm) of the preset.",
+        "--keep-target-y",
+        action="store_true",
+        help="Also write the full-event target_y; off by default (trainer "
+        "uses target_y_split only).",
     )
     args = parser.parse_args()
 
@@ -469,6 +488,8 @@ def main() -> None:
         max_events=args.max_events,
         max_tracks_override=args.max_tracks_per_sub,
         chunk_size=args.chunk_size,
+        compression=args.compression,
+        skip_target_y=not args.keep_target_y,
     )
 
 

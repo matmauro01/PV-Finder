@@ -16,8 +16,8 @@ from pv_finder.data.h5_dataset import (
     H5Dataset_kdeHists,
     H5Dataset_pocaHists,
     H5Dataset_pocaKDE,
-    H5Dataset_tracksHists,
     H5Dataset_tracksKDE,
+    make_tracksHists_dataset,
 )
 from pv_finder.utils.utilities import Timer
 
@@ -62,8 +62,17 @@ def collect_data_poca_ATLAS(
         print("Preparing dataset for KDE to Hists")
         dataset = H5Dataset_kdeHists(filepath)
     elif data_pipeline == "tracks-to-hist":
-        print("Preparing dataset for tracks to Hists")
-        dataset = H5Dataset_tracksHists(filepath)
+        # filepath may be a single path or a list of paths (multi-file pool).
+        # The factory handles both; multi-file builds a ConcatDataset and pads
+        # tracks to the global max_tracks_per_subevent so batches stack.
+        if isinstance(filepath, str):
+            print("Preparing dataset for tracks to Hists")
+        else:
+            print(
+                f"Preparing tracks-to-Hists multi-file dataset over "
+                f"{len(filepath)} files"
+            )
+        dataset = make_tracksHists_dataset(filepath)
     elif data_pipeline == "poca-to-KDE":
         print("Preparing dataset for poca variables to KDE")
         dataset = H5Dataset_pocaKDE(filepath)

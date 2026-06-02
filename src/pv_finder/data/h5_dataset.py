@@ -1,5 +1,13 @@
+from __future__ import annotations
+
+from typing import Sequence
+
 import h5py
-from torch.utils.data import Dataset
+import numpy as np
+from torch.utils.data import ConcatDataset, Dataset
+
+# Mask sentinel for padded track slots — must match `MASK_VAL` in root_to_h5.py.
+_TRACK_MASK_VAL = -999999.0
 
 
 # H5 class to expedite DataLoading process for tracks to KDE
@@ -52,33 +60,69 @@ class H5Dataset_tracksKDE(Dataset):
 
 # H5 class to expedite DataLoading process for tracks to hists
 class H5Dataset_tracksHists(Dataset):
-    def __init__(self, filename):
-        self.filename = filename
+    """Per-file tracks->hist dataset.
 
+    Tolerates files produced with ``--skip-target-y`` (no full-event
+    ``target_y`` dataset). Accepts an optional ``target_max_tracks``: when
+    set and larger than the file's own ``max_tracks_per_subevent``, the
+    returned ``tracks`` tensor is right-padded with the mask sentinel to
+    that width so it stacks cleanly with items from other files in a
+    ``ConcatDataset`` batch.
+    """
+
+    def __init__(self, filename, target_max_tracks: int | None = None):
+        self.filename = filename
         with h5py.File(filename, "r") as dataset:
-            self.tracks = dataset["tracks"]
-            self.target_y = dataset["target_y"]
-            self.target_y_split = dataset["target_y_split"]
-            self.pv = dataset["pv"]
-            self.dataset_len = len(self.tracks)
+            self.dataset_len = len(dataset["tracks"])
+            self._local_max_tracks = int(dataset["tracks"].shape[-1])
+            self._has_target_y = "target_y" in dataset
+        if target_max_tracks is not None and target_max_tracks < self._local_max_tracks:
+            raise ValueError(
+                f"target_max_tracks={target_max_tracks} is smaller than this "
+                f"file's stored max_tracks_per_subevent={self._local_max_tracks} "
+                f"({filename}); refusing to truncate tracks."
+            )
+        self._target_max_tracks = target_max_tracks
 
     def __len__(self):
         return self.dataset_len
+
+    def _pad_tracks(self, tracks: np.ndarray) -> np.ndarray:
+        """Right-pad the last axis to ``self._target_max_tracks`` with MASK_VAL."""
+        if (
+            self._target_max_tracks is None
+            or tracks.shape[-1] == self._target_max_tracks
+        ):
+            return tracks
+        out = np.full(
+            tracks.shape[:-1] + (self._target_max_tracks,),
+            _TRACK_MASK_VAL,
+            dtype=tracks.dtype,
+        )
+        out[..., : tracks.shape[-1]] = tracks
+        return out
 
     # Returns desired batch size of datafile
     def __getitem__(self, idx):
         with h5py.File(self.filename, "r") as dataset:
             tracks = dataset["tracks"][idx]
             target_y_split = dataset["target_y_split"][idx]
+        tracks = self._pad_tracks(tracks)
         return tracks, target_y_split
 
     # Getter functions for each of the variables
     def getTracks(self, idx):
         with h5py.File(self.filename, "r") as dataset:
             tracks = dataset["tracks"][idx]
-        return tracks
+        return self._pad_tracks(tracks)
 
     def getTargetY(self, idx):
+        if not self._has_target_y:
+            raise KeyError(
+                f"{self.filename} was produced with --skip-target-y; "
+                "full-event target_y is not in this file. Use "
+                "getTargetY_split() instead."
+            )
         with h5py.File(self.filename, "r") as dataset:
             target_y = dataset["target_y"][idx]
         return target_y
@@ -92,6 +136,49 @@ class H5Dataset_tracksHists(Dataset):
         with h5py.File(self.filename, "r") as dataset:
             pv = dataset["pv"][idx]
         return pv
+
+
+def make_tracksHists_dataset(
+    paths: str | Sequence[str],
+) -> Dataset:
+    """Build a tracks->hist dataset from one or many HDF5 files.
+
+    Single path: returns a plain ``H5Dataset_tracksHists``.
+    List of paths: opens each file's ``max_tracks_per_subevent`` attribute,
+    determines the global max, builds a per-file dataset that right-pads
+    tracks to that width, and returns a ``ConcatDataset`` so the trainer
+    can iterate them as one stream. ``target_y_split`` has identical shape
+    across files (always (2, 1000)) so it needs no padding.
+    """
+    if isinstance(paths, str):
+        return H5Dataset_tracksHists(paths)
+
+    paths = list(paths)
+    if not paths:
+        raise ValueError("make_tracksHists_dataset: empty path list")
+    if len(paths) == 1:
+        return H5Dataset_tracksHists(paths[0])
+
+    per_file_max: list[int] = []
+    ty_split_shape: tuple[int, ...] | None = None
+    for p in paths:
+        with h5py.File(p, "r") as f:
+            local = f.attrs.get("max_tracks_per_subevent")
+            if local is None:
+                local = int(f["tracks"].shape[-1])
+            per_file_max.append(int(local))
+            this_shape = tuple(int(s) for s in f["target_y_split"].shape[1:])
+            if ty_split_shape is None:
+                ty_split_shape = this_shape
+            elif this_shape != ty_split_shape:
+                raise ValueError(
+                    f"target_y_split shape mismatch across files: "
+                    f"{ty_split_shape} vs {this_shape} in {p}"
+                )
+    global_max = max(per_file_max)
+    return ConcatDataset(
+        [H5Dataset_tracksHists(p, target_max_tracks=global_max) for p in paths]
+    )
 
 
 # H5 class to expedite DataLoading process for kde to hists
