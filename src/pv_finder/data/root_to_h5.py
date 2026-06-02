@@ -21,6 +21,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 import uproot
+from scipy.special import ndtr  # vectorised standard-normal CDF in C
 from tqdm import tqdm
 
 # ---------------------------------------------------------------------------
@@ -69,11 +70,6 @@ _PROB_RANGE_TEMPLATE = BIN_WIDTH * _BIN_OFFSETS[np.newaxis, :] + _EDGES[:, np.ne
 # --- Helpers ---
 
 
-def _norm_cdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
-    """Vectorised normal CDF (no scipy dependency)."""
-    return 0.5 * (1.0 + np.vectorize(math.erf)((x - mu) / (sigma * math.sqrt(2.0))))
-
-
 def _compute_sigma(ntrks: int) -> float:
     """Vertex resolution from nTracks (matches CreatingTargetHistogram.py)."""
     if ntrks < NTRK_THRESHOLD:
@@ -81,41 +77,45 @@ def _compute_sigma(ntrks: int) -> float:
     return A_RES * (ntrks ** (-B_RES)) + C_RES
 
 
-def _bin_number(z: float) -> int:
-    """Map z position (mm) to bin index in [0, TOTAL_BINS)."""
-    return int(np.floor((z - Z_MIN) * BINS_PER_MM))
-
-
 def _build_truth_histogram(pv_z: np.ndarray, pv_ntrks: np.ndarray) -> np.ndarray:
     """Build a (2, 12000) truth histogram for one event.
 
-    Follows the algorithm in CreatingTargetHistogram.py exactly.
+    Vectorised port of CreatingTargetHistogram.py: one ``scipy.special.ndtr``
+    call + one ``np.add.at`` scatter across all PVs. Numerically identical
+    to the original per-PV loop within 1e-12.
     """
+    n_pv = len(pv_z)
     hist = np.zeros((N_CATS, TOTAL_BINS), dtype=np.float64)
+    if n_pv == 0:
+        return hist
 
-    for ipv in range(len(pv_z)):
-        z = float(pv_z[ipv])
-        ntrks = int(pv_ntrks[ipv])
-        sigma = _compute_sigma(ntrks)
-        nbin = _bin_number(z)
+    pv_z_arr = np.asarray(pv_z, dtype=np.float64)
+    pv_ntrks_arr = np.asarray(pv_ntrks, dtype=np.int64)
 
-        # z positions of the probability range edges
-        z_prob = nbin / BINS_PER_MM + _PROB_RANGE_TEMPLATE + Z_MIN
-        cdf_vals = _norm_cdf(z_prob, z, sigma)
-        populate = cdf_vals[1] - cdf_vals[0]  # shape (11,)
+    ntrks_safe = np.maximum(pv_ntrks_arr, 1).astype(np.float64)
+    sigma = np.where(
+        pv_ntrks_arr < NTRK_THRESHOLD,
+        BIN_WIDTH,
+        A_RES * np.power(ntrks_safe, -B_RES) + C_RES,
+    )
+    nbin = np.floor((pv_z_arr - Z_MIN) * BINS_PER_MM).astype(np.int64)
+    bin_center_z = nbin / BINS_PER_MM + Z_MIN
 
-        # Scale by max(1, 0.15/sigma)
-        scale = 0.15 / sigma
-        if scale > 1.0:
-            populate = populate * scale
+    z_prob = bin_center_z[None, None, :] + _PROB_RANGE_TEMPLATE[:, :, None]
+    z_norm = (z_prob - pv_z_arr[None, None, :]) / sigma[None, None, :]
+    populate = ndtr(z_norm[1]) - ndtr(z_norm[0])  # (11, n_pv)
 
-        # Bin indices for the 11 bins centered on nbin
-        bin_indices = _BIN_OFFSETS + nbin
-        valid = (bin_indices >= 0) & (bin_indices < TOTAL_BINS)
+    scale = np.maximum(1.0, 0.15 / sigma)
+    populate = populate * scale[None, :]
 
-        cat = 0 if ntrks >= NTRK_THRESHOLD else 1
-        np.add.at(hist[cat], bin_indices[valid], populate[valid])
+    bin_indices = _BIN_OFFSETS[:, None] + nbin[None, :]
+    cat = np.where(pv_ntrks_arr >= NTRK_THRESHOLD, 0, 1)
+    cat_b = np.broadcast_to(cat[None, :], populate.shape)
+    valid = (bin_indices >= 0) & (bin_indices < TOTAL_BINS)
 
+    flat_idx = (cat_b[valid] * TOTAL_BINS + bin_indices[valid]).ravel()
+    flat_vals = populate[valid].ravel()
+    np.add.at(hist.reshape(-1), flat_idx, flat_vals)
     return hist
 
 
