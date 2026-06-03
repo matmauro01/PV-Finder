@@ -28,6 +28,11 @@ from pv_finder.data.collectdata_poca_KDE import (
 )
 from pv_finder.models.autoencoder_models import MaskedDNN, trackstoHists_UNet_1000
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2
+from pv_finder.training.mini_val import (
+    mini_val_full,
+    mini_val_mse,
+    prefetch_val_batches,
+)
 from pv_finder.training.train_mlp_hist_then_e2e import (
     _squeeze_hist,
     forward_mlp_hist,
@@ -95,12 +100,7 @@ def _tv_loss(pred: torch.Tensor) -> torch.Tensor:
 
 
 def build_phase2_scheduler(
-    optimizer,
-    warmup_epochs,
-    total_epochs,
-    base_lr,
-    eta_min_frac,
-    warm_restarts_t0=0,
+    optimizer, warmup_epochs, total_epochs, base_lr, eta_min_frac, warm_restarts_t0=0
 ):
     """Linear warmup -> cosine decay. Optionally cosine with warm restarts."""
     eta_min = base_lr * eta_min_frac
@@ -157,15 +157,8 @@ def _phase1_forward(model: nn.Module, inputs: torch.Tensor) -> torch.Tensor:
 
 
 def train_phase1_epoch(
-    model: nn.Module,
-    loader,
-    optimizer: torch.optim.Optimizer,
-    loss_fn: nn.Module,
-    device: torch.device,
-    epoch_idx: int,
-    max_norm: float | None,
-    log_every: int = 500,
-) -> float:
+    model, loader, optimizer, loss_fn, device, epoch_idx, max_norm, log_every=500
+):
     model.train()
     total = 0.0
     win_sum, win_n = 0.0, 0
@@ -265,16 +258,19 @@ def run_phase1(
 
 # --- Phase 2: full E2E with LR schedule + grad clipping ---
 def train_phase2_epoch(
-    model: nn.Module,
+    model,
     loader,
-    optimizer: torch.optim.Optimizer,
-    loss_fn: nn.Module,
-    device: torch.device,
-    epoch_idx: int,
-    max_norm: float | None,
-    tv_lambda: float = 0.0,
-    log_every: int = 500,
-) -> float:
+    optimizer,
+    loss_fn,
+    device,
+    epoch_idx,
+    max_norm,
+    tv_lambda=0.0,
+    log_every=500,
+    mini_val_cache=None,
+    mini_val_every=0,
+    mini_val_eff_every=0,
+):
     model.train()
     total = 0.0
     win_sum, win_n = 0.0, 0
@@ -301,6 +297,21 @@ def train_phase2_epoch(
             mlflow.log_metric("p2_train_loss_step", win_sum / win_n, step=gstep)
             mlflow.log_metric("p2_lr", optimizer.param_groups[0]["lr"], step=gstep)
             win_sum, win_n = 0.0, 0
+        if (
+            mini_val_cache
+            and mini_val_eff_every > 0
+            and gstep % mini_val_eff_every == 0
+        ):
+            vl, eff = mini_val_full(model, mini_val_cache, loss_fn, device)
+            mlflow.log_metric("p2_val_loss_step", vl, step=gstep)
+            mlflow.log_metric("p2_eff_step", eff.eff_rate, step=gstep)
+            mlflow.log_metric("p2_fpr_step", eff.fp_rate, step=gstep)
+        elif mini_val_cache and mini_val_every > 0 and gstep % mini_val_every == 0:
+            mlflow.log_metric(
+                "p2_val_loss_step",
+                mini_val_mse(model, mini_val_cache, loss_fn, device),
+                step=gstep,
+            )
         pbar.set_postfix({"loss": f"{total / (step + 1):.6f}"})
     return total / len(loader)
 
@@ -348,6 +359,18 @@ def run_phase2(
     LOGGER.info("P2 | %d ep | lr=%g | %s | %s | clip=%s | tv=%g",
                 n_epochs, base_lr, opt_name, sched, max_norm, tv_lambda)  # fmt: skip
     log_every = int(configs.get("log_every_n_steps", 500))
+    mini_val_every = int(configs.get("mini_val_every_n_steps", 0))
+    mini_val_eff_every = int(configs.get("mini_val_eff_every_n_steps", 0))
+    mini_val_n_batches = int(configs.get("mini_val_n_batches", 30))
+    mini_val_cache: list = []
+    if mini_val_every > 0 or mini_val_eff_every > 0:
+        mini_val_cache = prefetch_val_batches(val_loader, mini_val_n_batches)
+        LOGGER.info(
+            "Mini-val cache: %d batches | MSE every %d steps | full eff every %d steps",
+            len(mini_val_cache),
+            mini_val_every,
+            mini_val_eff_every,
+        )
     best_val, best_ep = float("inf"), 0
     for ep in range(1, n_epochs + 1):
         tr = train_phase2_epoch(
@@ -360,6 +383,9 @@ def run_phase2(
             max_norm,
             tv_lambda,
             log_every,
+            mini_val_cache,
+            mini_val_every,
+            mini_val_eff_every,
         )
         va, eff = validate_phase2_epoch(model, val_loader, loss_fn, device)
         scheduler.step()

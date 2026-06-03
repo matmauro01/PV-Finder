@@ -37,7 +37,10 @@ train_split: [0.96, 0.03, 0.01]   # globally shuffled before partition
 batch_size: 256               # bumped from 128 on 2026-06-03 (free VRAM ~27 GB on GPU 1)
 num_workers: 16               # softened from 24; sneezy CPU load avg ~120/96
 prefetch_factor: 4
-log_every_n_steps: 500        # MLflow step-level train_loss+lr cadence
+log_every_n_steps: 500            # MLflow step-level train_loss+lr cadence
+mini_val_every_n_steps: 2000      # MSE-only mini-val (~1.5% overhead)
+mini_val_eff_every_n_steps: 20000 # MSE+eff+FPR mini-val (~2% overhead)
+mini_val_n_batches: 30            # cached val subset size (~250 MB)
 
 max_grad_norm: 1.0
 
