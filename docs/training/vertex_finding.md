@@ -115,12 +115,38 @@ from `train_mlp_hist_then_e2e.py` to avoid duplication.
 | `config_hllhc_pu200_e2e.yml` | B (HLLHC v1) | 50+400 epochs, HLLHC PU200 — **diverged**, kept for reference |
 | `config_hllhc_pu200_e2e_v2.yml` | B (HLLHC v2) | 50+400 epochs, Phase 2 lr=1e-4 + warmup + cosine + grad clip, 96-ch UNet, 128-node MLP |
 | `config_KDE2HIST_v2.yml` | A step 2 (v2) | 200 epochs, lr=0.0001, UNet_1000_v2 |
+| `config_hllhc_pu200_e2e_v3.yml` | B (HLLHC v3) | 50+200 epochs, 280-ch UNet (3.55M params), 4-ch latent, lr=1e-4, ~100k events |
+| `config_hllhc_pu200_e2e_v4.yml` | B (HLLHC v4) | **3+25 epochs**, multi-file ConcatDataset over 8 fixed-μ=200 ROOTs (**2.74M events**), `hllhc` resolution preset, global shuffle, persistent_workers, GPU 1, num_workers=16 |
 
 ## MLflow
 
-Experiment tracking via MLflow. Logs: loss, validation loss, efficiency, FPR, model weights.
+Experiment tracking via MLflow. Logs: train + val loss every epoch, efficiency, FPR, model weights, and the config + script as artifacts.
 
-Tracking URI: `file:<repo_root>/mlruns`
+Tracking URI: `file:<repo_root>/mlruns` (hardcoded in `train_hllhc_e2e.py`).
+
+### View the dashboard
+
+Run on sneezy in any spare shell:
+
+```bash
+source venv/bin/activate
+mlflow ui \
+    --backend-store-uri file:/data/home/matmauro/codice/PV-Finder/mlruns \
+    --host 0.0.0.0 --port 5050
+```
+
+Then from your laptop:
+
+```bash
+ssh -L 5050:localhost:5050 matmauro@sneezy
+```
+
+And open <http://localhost:5050> in a browser. The v4 run shows up under experiment
+**"HLLHC PU200 — E2E v4 (2.74M events, with-timing pool)"** with run name
+`hllhc_pu200_e2e_v4_2.7M_280ch_4lat_lr1e4`. Phase 1 metrics are
+`Train: Phase 1 loss` / `Val: Phase 1 loss`; Phase 2 metrics are
+`Train: Phase 2 loss` / `Val: Phase 2 loss` (+ `Val: efficiency`,
+`Val: FP rate` once they're populated by the per-epoch validator).
 
 ## Performance Targets
 

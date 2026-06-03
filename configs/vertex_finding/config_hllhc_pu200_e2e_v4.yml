@@ -37,6 +37,7 @@ train_split: [0.96, 0.03, 0.01]   # globally shuffled before partition
 batch_size: 128
 num_workers: 16               # softened from 24; sneezy CPU load avg ~120/96
 prefetch_factor: 4
+log_every_n_steps: 500        # MLflow step-level train_loss+lr cadence (~3 min at bs=128)
 
 max_grad_norm: 1.0
 

@@ -1,7 +1,6 @@
-"""HLLHC PU200 E2E training with Phase 1 MLP warmup + Phase 2 full E2E.
+"""HLLHC PU200 E2E training: Phase 1 (MLP warmup) + Phase 2 (full E2E).
 
-Supports v1 (trackstoHists_UNet_1000) and v2 (TracksToHist_v2) architectures,
-Adam/SGD optimizers, cosine/warm-restart LR schedules, and optional TV loss.
+Supports v1/v2 archs, Adam/SGD, cosine/warm-restart, optional TV loss.
 """
 
 from __future__ import annotations
@@ -51,16 +50,12 @@ def setup_logging(log_folder: Path, runname: str) -> Path:
     log_folder.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = log_folder / f"{runname}_{timestamp}.log"
-
     LOGGER.setLevel(logging.INFO)
     LOGGER.handlers.clear()
     fmt = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    sh = logging.StreamHandler(sys.stdout)
-    sh.setFormatter(fmt)
-    LOGGER.addHandler(sh)
-    fh = logging.FileHandler(log_path)
-    fh.setFormatter(fmt)
-    LOGGER.addHandler(fh)
+    for handler in (logging.StreamHandler(sys.stdout), logging.FileHandler(log_path)):
+        handler.setFormatter(fmt)
+        LOGGER.addHandler(handler)
     return log_path
 
 
@@ -96,35 +91,31 @@ def build_model(configs: dict, device: torch.device) -> nn.Module:
 
 
 def _tv_loss(pred: torch.Tensor) -> torch.Tensor:
-    """Total variation loss: penalizes high-frequency oscillations (sidelobes)."""
     return torch.mean(torch.abs(pred[:, 1:] - pred[:, :-1]))
 
 
 def build_phase2_scheduler(
-    optimizer: torch.optim.Optimizer,
-    warmup_epochs: int,
-    total_epochs: int,
-    base_lr: float,
-    eta_min_frac: float,
-    warm_restarts_t0: int = 0,
-) -> torch.optim.lr_scheduler.LRScheduler:
-    """Linear warmup then cosine decay. Optionally with warm restarts."""
+    optimizer,
+    warmup_epochs,
+    total_epochs,
+    base_lr,
+    eta_min_frac,
+    warm_restarts_t0=0,
+):
+    """Linear warmup -> cosine decay. Optionally cosine with warm restarts."""
     eta_min = base_lr * eta_min_frac
     if warm_restarts_t0 > 0:
-        # Cosine with warm restarts (no linear warmup — restart handles it)
         return CosineAnnealingWarmRestarts(
             optimizer, T_0=warm_restarts_t0, T_mult=1, eta_min=eta_min
         )
     if warmup_epochs > 0:
-        warmup = LinearLR(
+        w = LinearLR(
             optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs
         )
-        cosine = CosineAnnealingLR(
+        c = CosineAnnealingLR(
             optimizer, T_max=max(1, total_epochs - warmup_epochs), eta_min=eta_min
         )
-        return SequentialLR(
-            optimizer, schedulers=[warmup, cosine], milestones=[warmup_epochs]
-        )
+        return SequentialLR(optimizer, schedulers=[w, c], milestones=[warmup_epochs])
     return CosineAnnealingLR(optimizer, T_max=total_epochs, eta_min=eta_min)
 
 
@@ -137,40 +128,27 @@ def _clip_and_step(
     optimizer.step()
 
 
-def _noop_progress(iterable, **_kwargs):
-    return iterable
-
-
 def _is_v2(model: nn.Module) -> bool:
     return isinstance(model, TracksToHist_v2)
 
 
 def _get_param_groups_v2(model: TracksToHist_v2):
-    """Separate MLP (t2kde) and UNet (k2h) parameters for v2 models."""
     return list(model.t2kde.parameters()), list(model.k2h.parameters())
 
 
 def _forward_mlp_v2(model: TracksToHist_v2, inputs: torch.Tensor) -> torch.Tensor:
-    """Phase 1 forward: run only the MLP (t2kde) part of a v2 model."""
     kde = model.t2kde(inputs)  # (B, n_latent * 1000)
     return kde.view(kde.shape[0], model.n_latent, 1000)  # (B, n_latent, 1000)
 
 
 def _load_model_state(path: str, model: nn.Module) -> int:
-    """Load only the model_state from a fullstate checkpoint.
-
-    Skips optimizer_state. Used to resume Phase 2 from a Phase 1 checkpoint
-    whose optimizer covers a different set of parameters (MLP-only) than the
-    Phase 2 optimizer (full model).
-    """
+    """Load model_state only (skip optimizer_state); resumes P2 from P1 ckpt."""
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
     model.load_state_dict(ckpt["model_state"])
     return int(ckpt.get("epoch", -1))
 
 
-# ---------------------------------------------------------------------------
-# Phase 1: MLP warmup (UNet frozen)
-# ---------------------------------------------------------------------------
+# --- Phase 1: MLP warmup (UNet frozen) ---
 def _phase1_forward(model: nn.Module, inputs: torch.Tensor) -> torch.Tensor:
     """Phase 1 MLP-only forward, dispatching by model type."""
     if _is_v2(model):
@@ -186,10 +164,15 @@ def train_phase1_epoch(
     device: torch.device,
     epoch_idx: int,
     max_norm: float | None,
+    log_every: int = 500,
 ) -> float:
     model.train()
     total = 0.0
-    pbar = tqdm(loader, desc=f"P1 E{epoch_idx}", leave=False, ncols=100)
+    win_sum, win_n = 0.0, 0
+    n_per = len(loader)
+    pbar = tqdm(
+        loader, desc=f"P1 E{epoch_idx}", leave=False, ncols=100, mininterval=2.0
+    )
     for step, (inputs, target_split) in enumerate(pbar):
         inputs = inputs.to(device).float()
         target_hist = target_split.to(device).float()[:, 0, :]
@@ -198,7 +181,15 @@ def train_phase1_epoch(
         loss = loss_fn(pred, target_hist)
         loss.backward()
         _clip_and_step(model, optimizer, max_norm)
-        total += loss.item()
+        L = loss.item()
+        total += L
+        win_sum += L
+        win_n += 1
+        gstep = (epoch_idx - 1) * n_per + step + 1
+        if log_every > 0 and gstep % log_every == 0:
+            mlflow.log_metric("p1_train_loss_step", win_sum / win_n, step=gstep)
+            mlflow.log_metric("p1_lr", optimizer.param_groups[0]["lr"], step=gstep)
+            win_sum, win_n = 0.0, 0
         pbar.set_postfix({"loss": f"{total / (step + 1):.6f}"})
     return total / len(loader)
 
@@ -236,19 +227,19 @@ def run_phase1(
     save_freq = configs["save_frequency"]
     runname = configs["runname"]
 
-    LOGGER.info("=" * 80)
     LOGGER.info(
-        "PHASE 1 — MLP warmup | %d epochs | lr=%g | grad_clip=%s",
+        "=" * 80
+        + "\nPHASE 1 — MLP warmup | %d epochs | lr=%g | grad_clip=%s\n"
+        + "=" * 80,
         n_epochs,
         configs["phase1_learning_rate"],
         max_norm,
     )
-    LOGGER.info("=" * 80)
-
+    log_every = int(configs.get("log_every_n_steps", 500))
     best_val, best_ep = float("inf"), 0
     for ep in range(1, n_epochs + 1):
         tr = train_phase1_epoch(
-            model, train_loader, optimizer, loss_fn, device, ep, max_norm
+            model, train_loader, optimizer, loss_fn, device, ep, max_norm, log_every
         )
         va = validate_phase1_epoch(model, val_loader, loss_fn, device)
         LOGGER.info("P1 Ep %d/%d | train=%.6f | val=%.6f", ep, n_epochs, tr, va)
@@ -272,9 +263,7 @@ def run_phase1(
         p.requires_grad = True
 
 
-# ---------------------------------------------------------------------------
-# Phase 2: full E2E with LR schedule + grad clipping
-# ---------------------------------------------------------------------------
+# --- Phase 2: full E2E with LR schedule + grad clipping ---
 def train_phase2_epoch(
     model: nn.Module,
     loader,
@@ -284,10 +273,15 @@ def train_phase2_epoch(
     epoch_idx: int,
     max_norm: float | None,
     tv_lambda: float = 0.0,
+    log_every: int = 500,
 ) -> float:
     model.train()
     total = 0.0
-    pbar = tqdm(loader, desc=f"P2 E{epoch_idx}", leave=False, ncols=100)
+    win_sum, win_n = 0.0, 0
+    n_per = len(loader)
+    pbar = tqdm(
+        loader, desc=f"P2 E{epoch_idx}", leave=False, ncols=100, mininterval=2.0
+    )
     for step, (inputs, labels) in enumerate(pbar):
         inputs = inputs.to(device).float()
         labels = labels.to(device).float()
@@ -298,7 +292,15 @@ def train_phase2_epoch(
             loss = loss + tv_lambda * _tv_loss(out)
         loss.backward()
         _clip_and_step(model, optimizer, max_norm)
-        total += loss.item()
+        L = loss.item()
+        total += L
+        win_sum += L
+        win_n += 1
+        gstep = (epoch_idx - 1) * n_per + step + 1
+        if log_every > 0 and gstep % log_every == 0:
+            mlflow.log_metric("p2_train_loss_step", win_sum / win_n, step=gstep)
+            mlflow.log_metric("p2_lr", optimizer.param_groups[0]["lr"], step=gstep)
+            win_sum, win_n = 0.0, 0
         pbar.set_postfix({"loss": f"{total / (step + 1):.6f}"})
     return total / len(loader)
 
@@ -308,7 +310,7 @@ def validate_phase2_epoch(
     model: nn.Module, loader, loss_fn: nn.Module, device: torch.device
 ):
     total, eff = _validate_full(
-        model, loss_fn, loader, device, out_idx=0, progress=_noop_progress
+        model, loss_fn, loader, device, out_idx=0, progress=lambda x, **_: x
     )
     return total / len(loader), eff
 
@@ -340,27 +342,24 @@ def run_phase2(
         optimizer, warmup, n_epochs, base_lr, eta_min_frac, warm_restarts_t0
     )
 
-    LOGGER.info("=" * 80)
-    sched_desc = (
-        f"warm_restarts(T0={warm_restarts_t0})"
-        if warm_restarts_t0 > 0
-        else f"warmup={warmup}+cosine"
+    sched = (
+        f"wr(T0={warm_restarts_t0})" if warm_restarts_t0 > 0 else f"warmup={warmup}+cos"
     )
-    LOGGER.info(
-        "PHASE 2 — E2E | %d ep | lr=%g | %s | %s | clip=%s | tv_lambda=%g",
-        n_epochs,
-        base_lr,
-        opt_name,
-        sched_desc,
-        max_norm,
-        tv_lambda,
-    )
-    LOGGER.info("=" * 80)
-
+    LOGGER.info("P2 | %d ep | lr=%g | %s | %s | clip=%s | tv=%g",
+                n_epochs, base_lr, opt_name, sched, max_norm, tv_lambda)  # fmt: skip
+    log_every = int(configs.get("log_every_n_steps", 500))
     best_val, best_ep = float("inf"), 0
     for ep in range(1, n_epochs + 1):
         tr = train_phase2_epoch(
-            model, train_loader, optimizer, loss_fn, device, ep, max_norm, tv_lambda
+            model,
+            train_loader,
+            optimizer,
+            loss_fn,
+            device,
+            ep,
+            max_norm,
+            tv_lambda,
+            log_every,
         )
         va, eff = validate_phase2_epoch(model, val_loader, loss_fn, device)
         scheduler.step()
@@ -399,9 +398,7 @@ def run_phase2(
     LOGGER.info("✓ Phase 2 complete. best val=%.6f at ep %d", best_val, best_ep)
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+# --- Entry point ---
 def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
     log_path = setup_logging(Path(configs["log_folder"]), configs["runname"])
     set_seed()
@@ -455,34 +452,27 @@ def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
             for p in model.parameters():
                 p.requires_grad = True
             LOGGER.info(
-                "✓ Skipping Phase 1 — loaded weights from %s (Phase 1 epoch %d)",
+                "✓ Skipping Phase 1 — loaded weights from %s (P1 ep %d)",
                 Path(phase1_checkpoint).name,
                 ep,
             )
         else:
             run_phase1(model, data, configs, device, save_folder)
-            # run_phase1 leaves the trained model in memory and unfreezes all
-            # params; no reload needed.
 
         run_phase2(model, data, configs, device, save_folder)
         mlflow.log_artifact(str(log_path))
 
-    LOGGER.info("=" * 80)
-    LOGGER.info("✅ Training complete")
-    LOGGER.info("=" * 80)
+    LOGGER.info("=" * 80 + "\n✅ Training complete\n" + "=" * 80)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="HLLHC PU200 E2E training (LR warmup + cosine + grad clip)"
-    )
+    parser = argparse.ArgumentParser(description="HLLHC PU200 E2E training")
     parser.add_argument("-c", "--config_file", required=True, type=str)
     parser.add_argument(
         "--phase1-checkpoint",
         default=None,
         dest="phase1_checkpoint",
-        help="Path to a Phase-1 fullstate.pth. Skips Phase 1 entirely and "
-        "runs Phase 2 from the loaded weights (model_state only).",
+        help="Phase-1 fullstate.pth; if set, skips Phase 1 (model_state only).",
     )
     args = parser.parse_args()
 
