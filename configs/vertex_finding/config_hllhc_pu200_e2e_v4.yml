@@ -34,7 +34,7 @@ output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
 device_id: 1                  # GPU 3 was 33.8 GB occupied by hewesje on 2026-06-03
 n_events: 2741800            # documentation only
 train_split: [0.96, 0.03, 0.01]   # globally shuffled before partition
-batch_size: 256               # bumped from 128 on 2026-06-03 (free VRAM ~27 GB on GPU 1)
+batch_size: 128               # bs=256 was empirically slower (1183 vs 2048 samples/sec on GPU 1)
 num_workers: 16               # softened from 24; sneezy CPU load avg ~120/96
 prefetch_factor: 4
 log_every_n_steps: 500            # MLflow step-level train_loss+lr cadence
