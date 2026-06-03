@@ -84,56 +84,44 @@ def collect_data_poca_ATLAS(
             f"Expected data pipeline, but got {data_pipeline}. Try again with one of the following options: tracks-to-KDE, KDE-to-hist, tracks-to-hist, poca-to-KDE, or poca-to-hist."
         )
 
-    # HARD CODED: Ensures the split stays the same/reproducability
-    generator1 = torch.Generator().manual_seed(42)  # noqa: F841
-
-    # Split dataset
-    train_size = int(len(dataset) * train_split[0])
-    print("Train Size: ", train_size)
-    val_size = int(len(dataset) * train_split[1])
-    print("Val Size: ", val_size)
-    test_size = len(dataset) - train_size - val_size
-    print("Test Size: ", test_size)
-    # train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size], generator=generator1)
-    train_dataset = torch.utils.data.Subset(dataset, range(0, train_size))
-    val_dataset = torch.utils.data.Subset(
-        dataset, range(train_size, train_size + val_size)
+    # Globally shuffle the dataset index before partitioning so train/val/test
+    # each see a representative mix of files (multi-file ConcatDataset case).
+    # Seed is fixed so the split is reproducible across runs.
+    n = len(dataset)
+    rng = np.random.default_rng(42)
+    perm = rng.permutation(n)
+    train_size = int(n * train_split[0])
+    val_size = int(n * train_split[1])
+    print(
+        f"Train Size: {train_size}  Val Size: {val_size}  "
+        f"Test Size: {n - train_size - val_size}"
     )
-    test_dataset = torch.utils.data.Subset(
-        dataset, range(train_size + val_size, len(dataset))
-    )
+    train_indices = perm[:train_size]
+    val_indices = perm[train_size : train_size + val_size]
+    test_indices = perm[train_size + val_size :]
+    train_dataset = torch.utils.data.Subset(dataset, train_indices)
+    val_dataset = torch.utils.data.Subset(dataset, val_indices)
+    test_dataset = torch.utils.data.Subset(dataset, test_indices)
 
-    # Get the indices used for each split
-    train_indices = train_dataset.indices
-    val_indices = val_dataset.indices
-    test_indices = test_dataset.indices
-
-    # Save indices to .npy files
     np.save("train_indices.npy", train_indices)
     np.save("val_indices.npy", val_indices)
     np.save("test_indices.npy", test_indices)
 
-    train_loader = DataLoader(
-        train_dataset,
+    # persistent_workers keeps the dataloader worker pool alive across epochs
+    # (avoids ~5-15s of HDF5 open/close per epoch when num_workers is large).
+    # pin_memory enables fast async CPU->GPU copies. prefetch_factor=4 buys
+    # extra batches in flight to mask LZF decompression latency.
+    loader_kw = dict(
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         prefetch_factor=prefetch_factor,
+        persistent_workers=num_workers > 0,
+        pin_memory=True,
     )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        prefetch_factor=prefetch_factor,
-    )
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        prefetch_factor=prefetch_factor,
-    )
+    train_loader = DataLoader(train_dataset, **loader_kw)
+    val_loader = DataLoader(val_dataset, **loader_kw)
+    test_loader = DataLoader(test_dataset, **loader_kw)
     print("Created Data Loader")
 
     return train_loader, val_loader, test_loader

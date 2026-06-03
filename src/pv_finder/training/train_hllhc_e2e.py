@@ -1,13 +1,7 @@
-"""HLLHC PU200-tuned E2E training.
+"""HLLHC PU200 E2E training with Phase 1 MLP warmup + Phase 2 full E2E.
 
-MLP warmup (Phase 1) + full E2E (Phase 2) with LR warmup, cosine decay, and
-gradient clipping. Designed to avoid the mid-training divergence observed in
-the plain `lr=1e-3` recipe at μ≈200 (the Phase 2 LR was effectively too hot
-once the per-event loss scale scales up with pileup).
-
-Shares the Phase 1 MLP-only forward pass with `train_mlp_hist_then_e2e.py`,
-but Phase 2 is a custom loop so we can inject gradient clipping and an LR
-schedule without modifying the shared `trainNet` helper.
+Supports v1 (trackstoHists_UNet_1000) and v2 (TracksToHist_v2) architectures,
+Adam/SGD optimizers, cosine/warm-restart LR schedules, and optional TV loss.
 """
 
 from __future__ import annotations
@@ -22,7 +16,12 @@ import mlflow
 import torch
 import torch.nn as nn
 import yaml
-from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
+from torch.optim.lr_scheduler import (
+    CosineAnnealingLR,
+    CosineAnnealingWarmRestarts,
+    LinearLR,
+    SequentialLR,
+)
 from tqdm import tqdm
 
 from pv_finder.data.collectdata_poca_KDE import (
@@ -47,9 +46,7 @@ LOGGER = logging.getLogger("hllhc_e2e")
 SCRIPT_PATH = Path(__file__)
 
 
-# ---------------------------------------------------------------------------
-# Setup
-# ---------------------------------------------------------------------------
+# --- Setup ---
 def setup_logging(log_folder: Path, runname: str) -> Path:
     log_folder.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -98,15 +95,26 @@ def build_model(configs: dict, device: torch.device) -> nn.Module:
     return model.to(device)
 
 
+def _tv_loss(pred: torch.Tensor) -> torch.Tensor:
+    """Total variation loss: penalizes high-frequency oscillations (sidelobes)."""
+    return torch.mean(torch.abs(pred[:, 1:] - pred[:, :-1]))
+
+
 def build_phase2_scheduler(
     optimizer: torch.optim.Optimizer,
     warmup_epochs: int,
     total_epochs: int,
     base_lr: float,
     eta_min_frac: float,
+    warm_restarts_t0: int = 0,
 ) -> torch.optim.lr_scheduler.LRScheduler:
-    """Linear warmup 0.01·lr → lr over `warmup_epochs`, then cosine to `eta_min`."""
+    """Linear warmup then cosine decay. Optionally with warm restarts."""
     eta_min = base_lr * eta_min_frac
+    if warm_restarts_t0 > 0:
+        # Cosine with warm restarts (no linear warmup — restart handles it)
+        return CosineAnnealingWarmRestarts(
+            optimizer, T_0=warm_restarts_t0, T_mult=1, eta_min=eta_min
+        )
     if warmup_epochs > 0:
         warmup = LinearLR(
             optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs
@@ -120,9 +128,7 @@ def build_phase2_scheduler(
     return CosineAnnealingLR(optimizer, T_max=total_epochs, eta_min=eta_min)
 
 
-# ---------------------------------------------------------------------------
-# Shared step helpers
-# ---------------------------------------------------------------------------
+# --- Shared step helpers ---
 def _clip_and_step(
     model: nn.Module, optimizer: torch.optim.Optimizer, max_norm: float | None
 ) -> None:
@@ -277,6 +283,7 @@ def train_phase2_epoch(
     device: torch.device,
     epoch_idx: int,
     max_norm: float | None,
+    tv_lambda: float = 0.0,
 ) -> float:
     model.train()
     total = 0.0
@@ -287,6 +294,8 @@ def train_phase2_epoch(
         optimizer.zero_grad()
         out = model(inputs)
         loss = loss_fn(out, labels[:, 0, :])
+        if tv_lambda > 0:
+            loss = loss + tv_lambda * _tv_loss(out)
         loss.backward()
         _clip_and_step(model, optimizer, max_norm)
         total += loss.item()
@@ -315,28 +324,43 @@ def run_phase2(
     max_norm = configs.get("max_grad_norm")
     save_freq = configs["save_frequency"]
     runname = configs["runname"]
+    tv_lambda = configs.get("tv_lambda", 0.0)
+    warm_restarts_t0 = configs.get("warm_restarts_t0", 0)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=base_lr, betas=(0.9, 0.999))
+    opt_name = configs.get("optimizer", "adam")
+    if opt_name == "sgd":
+        wd = configs.get("weight_decay", 1e-4)
+        optimizer = torch.optim.SGD(
+            model.parameters(), lr=base_lr, momentum=0.9, weight_decay=wd
+        )
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=base_lr, betas=(0.9, 0.999))
     loss_fn = nn.MSELoss()
     scheduler = build_phase2_scheduler(
-        optimizer, warmup, n_epochs, base_lr, eta_min_frac
+        optimizer, warmup, n_epochs, base_lr, eta_min_frac, warm_restarts_t0
     )
 
     LOGGER.info("=" * 80)
+    sched_desc = (
+        f"warm_restarts(T0={warm_restarts_t0})"
+        if warm_restarts_t0 > 0
+        else f"warmup={warmup}+cosine"
+    )
     LOGGER.info(
-        "PHASE 2 — E2E | %d epochs | lr=%g → %g | warmup=%d | cosine | grad_clip=%s",
+        "PHASE 2 — E2E | %d ep | lr=%g | %s | %s | clip=%s | tv_lambda=%g",
         n_epochs,
         base_lr,
-        base_lr * eta_min_frac,
-        warmup,
+        opt_name,
+        sched_desc,
         max_norm,
+        tv_lambda,
     )
     LOGGER.info("=" * 80)
 
     best_val, best_ep = float("inf"), 0
     for ep in range(1, n_epochs + 1):
         tr = train_phase2_epoch(
-            model, train_loader, optimizer, loss_fn, device, ep, max_norm
+            model, train_loader, optimizer, loss_fn, device, ep, max_norm, tv_lambda
         )
         va, eff = validate_phase2_epoch(model, val_loader, loss_fn, device)
         scheduler.step()
@@ -418,7 +442,7 @@ def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
             batch_size=configs["batch_size"],
             masking=False,
             num_workers=configs["num_workers"],
-            prefetch_factor=2,
+            prefetch_factor=configs.get("prefetch_factor", 4),
             train_split=configs["train_split"],
         )
         LOGGER.info("✓ %d train samples, %d val samples",

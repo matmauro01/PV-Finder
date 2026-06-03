@@ -1,0 +1,82 @@
+# HLLHC PU200 — v4: scale-up to 2.74M events with timing-data ROOTs
+#
+# Major changes vs v3:
+#   - Data: multi-file ConcatDataset over 8 fixed-mu=200 ROOTs (from the
+#     new PU200_withTiming/ ntuples). ~27x more events than v3.
+#   - Resolution preset: 'hllhc' (a=0.179mm, b=0.727, c=0) baked into the
+#     target histograms at convert-time -- replaces the legacy Run-3
+#     widths from ResolutionFit_ATLAS.ipynb.
+#   - Global shuffle before train/val/test split so each split sees a
+#     representative process mix (601229 SingleLep + 601237 all-hadronic).
+#   - Epoch counts cut hard: each new epoch sees 27x more data, so
+#     equivalent step budgets need 1/27 of the v3 epoch counts. We
+#     target ~4-5x the old optimisation budget for headroom.
+#   - DataLoader: persistent_workers=True + prefetch_factor=4 +
+#     pin_memory=True (in collectdata_poca_KDE.py).
+#   - Architecture and resolution constants unchanged from v3.
+
+# ===================================================
+# Data — list of HDF5 paths concatenated into one ConcatDataset
+data_file:
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601229_e8481_s4494_r16438_PU200.h5
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601229_e8481_s4494_r16633_PU200.h5
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_1.h5
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_2.h5
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_3.h5
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_4.h5
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_5.h5
+  - /data/home/matmauro/codice/PV-Finder/data/run4/PU200_withTiming_h5/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_6.h5
+
+output_file_path: /data/home/matmauro/codice/PV-Finder/outputs/
+
+# ===================================================
+# Training
+device_id: 3
+n_events: 2741800            # documentation only
+train_split: [0.96, 0.03, 0.01]   # globally shuffled before partition
+batch_size: 128
+num_workers: 24
+prefetch_factor: 4
+
+max_grad_norm: 1.0
+
+# ===================================================
+# Phase 1 — MLP warmup (UNet frozen)
+# 3 epochs at 27x scale ~= 730k steps, comparable to v3's 50 epochs x 6.5k.
+phase1_epochs: 3
+phase1_learning_rate: 0.001
+
+# ===================================================
+# Phase 2 — full E2E with warmup + cosine decay
+# 25 epochs x 244k batches ~= 6.1M training steps, ~4.7x v3's 1.3M.
+phase2_epochs: 25
+phase2_learning_rate: 0.0001
+phase2_warmup_epochs: 1         # 1 epoch = ~244k warmup steps
+phase2_cosine_eta_min_frac: 0.01
+
+# ===================================================
+# Loss
+use_mse_loss: true
+asymmetry_param: 2.5
+
+# ===================================================
+# Checkpointing
+save_weights: true
+save_frequency: 1               # each epoch is ~30 min, save every one
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/
+log_folder: /data/home/matmauro/codice/PV-Finder/outputs/logs/
+
+# ===================================================
+# MLflow
+experimentname: "HLLHC PU200 — E2E v4 (2.74M events, with-timing pool)"
+runname: "hllhc_pu200_e2e_v4_2.7M_280ch_4lat_lr1e4"
+
+# ===================================================
+# Model — identical to v3
+models_config:
+  model_type: "v2"
+  n_input_features: 7
+  n_latent_channels: 4
+  dropout: 0.25
+  n_unet_channels: 280
+  l_hidden_nodes: [128, 128, 128, 128, 128]

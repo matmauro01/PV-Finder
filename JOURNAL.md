@@ -1995,3 +1995,48 @@ ms/event.
 
 Also tightens the summary output: dataset shapes + max-tracks warning +
 on-disk size all on three lines.
+
+---
+
+## 2026-06-03 — v4 training config + global shuffle + DataLoader tweaks
+
+Set up the v4 training run on the 2.74M-event with-timing pool. Three
+coordinated pieces:
+
+**1. Global shuffle before train/val/test split.** The previous
+`collectdata_poca_KDE.py` partitioned via contiguous slices
+(`Subset(dataset, range(0, train_size))` ...). On the multi-file
+ConcatDataset this would put almost all of val and test inside the last
+file (601237 part 6), so train/val/test would see very different process
+mixes. Replaced with a seed-fixed `np.random.default_rng(42).permutation`
+applied before partition so every split sees a representative mix of
+601229 SingleLep and 601237 all-hadronic. Per colleague feedback.
+
+**2. DataLoader tweaks.**
+  - `persistent_workers=True` (was False) — workers and their 8 HDF5
+    file handles stay alive across epochs.
+  - `prefetch_factor=4` (was hardcoded 2 in `train_hllhc_e2e.py`) — now
+    a config knob, default 4. Helps mask LZF decompression latency.
+  - `pin_memory=True` (was False) — async host->GPU copy.
+Cumulative wall-time gain probably ~5-10% per run, plus cleaner
+per-epoch behaviour (no worker spin-up jitter).
+
+**3. New `config_hllhc_pu200_e2e_v4.yml`.**
+  - `data_file`: list of 8 fixed-mu=200 HDF5s.
+  - `device_id: 3`.
+  - `train_split: [0.96, 0.03, 0.01]` (val 3%, test 1%).
+  - `phase1_epochs: 3` (was 50; 27x more data per epoch).
+  - `phase2_epochs: 25` (was 200; targets ~6.1M training steps,
+    ~4.7x the v3 budget).
+  - `phase2_warmup_epochs: 1` (was 5; 1 epoch = 244k warmup steps).
+  - `phase1_lr: 1e-3`, `phase2_lr: 1e-4`, `max_grad_norm: 1.0` — all
+    unchanged from v3.
+  - `num_workers: 24`, `batch_size: 128`, `prefetch_factor: 4`.
+  - `save_frequency: 1` (each ~30 min epoch is worth checkpointing).
+  - `runname: hllhc_pu200_e2e_v4_2.7M_280ch_4lat_lr1e4`.
+
+Smoke test confirmed: 8-file ConcatDataset builds in 2.7 s, total 32.9M
+subevents matches per-file sums, split sizes [31.6M, 987k, 329k] match
+[0.96, 0.03, 0.01], shuffle gives non-contiguous indices spanning the
+full range, first batch fetches with correct shape (128, 7, 1024) +
+(128, 2, 1000).
