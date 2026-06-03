@@ -83,12 +83,27 @@ class H5Dataset_tracksHists(Dataset):
                 f"({filename}); refusing to truncate tracks."
             )
         self._target_max_tracks = target_max_tracks
+        # Lazy-open the h5 handle on first __getitem__ inside each DataLoader
+        # worker. h5py.File objects don't pickle, so we cannot open in __init__
+        # when num_workers>0. With persistent_workers=True the handle stays
+        # alive for the run; without persistent_workers it reopens per epoch.
+        self._h5: h5py.File | None = None
+
+    def _open(self) -> h5py.File:
+        if self._h5 is None:
+            self._h5 = h5py.File(self.filename, "r")
+        return self._h5
+
+    def __getstate__(self) -> dict:
+        # Drop the (possibly opened) h5 handle before pickling to a worker.
+        state = self.__dict__.copy()
+        state["_h5"] = None
+        return state
 
     def __len__(self):
         return self.dataset_len
 
     def _pad_tracks(self, tracks: np.ndarray) -> np.ndarray:
-        """Right-pad the last axis to ``self._target_max_tracks`` with MASK_VAL."""
         if (
             self._target_max_tracks is None
             or tracks.shape[-1] == self._target_max_tracks
@@ -102,19 +117,14 @@ class H5Dataset_tracksHists(Dataset):
         out[..., : tracks.shape[-1]] = tracks
         return out
 
-    # Returns desired batch size of datafile
     def __getitem__(self, idx):
-        with h5py.File(self.filename, "r") as dataset:
-            tracks = dataset["tracks"][idx]
-            target_y_split = dataset["target_y_split"][idx]
-        tracks = self._pad_tracks(tracks)
-        return tracks, target_y_split
+        ds = self._open()
+        tracks = ds["tracks"][idx]
+        target_y_split = ds["target_y_split"][idx]
+        return self._pad_tracks(tracks), target_y_split
 
-    # Getter functions for each of the variables
     def getTracks(self, idx):
-        with h5py.File(self.filename, "r") as dataset:
-            tracks = dataset["tracks"][idx]
-        return self._pad_tracks(tracks)
+        return self._pad_tracks(self._open()["tracks"][idx])
 
     def getTargetY(self, idx):
         if not self._has_target_y:
@@ -123,19 +133,13 @@ class H5Dataset_tracksHists(Dataset):
                 "full-event target_y is not in this file. Use "
                 "getTargetY_split() instead."
             )
-        with h5py.File(self.filename, "r") as dataset:
-            target_y = dataset["target_y"][idx]
-        return target_y
+        return self._open()["target_y"][idx]
 
     def getTargetY_split(self, idx):
-        with h5py.File(self.filename, "r") as dataset:
-            target_y_split = dataset["target_y_split"][idx]
-        return target_y_split
+        return self._open()["target_y_split"][idx]
 
     def getPV(self, idx):
-        with h5py.File(self.filename, "r") as dataset:
-            pv = dataset["pv"][idx]
-        return pv
+        return self._open()["pv"][idx]
 
 
 def make_tracksHists_dataset(
