@@ -1,26 +1,11 @@
 """HL-LHC PU200 end-to-end training driver.
 
-The recipe runs in two phases:
-
-Phase 1 — MLP warm-up
-    Only the tracks-to-KDE MLP is trained; the UNet (KDE-to-hist) is frozen.
-    Plain ``Adam`` with a fixed learning rate. This stabilises the MLP
-    output distribution before letting gradients flow through the UNet.
-
-Phase 2 — full end-to-end
-    All parameters are unfrozen. Optimiser (``adam`` or ``sgd``) and a
-    cosine LR schedule (optionally with linear warmup, or with warm
-    restarts) drive the joint optimisation. Gradient clipping is applied
-    if ``max_grad_norm`` is set, and an optional 1-D TV penalty
-    (``tv_lambda``) regularises the predicted histogram.
-
-Both v1 (``trackstoHists_UNet_1000``) and v2 (``TracksToHist_v2``)
-architectures are supported, selected from the YAML config via
-``models_config.model_type``. MLflow captures per-epoch metrics plus
-optional mid-epoch mini-validation telemetry (see ``mini_val.py``).
-
-Public entry points: ``main``, ``run_phase1``, ``run_phase2``,
-``train_phase1_epoch``, ``train_phase2_epoch``.
+Two phases: Phase 1 warms up the tracks-to-KDE MLP with the UNet frozen;
+Phase 2 trains end-to-end (adam/sgd + cosine LR with optional warmup or warm
+restarts, grad clipping, optional 1-D TV penalty). Both v1
+(``trackstoHists_UNet_1000``) and v2 (``TracksToHist_v2``) architectures are
+selected via ``models_config.model_type``. MLflow captures per-epoch metrics
+plus optional mid-epoch mini-validation telemetry (see ``mini_val.py``).
 """
 
 from __future__ import annotations
@@ -47,8 +32,9 @@ from pv_finder.training.hllhc_helpers import (
     get_param_groups_v2,
     is_v2,
     load_model_state,
-    phase1_forward,
+    train_phase1_epoch,
     tv_loss,
+    validate_phase1_epoch,
 )
 from pv_finder.training.mini_val import (
     mini_val_full,
@@ -82,65 +68,6 @@ def setup_logging(log_folder: Path, runname: str) -> Path:
         handler.setFormatter(fmt)
         LOGGER.addHandler(handler)
     return log_path
-
-
-# --- Phase 1: MLP warmup (UNet frozen) ---
-def train_phase1_epoch(
-    model: nn.Module,
-    loader,
-    optimizer: torch.optim.Optimizer,
-    loss_fn: nn.Module,
-    device: torch.device,
-    epoch_idx: int,
-    max_norm: float | None,
-    log_every: int = 500,
-) -> float:
-    """Run one Phase 1 training epoch and return the mean batch loss.
-
-    Only the MLP path is exercised; the UNet must already have been frozen
-    by the caller (``run_phase1``).
-    """
-    model.train()
-    total = 0.0
-    win_sum, win_n = 0.0, 0
-    n_per = len(loader)
-    pbar = tqdm(
-        loader, desc=f"P1 E{epoch_idx}", leave=False, ncols=100, mininterval=2.0
-    )
-    for step, (inputs, target_split) in enumerate(pbar):
-        inputs = inputs.to(device).float()
-        target_hist = target_split.to(device).float()[:, 0, :]
-        optimizer.zero_grad()
-        pred = phase1_forward(model, inputs)
-        loss = loss_fn(pred, target_hist)
-        loss.backward()
-        clip_and_step(model, optimizer, max_norm)
-        batch_loss = loss.item()
-        total += batch_loss
-        win_sum += batch_loss
-        win_n += 1
-        gstep = (epoch_idx - 1) * n_per + step + 1
-        if log_every > 0 and gstep % log_every == 0:
-            mlflow.log_metric("p1_train_loss_step", win_sum / win_n, step=gstep)
-            mlflow.log_metric("p1_lr", optimizer.param_groups[0]["lr"], step=gstep)
-            win_sum, win_n = 0.0, 0
-        pbar.set_postfix({"loss": f"{total / (step + 1):.6f}"})
-    return total / len(loader)
-
-
-@torch.no_grad()
-def validate_phase1_epoch(
-    model: nn.Module, loader, loss_fn: nn.Module, device: torch.device
-) -> float:
-    """Validation pass through the MLP-only Phase 1 forward."""
-    model.eval()
-    total = 0.0
-    for inputs, target_split in loader:
-        inputs = inputs.to(device).float()
-        target_hist = target_split.to(device).float()[:, 0, :]
-        pred = phase1_forward(model, inputs)
-        total += loss_fn(pred, target_hist).item()
-    return total / len(loader)
 
 
 def run_phase1(
@@ -218,16 +145,26 @@ def train_phase2_epoch(
     mini_val_cache: list | None = None,
     mini_val_every: int = 0,
     mini_val_eff_every: int = 0,
+    scheduler=None,
+    save_every_steps: int = 0,
+    save_folder: Path | None = None,
+    runname: str = "",
 ) -> float:
-    """Run one Phase 2 (full E2E) training epoch.
+    """Run one Phase 2 (full E2E) epoch; returns the mean batch loss.
 
-    Returns the mean batch loss. Mid-epoch MLflow telemetry (train loss
-    windowed mean, LR, optional mini-val MSE / efficiency) is logged based
-    on the ``log_every`` / ``mini_val_*`` cadences.
+    ``scheduler`` (if given) is stepped per batch (per-step LR schedule).
+    ``save_every_steps > 0`` writes a mid-epoch
+    ``*_phase2_step_<gstep>_fullstate.pth`` every N batches so eval can start
+    before the epoch ends. MLflow telemetry follows ``log_every`` /
+    ``mini_val_*`` cadences.
     """
     model.train()
-    total = 0.0
-    win_sum, win_n = 0.0, 0
+    # Accumulate loss on-GPU, sync (.item()) only at the log cadence — drops the
+    # per-step CPU<->GPU sync (precision-safe: identical fp32 sum, read less often).
+    total = torch.zeros((), device=device)
+    win = torch.zeros((), device=device)
+    win_n = 0
+    last_loss = 0.0
     n_per = len(loader)
     pbar = tqdm(
         loader, desc=f"P2 E{epoch_idx}", leave=False, ncols=100, mininterval=2.0
@@ -242,15 +179,29 @@ def train_phase2_epoch(
             loss = loss + tv_lambda * tv_loss(out)
         loss.backward()
         clip_and_step(model, optimizer, max_norm)
-        batch_loss = loss.item()
-        total += batch_loss
-        win_sum += batch_loss
+        if scheduler is not None:
+            scheduler.step()
+        det = loss.detach()
+        total += det
+        win += det
         win_n += 1
         gstep = (epoch_idx - 1) * n_per + step + 1
         if log_every > 0 and gstep % log_every == 0:
-            mlflow.log_metric("p2_train_loss_step", win_sum / win_n, step=gstep)
+            last_loss = (total / (step + 1)).item()
+            mlflow.log_metric("p2_train_loss_step", (win / win_n).item(), step=gstep)
             mlflow.log_metric("p2_lr", optimizer.param_groups[0]["lr"], step=gstep)
-            win_sum, win_n = 0.0, 0
+            win = torch.zeros((), device=device)
+            win_n = 0
+            pbar.set_postfix({"loss": f"{last_loss:.6f}"})
+        if (
+            save_every_steps > 0
+            and save_folder is not None
+            and gstep % save_every_steps == 0
+        ):
+            ckpt = save_folder / f"{runname}_phase2_step_{gstep}_fullstate.pth"
+            save_checkpoint(model, optimizer, epoch_idx, last_loss, path=str(ckpt))
+            model.train()  # save_checkpoint must not leave us in eval mode
+            LOGGER.info("  ✓ Saved step checkpoint %s", ckpt.name)
         if (
             mini_val_cache
             and mini_val_eff_every > 0
@@ -266,8 +217,7 @@ def train_phase2_epoch(
                 mini_val_mse(model, mini_val_cache, loss_fn, device),
                 step=gstep,
             )
-        pbar.set_postfix({"loss": f"{total / (step + 1):.6f}"})
-    return total / len(loader)
+    return (total / len(loader)).item()
 
 
 @torch.no_grad()
@@ -299,6 +249,7 @@ def run_phase2(
     runname = configs["runname"]
     tv_lambda = configs.get("tv_lambda", 0.0)
     warm_restarts_t0 = configs.get("warm_restarts_t0", 0)
+    save_every_steps = int(configs.get("save_every_n_steps", 0))
 
     opt_name = configs.get("optimizer", "adam")
     if opt_name == "sgd":
@@ -309,13 +260,26 @@ def run_phase2(
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=base_lr, betas=(0.9, 0.999))
     loss_fn = nn.MSELoss()
+    step_sched = bool(configs.get("phase2_step_scheduler", False))
+    warmup_steps = int(configs.get("phase2_warmup_steps", 0))
+    steps_per_epoch = len(train_loader) if step_sched else 0
     scheduler = build_phase2_scheduler(
-        optimizer, warmup, n_epochs, base_lr, eta_min_frac, warm_restarts_t0
+        optimizer,
+        warmup,
+        n_epochs,
+        base_lr,
+        eta_min_frac,
+        warm_restarts_t0,
+        steps_per_epoch,
+        warmup_steps,
     )
 
-    sched = (
-        f"wr(T0={warm_restarts_t0})" if warm_restarts_t0 > 0 else f"warmup={warmup}+cos"
-    )
+    if warm_restarts_t0 > 0:
+        sched = f"wr(T0={warm_restarts_t0})"
+    elif step_sched:
+        sched = f"per-step warmup={warmup_steps or warmup * steps_per_epoch}steps+cos"
+    else:
+        sched = f"per-epoch warmup={warmup}+cos"
     LOGGER.info(SEPARATOR)
     LOGGER.info(
         "PHASE 2 — full E2E | %d epochs | lr=%g | opt=%s | sched=%s | clip=%s | tv=%g",
@@ -356,9 +320,14 @@ def run_phase2(
             mini_val_cache,
             mini_val_every,
             mini_val_eff_every,
+            scheduler if step_sched else None,
+            save_every_steps=save_every_steps,
+            save_folder=save_folder,
+            runname=runname,
         )
         va, eff = validate_phase2_epoch(model, val_loader, loss_fn, device)
-        scheduler.step()
+        if not step_sched:
+            scheduler.step()
         cur_lr = optimizer.param_groups[0]["lr"]
         LOGGER.info(
             "P2 Ep %d/%d | train=%.6f | val=%.6f | eff=%.4f | fpr=%.4f | lr=%.2e",
@@ -396,12 +365,7 @@ def run_phase2(
 
 # --- Entry point ---
 def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
-    """Run Phase 1 (or skip via ``phase1_checkpoint``) then Phase 2.
-
-    Side effects: configures logging, sets seeds, starts an MLflow run,
-    builds the data loaders + model, and writes checkpoints/artifacts to
-    ``configs["save_folder"]``.
-    """
+    """Run Phase 1 (or skip via ``phase1_checkpoint``) then Phase 2."""
     log_path = setup_logging(Path(configs["log_folder"]), configs["runname"])
     set_seed()
     if torch.cuda.is_available():
@@ -411,6 +375,12 @@ def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
         device = torch.device("cpu")
         LOGGER.warning("CUDA not available. Training will run on CPU.")
     LOGGER.info("Device: %s", device)
+
+    # Precision-safe: cuDNN autotunes the fastest conv kernel for our fixed input
+    # shape (no precision change). TF32/AMP would trade precision, so are not set.
+    if torch.cuda.is_available() and configs.get("cudnn_benchmark", True):
+        torch.backends.cudnn.benchmark = True
+        LOGGER.info("cuDNN benchmark autotuner: ON (precision-safe)")
 
     mlflow.set_tracking_uri("file:/data/home/matmauro/codice/PV-Finder/mlruns")
     mlflow.set_experiment(configs["experimentname"])

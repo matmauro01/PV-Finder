@@ -18,6 +18,7 @@ Splitting these out keeps ``train_hllhc_e2e.py`` under the project's
 
 from __future__ import annotations
 
+import mlflow
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import (
@@ -26,6 +27,7 @@ from torch.optim.lr_scheduler import (
     LinearLR,
     SequentialLR,
 )
+from tqdm import tqdm
 
 from pv_finder.models.autoencoder_models import MaskedDNN, trackstoHists_UNet_1000
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2
@@ -43,7 +45,9 @@ __all__ = [
     "is_v2",
     "load_model_state",
     "phase1_forward",
+    "train_phase1_epoch",
     "tv_loss",
+    "validate_phase1_epoch",
 ]
 
 
@@ -91,6 +95,8 @@ def build_phase2_scheduler(
     base_lr: float,
     eta_min_frac: float,
     warm_restarts_t0: int = 0,
+    steps_per_epoch: int = 0,
+    warmup_steps: int = 0,
 ):
     """Build the Phase 2 learning-rate schedule.
 
@@ -100,23 +106,50 @@ def build_phase2_scheduler(
       * otherwise -> plain ``CosineAnnealingLR`` over ``total_epochs``.
 
     ``eta_min`` is ``base_lr * eta_min_frac``.
+
+    Scheduling unit
+    ---------------
+    When ``steps_per_epoch <= 0`` (default) the schedule is built in **epoch**
+    units and the caller must ``scheduler.step()`` once per epoch — the legacy
+    behaviour, preserved exactly.
+
+    When ``steps_per_epoch > 0`` the schedule is built in **step (batch)** units
+    and the caller must ``scheduler.step()`` once per batch. This makes a short
+    warmup actually ramp (e.g. ``warmup_steps=3000`` -> smooth 0.01·lr → lr over
+    3000 batches) instead of a per-epoch ``LinearLR(total_iters=1)`` that holds
+    the whole first epoch at 0.01·lr and then jumps 100x at the epoch boundary.
+    ``warmup_steps`` (if > 0) sets the warmup length directly in steps; otherwise
+    it defaults to ``warmup_epochs * steps_per_epoch``.
     """
     eta_min = base_lr * eta_min_frac
+    per_step = steps_per_epoch > 0
+    unit = steps_per_epoch if per_step else 1
+
     if warm_restarts_t0 > 0:
         return CosineAnnealingWarmRestarts(
-            optimizer, T_0=warm_restarts_t0, T_mult=1, eta_min=eta_min
+            optimizer, T_0=max(1, warm_restarts_t0 * unit), T_mult=1, eta_min=eta_min
         )
-    if warmup_epochs > 0:
+
+    if per_step and warmup_steps > 0:
+        w_iters = warmup_steps
+    elif warmup_epochs > 0:
+        w_iters = warmup_epochs * unit
+    else:
+        w_iters = 0
+
+    if w_iters > 0:
         warmup = LinearLR(
-            optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs
+            optimizer, start_factor=0.01, end_factor=1.0, total_iters=w_iters
         )
         cosine = CosineAnnealingLR(
-            optimizer, T_max=max(1, total_epochs - warmup_epochs), eta_min=eta_min
+            optimizer, T_max=max(1, total_epochs * unit - w_iters), eta_min=eta_min
         )
         return SequentialLR(
-            optimizer, schedulers=[warmup, cosine], milestones=[warmup_epochs]
+            optimizer, schedulers=[warmup, cosine], milestones=[w_iters]
         )
-    return CosineAnnealingLR(optimizer, T_max=total_epochs, eta_min=eta_min)
+    return CosineAnnealingLR(
+        optimizer, T_max=max(1, total_epochs * unit), eta_min=eta_min
+    )
 
 
 # --- Shared training-step utilities ---
@@ -174,3 +207,58 @@ def load_model_state(path: str, model: nn.Module) -> int:
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
     model.load_state_dict(ckpt["model_state"])
     return int(ckpt.get("epoch", -1))
+
+
+# --- Phase 1 epoch loops (MLP warmup, UNet frozen) ---
+def train_phase1_epoch(
+    model: nn.Module,
+    loader,
+    optimizer: torch.optim.Optimizer,
+    loss_fn: nn.Module,
+    device: torch.device,
+    epoch_idx: int,
+    max_norm: float | None,
+    log_every: int = 500,
+) -> float:
+    """Run one Phase 1 (MLP-only, UNet frozen) epoch; returns mean batch loss."""
+    model.train()
+    total = 0.0
+    win_sum, win_n = 0.0, 0
+    n_per = len(loader)
+    pbar = tqdm(
+        loader, desc=f"P1 E{epoch_idx}", leave=False, ncols=100, mininterval=2.0
+    )
+    for step, (inputs, target_split) in enumerate(pbar):
+        inputs = inputs.to(device).float()
+        target_hist = target_split.to(device).float()[:, 0, :]
+        optimizer.zero_grad()
+        pred = phase1_forward(model, inputs)
+        loss = loss_fn(pred, target_hist)
+        loss.backward()
+        clip_and_step(model, optimizer, max_norm)
+        batch_loss = loss.item()
+        total += batch_loss
+        win_sum += batch_loss
+        win_n += 1
+        gstep = (epoch_idx - 1) * n_per + step + 1
+        if log_every > 0 and gstep % log_every == 0:
+            mlflow.log_metric("p1_train_loss_step", win_sum / win_n, step=gstep)
+            mlflow.log_metric("p1_lr", optimizer.param_groups[0]["lr"], step=gstep)
+            win_sum, win_n = 0.0, 0
+        pbar.set_postfix({"loss": f"{total / (step + 1):.6f}"})
+    return total / len(loader)
+
+
+@torch.no_grad()
+def validate_phase1_epoch(
+    model: nn.Module, loader, loss_fn: nn.Module, device: torch.device
+) -> float:
+    """Validation pass through the MLP-only Phase 1 forward."""
+    model.eval()
+    total = 0.0
+    for inputs, target_split in loader:
+        inputs = inputs.to(device).float()
+        target_hist = target_split.to(device).float()[:, 0, :]
+        pred = phase1_forward(model, inputs)
+        total += loss_fn(pred, target_hist).item()
+    return total / len(loader)

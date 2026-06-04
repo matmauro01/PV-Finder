@@ -2040,3 +2040,47 @@ subevents matches per-file sums, split sizes [31.6M, 987k, 329k] match
 [0.96, 0.03, 0.01], shuffle gives non-contiguous indices spanning the
 full range, first batch fetches with correct shape (128, 7, 1024) +
 (128, 2, 1000).
+
+---
+
+## 2026-06-04 — Phase-2 LR schedule fix: per-step warmup (no 100x cliff)
+
+Diagnosed odd v4 training behaviour the user flagged (plateau ~step 200k, val
+loss step-up + wobble after ~260k, efficiency flattening). Root cause was the
+Phase-2 LR schedule, not the data or model.
+
+**Mechanism:** `run_phase2` calls `scheduler.step()` once per epoch (line 361),
+and v4 sets `phase2_warmup_epochs: 1`. So `LinearLR(start_factor=0.01,
+total_iters=1)` holds the ENTIRE first epoch (~246,762 steps, ~7.5 h) at
+`0.01·lr = 1e-6` — the model is effectively frozen and val/eff asymptote — then
+the LR jumps **100x to 1e-4** at the epoch-1->2 boundary (confirmed in MLflow:
+`p2_lr` = 1e-6 through step 246,500, then 1e-4 from 247,000). That cliff is
+exactly where `p2_val_loss_step` steps up (0.0326 -> 0.038) and starts wobbling,
+and `p2_eff_step` stops climbing. The epoch-2 val floor (~0.0303) does drop
+below epoch-1 (~0.0326), so real learning only begins once LR becomes non-trivial
+— i.e. the warmup epoch was largely wasted.
+
+**Fix (opt-in, backward-compatible):** `build_phase2_scheduler` gains
+`steps_per_epoch` and `warmup_steps` args. When `steps_per_epoch > 0` the whole
+schedule is built in step (batch) units and stepped once per batch, so a short
+warmup actually ramps. `train_phase2_epoch` gains a `scheduler` arg that it steps
+per batch; `run_phase2` reads `phase2_step_scheduler` / `phase2_warmup_steps`,
+builds the step-unit scheduler, passes it into the train loop, and skips the
+per-epoch `.step()`. With `steps_per_epoch=0` (default) behaviour is byte-for-byte
+the legacy per-epoch schedule, so v3 warm-restart configs (runA/B/C) are untouched.
+
+**Verified** (unit test, `build_phase2_scheduler`):
+- Legacy per-epoch reproduces the current run exactly: epoch1=1e-6, epoch2=1e-4,
+  then cosine — backward-compatible.
+- Per-step (`warmup_steps=3000`, `steps_per_epoch≈24.7k`): smooth ramp 1e-6 ->
+  1e-4 over 3000 batches, **no jump** at the epoch boundary, cosine down to
+  `eta_min=1e-6` at the final step.
+
+New config `configs/vertex_finding/config_hllhc_pu200_e2e_v4b_stepwarmup.yml`
+(identical to v4 plus `phase2_step_scheduler: true`,
+`phase2_warmup_steps: 3000`) for the next launch.
+
+The current v4 run was left running (it loaded the old module + config at
+startup, so the source edits don't affect it; it's recoverable, just suboptimal).
+At the time of the fix it was at step ~396k (~1.6 of 10 Phase-2 epochs), val
+floor ~0.030, eff ~0.74-0.77.
