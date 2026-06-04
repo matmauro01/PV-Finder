@@ -210,6 +210,7 @@ def save_checkpoint(
     epoch,
     loss,
     path="/data/home/matmauro/codice/PV-Finder/model_weights/checkpoint.pth",
+    extra=None,
 ):
     # Creating a dictionary to save the parameters of the model
     checkpoint = {
@@ -218,6 +219,9 @@ def save_checkpoint(
         "epoch": epoch,
         "loss": loss,
     }
+    # Optional extras (e.g. scheduler_state) for full mid-training resume.
+    if extra:
+        checkpoint.update(extra)
 
     torch.save(checkpoint, path)
 

@@ -2084,3 +2084,32 @@ The current v4 run was left running (it loaded the old module + config at
 startup, so the source edits don't affect it; it's recoverable, just suboptimal).
 At the time of the fix it was at step ~396k (~1.6 of 10 Phase-2 epochs), val
 floor ~0.030, eff ~0.74-0.77.
+
+---
+
+## 2026-06-04 — Phase-2 full resume (--resume) for HL-LHC E2E
+
+A v4b run was accidentally killed mid-epoch-1. The training script could only
+"resume" via `--phase1-checkpoint` (model weights only, fresh optimizer +
+restarted LR schedule). Added true Phase-2 resume:
+
+- `utils/utilities.save_checkpoint`: optional `extra` dict merged into the
+  checkpoint (backward-compatible; used to store `scheduler_state`).
+- `run_phase2`: per-epoch checkpoints now save `scheduler_state`; new
+  `resume_ckpt` arg restores model + optimizer + scheduler and continues the
+  loop from the next epoch (`range(start_epoch + 1, ...)`).
+- `main` + CLI: `--resume <phase2_epoch_fullstate.pth>` (skips Phase 1).
+  Mutually exclusive with `--phase1-checkpoint`.
+
+Granularity is the epoch boundary (clean for the per-step scheduler: after N
+epochs the scheduler sits at exactly N*steps_per_epoch, aligned with restarting
+epoch N+1 from batch 0). Mid-epoch step checkpoints remain eval-only.
+
+Verified: with dropout=0 and fixed data, a checkpoint-and-resume run reproduces
+an uninterrupted 2-epoch run bit-for-bit (max |Δparam| = 0.0) — model,
+optimizer (Adam moments) and scheduler position all restored correctly.
+
+Usage:
+  python -u src/pv_finder/training/train_hllhc_e2e.py \
+      -c configs/vertex_finding/config_hllhc_pu200_e2e_v4b_stepwarmup.yml \
+      --resume model_weights/<run>_phase2_epoch_<N>_fullstate.pth

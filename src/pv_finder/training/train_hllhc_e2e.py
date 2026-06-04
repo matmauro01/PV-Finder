@@ -237,8 +237,10 @@ def run_phase2(
     configs: dict,
     device: torch.device,
     save_folder: Path,
+    resume_ckpt: str | None = None,
 ) -> None:
-    """Drive the Phase 2 (full E2E) loop: build optimiser + scheduler, train, save."""
+    """Phase 2 (full E2E) loop. ``resume_ckpt`` restores model/optimizer/scheduler
+    and continues from the next epoch."""
     train_loader, val_loader = data
     base_lr = configs["phase2_learning_rate"]
     n_epochs = configs["phase2_epochs"]
@@ -305,8 +307,21 @@ def run_phase2(
             mini_val_every,
             mini_val_eff_every,
         )
+
+    start_epoch = 0
+    if resume_ckpt is not None:
+        ck = torch.load(resume_ckpt, map_location=device, weights_only=False)
+        model.load_state_dict(ck["model_state"])
+        optimizer.load_state_dict(ck["optimizer_state"])
+        if "scheduler_state" in ck:
+            scheduler.load_state_dict(ck["scheduler_state"])
+        else:
+            LOGGER.warning("resume ckpt has no scheduler_state; scheduler starts fresh")
+        start_epoch = int(ck.get("epoch", 0))
+        LOGGER.info("Resuming Phase 2 after epoch %d", start_epoch)
+
     best_val, best_ep = float("inf"), 0
-    for ep in range(1, n_epochs + 1):
+    for ep in range(start_epoch + 1, n_epochs + 1):
         tr = train_phase2_epoch(
             model,
             train_loader,
@@ -351,7 +366,14 @@ def run_phase2(
         )
         if ep % save_freq == 0 or ep == n_epochs:
             ckpt = save_folder / f"{runname}_phase2_epoch_{ep}_fullstate.pth"
-            save_checkpoint(model, optimizer, ep, va, path=str(ckpt))
+            save_checkpoint(
+                model,
+                optimizer,
+                ep,
+                va,
+                path=str(ckpt),
+                extra={"scheduler_state": scheduler.state_dict()},
+            )
             mlflow.log_artifact(str(ckpt))
             pyt_path = save_folder / f"{runname}_phase2_epoch_{ep}.pyt"
             torch.save(model, pyt_path)
@@ -364,8 +386,12 @@ def run_phase2(
 
 
 # --- Entry point ---
-def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
-    """Run Phase 1 (or skip via ``phase1_checkpoint``) then Phase 2."""
+def main(
+    configs: dict,
+    phase1_checkpoint: str | None = None,
+    resume: str | None = None,
+) -> None:
+    """Run Phase 1 (or skip via ``phase1_checkpoint`` / ``resume``) then Phase 2."""
     log_path = setup_logging(Path(configs["log_folder"]), configs["runname"])
     set_seed()
     if torch.cuda.is_available():
@@ -418,7 +444,11 @@ def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
                     len(train_loader.dataset), len(val_loader.dataset))  # fmt: skip
         data = (train_loader, val_loader)
 
-        if phase1_checkpoint is not None:
+        if resume is not None:
+            for p in model.parameters():
+                p.requires_grad = True
+            LOGGER.info("Resuming Phase 2 from %s (Phase 1 skipped)", Path(resume).name)
+        elif phase1_checkpoint is not None:
             ep = load_model_state(phase1_checkpoint, model)
             model.to(device)
             for p in model.parameters():
@@ -431,7 +461,7 @@ def main(configs: dict, phase1_checkpoint: str | None = None) -> None:
         else:
             run_phase1(model, data, configs, device, save_folder)
 
-        run_phase2(model, data, configs, device, save_folder)
+        run_phase2(model, data, configs, device, save_folder, resume_ckpt=resume)
         mlflow.log_artifact(str(log_path))
 
     LOGGER.info(SEPARATOR)
@@ -448,6 +478,12 @@ if __name__ == "__main__":
         dest="phase1_checkpoint",
         help="Phase-1 fullstate.pth; if set, skips Phase 1 (model_state only).",
     )
+    parser.add_argument(
+        "--resume",
+        default=None,
+        help="Phase-2 epoch fullstate.pth; restores model/optimizer/scheduler "
+        "and continues from the next epoch (skips Phase 1).",
+    )
     args = parser.parse_args()
 
     with open(args.config_file) as f:
@@ -460,4 +496,4 @@ if __name__ == "__main__":
         if key != "config_file":
             print(f"  {key}: {value}")
     print(SEPARATOR)
-    main(configs, phase1_checkpoint=args.phase1_checkpoint)
+    main(configs, phase1_checkpoint=args.phase1_checkpoint, resume=args.resume)
