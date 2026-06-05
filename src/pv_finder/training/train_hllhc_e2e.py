@@ -354,6 +354,7 @@ def run_phase2(
             eff.fp_rate,
             cur_lr,
         )
+        # Per-epoch metrics at the epoch's global step (align with step-level p2_*).
         save_to_mlflow(
             {
                 "Metric: Phase2 Training loss": tr,
@@ -362,7 +363,7 @@ def run_phase2(
                 "Metric: Phase2 FPR": eff.fp_rate,
                 "Metric: Phase2 LR": cur_lr,
             },
-            step=configs["phase1_epochs"] + ep,
+            step=ep * len(train_loader),
         )
         if ep % save_freq == 0 or ep == n_epochs:
             ckpt = save_folder / f"{runname}_phase2_epoch_{ep}_fullstate.pth"
