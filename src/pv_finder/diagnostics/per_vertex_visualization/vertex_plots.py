@@ -295,9 +295,10 @@ def plot_vertex_zoom(
 
     ax_hist.set_ylabel("Predicted histogram")
     label_str = f" [{vertex_label.upper()}]" if vertex_label else ""
+    z_name = truth_name or _vtx_label(dataset_label)
     ax_hist.set_title(
         f"{dataset_label.upper()} Ev {event_idx} | Vtx {vtx_idx}{label_str} | "
-        f"truth z = {truth_z:.2f} mm"
+        f"{z_name} z = {truth_z:.2f} mm"
     )
     ax_hist.legend(loc="upper right", fontsize=9)
 

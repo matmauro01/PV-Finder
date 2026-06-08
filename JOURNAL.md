@@ -2167,3 +2167,42 @@ merged ~21/evt (~22% of truth, dominant), fake ~10/evt, missed ~5/evt.
   (peak-suppression / confidence head; a height cut already removes ~50%).
 
 Plots: `outputs/06_08_2026_output/failure_mode_viz/event800XX/{merged,missed,fake}/`.
+
+---
+
+## 2026-06-08 — Vertex-matching fix: primary truth of a merged reco is CLEAN, not merged
+
+User inspection of the failure-mode plots found "merged" truth vertices that have
+a dedicated reco peak sitting right on them (e.g. event 80002 truth z=-21.108 has
+a peak at -21.069, 0.04 mm away) being labelled MERGED. Root cause in the greedy
+matcher (`compare_res_reco`, and the diagnostic `classify_vertices` that mirrors
+it): when a reco absorbs an extra unmatched neighbour truth it is labelled
+"merged", and THEN every truth assigned to it — including the well-reconstructed
+PRIMARY — was labelled "merged". So the primary (with its own peak) was dragged to
+merged just because its peak also happened to be the nearest one for a neighbour
+that had no peak of its own.
+
+**Fix** (both `efficiency_res_optimized_atlas.py:compare_res_reco` and
+`per_vertex_visualization/peak_matching.py:classify_vertices`): snapshot the
+Pass-1 primaries (`primary_truth = set(truth_assigned)`) before Pass-2 absorption.
+Truth labels: Pass-1 primary -> CLEAN (has a dedicated reco, even if that reco
+absorbs a neighbour); Pass-2 absorbed -> MERGED (the actual casualty); else MISSED.
+
+**Impact**:
+- **Efficiency UNCHANGED.** `eff = (tc+tm)/n_truth` and the fix only re-labels truths
+  *within* the non-missed set (primary<->absorbed), so `tc+tm` (and missed) are
+  invariant. Verified: event 80002 eff=0.989 before and after; 80010 0.933; 80000
+  0.899; 80014 0.965 — identical. No past efficiency number is invalidated.
+- **Truth merged/clean breakdown corrected.** merged roughly HALVED (per-event:
+  12->6, 29->15, 17->9, 26->13 at 0.5 mm window), clean rose correspondingly. The
+  earlier "merged ~22%" failure-mode figure was ~2x overstated; true lost-to-merge
+  is ~11%. The reco-side bar chart (reco_clean/merged/split/fake) is unaffected.
+
+Also: low-amplitude "fake" peaks pass peak-finding because `pv_locations_updated_res`
+gates on integral_threshold=0.2 (AREA) with no height floor — a 0.06-tall, ~0.4 mm
+wide shoulder has integral ~0.44 and clears it (e.g. event 80000 z=-37.62). A height
+cut >=0.05 removes ~50% of these (peak_classification_study); candidate operating-
+point / loss lever.
+
+Cosmetic: `plot_vertex_zoom` title now uses `truth_name` (fakes show "fake peak z"
+not "truth z"); `failure_mode_viz` passes per-mode names. Plots regenerated.

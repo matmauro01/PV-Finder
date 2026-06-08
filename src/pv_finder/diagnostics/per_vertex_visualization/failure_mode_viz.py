@@ -180,6 +180,8 @@ def main() -> None:
             "fake": [peaks[i][0] for i in range(len(peaks)) if rlab[i] == "fake"],
         }
         evt_dir = os.path.join(args.output_dir, f"event{evt.event_idx:05d}")
+        # For fakes the plotted center is the reco peak (no truth there).
+        name_for = {"merged": "MC truth", "missed": "MC truth", "fake": "fake peak"}
         for kind in _KINDS:
             sel = cases[kind][: args.per_category]
             totals[kind] += len(sel)
@@ -189,7 +191,7 @@ def main() -> None:
                     os.path.join(evt_dir, kind), window_mm=args.window_mm,
                     tracks_z0=evt.z0, tracks_d0=evt.d0, tracks_d0_err=evt.d0_err,
                     all_truth_vertices=truth, match_window_mm=args.match_window_mm,
-                    vertex_label=kind, truth_name="MC truth",
+                    vertex_label=kind, truth_name=name_for[kind],
                 )  # fmt: skip
             print(f"    {kind}: plotted {len(sel)}/{len(cases[kind])}")
 

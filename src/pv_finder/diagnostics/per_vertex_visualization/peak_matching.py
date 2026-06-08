@@ -135,6 +135,10 @@ def classify_vertices(
             reco_assigned[i] = j
             truth_assigned[j] = i
 
+    # Primaries won a dedicated reco in pass 1 -> clean even if their reco later
+    # absorbs a neighbour; only absorbed (pass-2) truths are the merge casualties.
+    primary_truth = set(truth_assigned)
+
     reco_labels = ["fake"] * n_reco
     for i in range(n_reco):
         nb = reco_neighbors[i]
@@ -152,9 +156,10 @@ def classify_vertices(
 
     truth_labels = ["missed"] * n_truth
     for j in range(n_truth):
-        if j in truth_assigned:
-            ri = truth_assigned[j]
-            truth_labels[j] = "merged" if reco_labels[ri] == "merged" else "clean"
+        if j in primary_truth:
+            truth_labels[j] = "clean"  # has a dedicated reco
+        elif j in truth_assigned:
+            truth_labels[j] = "merged"  # absorbed by a closer truth's reco
 
     return truth_labels, reco_labels
 

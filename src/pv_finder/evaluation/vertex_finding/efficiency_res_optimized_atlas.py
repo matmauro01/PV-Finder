@@ -222,6 +222,11 @@ def compare_res_reco(target_PVs_loc, pred_PVs_loc, reco_res, debug):
             reco_assigned[ri] = tj
             truth_assigned[tj] = ri
 
+    # Primaries = truths that won a dedicated 1-to-1 reco in Pass 1. These are
+    # cleanly reconstructed even if their reco later absorbs a neighbour; only
+    # the *absorbed* (Pass-2) truths are the merge casualties.
+    primary_truth = set(truth_assigned)
+
     # --- Pass 2: classify ---
     reco_cls = np.empty(n_reco, dtype=object)
     truth_cls = np.empty(n_truth, dtype=object)
@@ -246,14 +251,16 @@ def compare_res_reco(target_PVs_loc, pred_PVs_loc, reco_res, debug):
             else:
                 reco_cls[ri] = "clean"
 
-    # Truth classification
+    # Truth classification: a Pass-1 primary has its own dedicated reco -> clean
+    # (even if that reco absorbed a neighbour); a truth absorbed in Pass 2 shares
+    # a reco with a closer truth and had none of its own -> merged; else missed.
+    # NOTE: this only re-labels assigned truths between clean/merged; the set of
+    # non-missed truths (and hence efficiency = (clean+merged)/n_truth) is unchanged.
     for tj in range(n_truth):
-        if tj in truth_assigned:
-            ri = truth_assigned[tj]
-            if reco_cls[ri] == "merged":
-                truth_cls[tj] = "merged"
-            else:
-                truth_cls[tj] = "clean"
+        if tj in primary_truth:
+            truth_cls[tj] = "clean"
+        elif tj in truth_assigned:
+            truth_cls[tj] = "merged"
         else:
             truth_cls[tj] = "missed"
 
