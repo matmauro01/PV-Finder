@@ -2113,3 +2113,57 @@ Usage:
   python -u src/pv_finder/training/train_hllhc_e2e.py \
       -c configs/vertex_finding/config_hllhc_pu200_e2e_v4b_stepwarmup.yml \
       --resume model_weights/<run>_phase2_epoch_<N>_fullstate.pth
+
+---
+
+## 2026-06-04 — Presentation update for v4 HL-LHC results
+
+Appended June 4 update slides to `presentations/mattia/04_16_2026/slides.tex`.
+The new section summarizes the larger 2.7M-event fixed-PU200 training sample,
+compressed multi-file HDF5 conversion, global shuffle, v4/v4b warmup and LR
+schedule work, Phase-2 resume support, and compute constraints on the shared
+server.
+
+Added the latest ATLAS-style AMVF resolution-vs-track-multiplicity plot
+(`outputs/06_01_2026_output/amvf_resolution_residuals/amvf_resolution_vs_ntracks.png`)
+to explain the updated HL-LHC target-histogram widths, plus the tuned v4 epoch-2
+category-count result at `peak_threshold=0.01`, `integral_threshold=0.40`
+(`outputs/06_04_2026_output/v4_epoch2_eval_thr0p40_res0p40_2500_random_start_16320/production/category_counts_hist.png`).
+The slides call out the open question of using AMVF reconstructed vertices for
+the track-count vs precision curve and list next studies: longer training,
+failure-mode visualization, improved peak finding/heuristics, alternative losses,
+and checking whether close-PV density imposes a physical limit.
+
+---
+
+## 2026-06-08 — Failure-mode per-vertex viz + classify_vertices greedy fix
+
+Built `src/pv_finder/diagnostics/per_vertex_visualization/failure_mode_viz.py` to
+inspect what the v4b model gets wrong, to drive the next round of improvements
+from real failure modes. Reuses all existing primitives (run3_io,
+inference.run_e2e_on_events, peak_matching, vertex_plots, analytical_kde); the
+only new code is a v2/v4b model loader and a failure-mode selection loop. Runs
+v4b on HL-LHC events, classifies each MC-TruthVertex/reco vertex, and plots zoom
+views ONLY for merged/missed truth and fake reco (capped per category).
+
+**Bug found + fixed in shared `peak_matching.classify_vertices`**: it used a
+fixed-window count (>=2 truths within 0.5 mm -> "merged"), which mislabels
+cleanly separated close pairs as merged. Replaced with the canonical greedy
+closest-first 1-to-1 (same as `efficiency_res_optimized_atlas.compare_res_reco`).
+Effect on one event: merged 51->23, clean 47->75. Answers the earlier
+"are merged truly merged?" question: the old diagnostic over-counted merges.
+
+**vertex_plots.py fixes**: `axes.unicode_minus=False` (Unicode minus rendered as
+boxes in the Agg font); added `truth_name` param to `plot_vertex_zoom` /
+`_draw_vertex_lines` so the legend can say "MC truth" instead of "AMVF vertex".
+
+**Failure-mode breakdown (v4b, 4 HL-LHC events, MC truth, 0.5 mm window)**:
+merged ~21/evt (~22% of truth, dominant), fake ~10/evt, missed ~5/evt.
+- MERGED: close pairs (<~0.5 mm); KDE often shows the structure but model emits
+  fewer peaks -> resolution-limited (levers: finer output / deconvolution / timing).
+- MISSED: low-track vertices with little/no track signal AND no KDE signal ->
+  information-limited, not a model bug (no lever helps without tracks).
+- FAKE: small peaks at sparse-track / KDE-shoulder locations -> loss-addressable
+  (peak-suppression / confidence head; a height cut already removes ~50%).
+
+Plots: `outputs/06_08_2026_output/failure_mode_viz/event800XX/{merged,missed,fake}/`.

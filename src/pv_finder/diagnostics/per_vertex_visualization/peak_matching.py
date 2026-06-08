@@ -96,6 +96,13 @@ def classify_vertices(
     ``efficiency_res_optimized_atlas.py``, using a fixed matching window in mm
     (consistent with the visual peak marking already used in the plots).
 
+    Uses the SAME greedy closest-first 1-to-1 assignment as
+    ``efficiency_res_optimized_atlas.compare_res_reco`` so that two cleanly
+    separated but nearby truth vertices (each with its own reco) are counted as
+    two "clean" matches, NOT as "merged". A reco is only "merged" when it is the
+    best match for one truth AND absorbs an *extra* truth in its window that no
+    closer reco claimed.
+
     Returns
     -------
     truth_labels
@@ -106,44 +113,48 @@ def classify_vertices(
     """
     n_truth = len(truth_vertices)
     n_reco = len(pred_peaks)
+    truth_arr = np.asarray(truth_vertices, dtype=float)
 
-    reco_to_truth: list[list[int]] = [[] for _ in range(n_reco)]
-    truth_to_reco: list[list[int]] = [[] for _ in range(n_truth)]
-
+    # Candidate (reco, truth, distance) pairs within the matching window
+    pairs: list[tuple[int, int, float]] = []
+    reco_neighbors: list[list[int]] = [[] for _ in range(n_reco)]
     for i, (pz, _) in enumerate(pred_peaks):
-        for j, tz in enumerate(truth_vertices):
-            if abs(pz - tz) <= match_window_mm:
-                reco_to_truth[i].append(j)
-                truth_to_reco[j].append(i)
-
-    # Initial reco labels based on how many truth vertices each reco peak covers
-    reco_labels = ["fake"] * n_reco
-    for i, matched in enumerate(reco_to_truth):
-        if len(matched) == 1:
-            reco_labels[i] = "clean"
-        elif len(matched) > 1:
-            reco_labels[i] = "merged"
-
-    # Truth labels; resolve split conflicts: when multiple "clean" reco peaks
-    # claim the same truth vertex, only the closest keeps "clean" and the rest
-    # are reclassified as "split".
-    truth_labels = ["missed"] * n_truth
-    for j, matched_reco in enumerate(truth_to_reco):
-        if not matched_reco:
+        if n_truth == 0:
             continue
-        if any(reco_labels[i] == "merged" for i in matched_reco):
-            truth_labels[j] = "merged"
+        dists = np.abs(truth_arr - pz)
+        for j in np.where(dists <= match_window_mm)[0]:
+            pairs.append((i, int(j), float(dists[j])))
+            reco_neighbors[i].append(int(j))
+
+    # Greedy closest-first 1-to-1 assignment
+    pairs.sort(key=lambda x: x[2])
+    reco_assigned: dict[int, int] = {}
+    truth_assigned: dict[int, int] = {}
+    for i, j, _ in pairs:
+        if i not in reco_assigned and j not in truth_assigned:
+            reco_assigned[i] = j
+            truth_assigned[j] = i
+
+    reco_labels = ["fake"] * n_reco
+    for i in range(n_reco):
+        nb = reco_neighbors[i]
+        if i not in reco_assigned:
+            # truth in window but claimed by a closer reco -> split; else fake
+            reco_labels[i] = "split" if nb else "fake"
         else:
-            clean_reco = [i for i in matched_reco if reco_labels[i] == "clean"]
-            if len(clean_reco) == 1:
-                truth_labels[j] = "clean"
-            elif len(clean_reco) > 1:
-                tz = truth_vertices[j]
-                best = min(clean_reco, key=lambda i: abs(pred_peaks[i][0] - tz))
-                for i in clean_reco:
-                    if i != best:
-                        reco_labels[i] = "split"
-                truth_labels[j] = "clean"
+            unmatched = [j for j in nb if j not in truth_assigned]
+            if unmatched:
+                reco_labels[i] = "merged"
+                for j in unmatched:
+                    truth_assigned[j] = i  # absorbed by this reco
+            else:
+                reco_labels[i] = "clean"
+
+    truth_labels = ["missed"] * n_truth
+    for j in range(n_truth):
+        if j in truth_assigned:
+            ri = truth_assigned[j]
+            truth_labels[j] = "merged" if reco_labels[ri] == "merged" else "clean"
 
     return truth_labels, reco_labels
 

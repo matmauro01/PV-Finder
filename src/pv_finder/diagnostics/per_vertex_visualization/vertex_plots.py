@@ -69,6 +69,7 @@ mpl.rcParams.update(
         "ytick.major.size": 0,
         "xtick.minor.size": 0,
         "ytick.minor.size": 0,
+        "axes.unicode_minus": False,  # ASCII '-'; U+2212 is a box in the Agg font
     }
 )
 
@@ -125,19 +126,22 @@ def _draw_vertex_lines(
     hi: float,
     dataset_label: str,
     add_legend: bool = True,
+    truth_name: str | None = None,
 ) -> None:
     """Draw vertical lines for all truth vertices visible in [lo, hi].
 
     The focused vertex is drawn in black; other vertices in grey.
-    Legend entries are added only once per category.
+    Legend entries are added only once per category. ``truth_name`` overrides
+    the focused-vertex legend label (else derived from ``dataset_label``).
     """
     focused_drawn = False
     others_drawn = False
+    name = truth_name or _vtx_label(dataset_label)
     for vz in vtx_list:
         if not (lo <= vz <= hi):
             continue
         if abs(vz - focused_z) < 1e-6:
-            lbl = _vtx_label(dataset_label) if add_legend and not focused_drawn else ""
+            lbl = name if add_legend and not focused_drawn else ""
             ax.axvline(vz, color=COL_VERTEX, linestyle="--", linewidth=1.4, label=lbl)
             focused_drawn = True
         else:
@@ -176,26 +180,16 @@ def plot_vertex_zoom(
     match_window_mm: float = 0.5,
     all_truth_vertices: list[float] | None = None,
     vertex_label: str | None = None,
+    truth_name: str | None = None,
 ) -> None:
     """Three-panel per-vertex visualization.
 
-    Panel 1 -- Histogram overlay zoomed to [truth_z +/- window_mm].
-      All curves normalized to their own global peak for shape comparison.
-      - Red solid  : Predicted hist. (e2e model output)
-      - Blue dashed: Analytical KDE
-      - Orange dash-dot: T2KDE model-computed KDE
-      - Green dotted (MC only): Truth target histogram (training target)
-      - Black dashed vertical line: focused truth vertex
-      - Grey dashed lines: other truth vertices visible in the window
-      - Green shaded band: +/-match_window_mm matching window
-      - Filled red dot: predicted peak within matching window
-      - Open red circle: predicted peak outside matching window
-
-    Panel 2 -- Normalized residual (pred - ana) in the same z window.
-
-    Panel 3 -- Track impact-parameter significance vs z0.
-      y-axis: |d0| / sigma_d0.  Coloured by log10(sigma_d0).
-      X-axis aligned with panels 1 and 2 via sharex.
+    Panel 1 -- Histogram overlay zoomed to [truth_z +/- window_mm]: predicted
+    hist (red), analytical KDE (blue dashed), optional T2KDE (orange) and truth
+    target (green); focused vertex (black) + others (grey); match-window band;
+    filled/open red dots = peaks in/out of the window.
+    Panel 2 -- Normalized residual (pred - ana). Panel 3 -- track |d0|/sigma_d0
+    vs z0, coloured by log10(sigma_d0), x-aligned via sharex.
 
     Parameters
     ----------
@@ -279,7 +273,9 @@ def plot_vertex_zoom(
         label=f"+/-{match_window_mm} mm",
     )
 
-    _draw_vertex_lines(ax_hist, vtx_list, truth_z, lo, hi, dataset_label)
+    _draw_vertex_lines(
+        ax_hist, vtx_list, truth_z, lo, hi, dataset_label, truth_name=truth_name
+    )
 
     # Predicted peak markers (raw heights)
     for pz, ph in pred_peaks:

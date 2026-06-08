@@ -287,3 +287,24 @@ should be regenerated with the HL-LHC (a, b, c) above, not the Run-3 ones.
 Only 30 vertices have N_Tracks ≥ 120; only 3 have ≥ 140.
 
 Output: `outputs/06_01_2026_output/amvf_resolution_residuals/`
+
+## Failure-mode per-vertex visualization (`failure_mode_viz.py`)
+
+`per_vertex_visualization/failure_mode_viz.py` runs the v4b (v2) model on HL-LHC
+events and plots per-vertex zoom views **only for failure modes** — merged &
+missed MC-truth vertices and fake reco peaks — to drive model improvements from
+real failures. Reuses the shared primitives (run3_io, inference, peak_matching,
+vertex_plots, analytical_kde); adds only a v2 loader and the failure selector.
+
+```bash
+PYTHONPATH=src python -u \
+  src/pv_finder/diagnostics/per_vertex_visualization/failure_mode_viz.py \
+  --n-events 4 --per-category 6 --device 0 \
+  --output-dir outputs/MM_DD_YYYY_output/failure_mode_viz
+```
+
+Truth source is MC `TruthVertex` (nTracks>=2). Classification uses the greedy
+closest-first matching in `peak_matching.classify_vertices` (aligned with the
+eval's `compare_res_reco`): a reco is "merged" only when it absorbs an extra
+truth that no closer reco claimed — cleanly separated close pairs count as two
+"clean" matches, not merged.
