@@ -2206,3 +2206,121 @@ point / loss lever.
 
 Cosmetic: `plot_vertex_zoom` title now uses `truth_name` (fakes show "fake peak z"
 not "truth z"); `failure_mode_viz` passes per-mode names. Plots regenerated.
+
+## 2026-06-09 — Peak height floor (min_height) operating point
+
+Added `min_height` to `pv_locations_updated_res` (both copies: `utils/peak_finding.py`
+and `evaluation/.../efficiency_res_optimized_atlas.py`) and to `find_histogram_peaks`.
+Default `0.0` (no behavior change for all existing callers). `run_eval_pvf_run3.py`
+gained `--min-height`, defaulting to **0.03** — the new production operating point.
+Floor is applied at the peak-record step (`targets[currentmax] >= min_height`), so it
+composes cleanly with the integral/width cuts and keeps the position/height arrays
+aligned. Verified both copies behave identically (synthetic test: 0.02 peak dropped,
+0.05 + 0.30 kept at floor 0.03).
+
+Why: the integral cut gates on AREA — a wide ~0.06-tall shoulder clears
+integral=0.2 and becomes a fake. A height floor removes those directly.
+
+Evidence: new `diagnostics/peak_operating_point.py` ran v4b ep3 on 300 PU200 events
+(r16438, MC TruthVertex), characterising every fake + sweeping the floor 0→0.15:
+- Fakes are NOT sidelobes: 0% within 0.3 mm of a real peak, only 2.5% within 0.5 mm,
+  33% within 0.85 mm, 37% isolated (>1.5 mm). So `suppress_neighbor_peaks` is the
+  wrong tool; a height floor is the right first lever.
+- Amplitude overlap: fake median 0.060 (p90 0.16) vs real-peak p10 0.14, median 0.83.
+- Sweep: floor 0.000 → eff 0.9651, 9.87 fake/evt; 0.030 → 0.9619, 8.87; 0.050 → 0.9503,
+  5.96; 0.100 → 0.9219, 2.47; 0.150 → 0.8979, 1.17. No free lunch beyond ~0.03 —
+  every further fake removed costs real low-ntrks efficiency (overlap region).
+- Conclusion: 0.03 is a near-free default; the overlap region (~5 fake/evt) needs a
+  context-aware learned objectness head (sees track support under the bump), not a
+  histogram-amplitude threshold. That is the planned next training-side lever.
+
+Artifacts: outputs/06_09_2026_output/peak_operating_point/{operating_point.png,
+height_floor_sweep.csv}, opscan.log.
+
+## 2026-06-09 — Candidate classifier (peak_classifier_v2) on v4b ep3
+
+Ran peak_classifier_v2.py on fresh v4b ep3 artifacts (2500 evt, r16438, min_height=0,
+--save-histograms → eval_v4b_ep3_artifacts/eval_results.pkl). 241k peaks, 10.1% fake.
+Real/fake = within 0.5 mm of a TruthVertex.
+
+Results:
+- Best deterministic single cut: trk>=2 in 0.5 mm → keep 98.8% real, remove 30.7% fake
+  (clearly beats any pure height cut — track support discriminates).
+- GBT (23 feat) AUC=0.9651. Operating points: thr0.3 keep 99.1%/remove 38% fake
+  (14→8.7 fake/evt, ~-0.9pp eff); thr0.5 96.8%/64.6% (14→5/evt, ~-3pp); thr0.7 93.9%/81.9%.
+  Far better fake/eff trade than the 0.03 height floor (which gave only -8% fake / -0.4pp).
+- MLP AUC=0.9623.
+- DECISIVE ABLATION: GBT track-only(feat0-14)=0.9569 ; hist-only(feat15-22)=0.9593 ;
+  all=0.9651. Track and histogram features are LARGELY REDUNDANT — each alone ≈ full AUC.
+  The fake/real signal is mostly ALREADY in the histogram. Dominant feature:
+  local_integral (±0.5 mm windowed area) imp=0.72, then peak_height 0.08, nearest_dz 0.06.
+
+Implications:
+1. A HISTOGRAM-ONLY post-hoc GBT gate (no NN retrain) recovers ~the full separation and
+   beats the height floor substantially. Deployable via the existing eval
+   `--gbt-filter-model`/`_apply_gbt` hook — BUT `_hist_features` (8 feats: height, pk_int,
+   local_int, fwhm, curv, rel_height, ndz, nrat) differs from the classifier's hist set
+   (has skewness instead of pk_int), so feature extraction must be aligned before deploying
+   the saved gbt_hist_model.
+2. The dense objectness head is now LESS critical for fakes specifically: since the signal
+   is already in the histogram, the head's marginal value is histogram *cleanup*
+   (helps merged shoulders / σ) + end-to-end, not unlocking new separation. Reassess after
+   the post-hoc gate is deployed.
+3. Caveat: local_integral dominance may partly reflect that fakes cluster in sparse regions
+   (low local pileup density) — valid discriminant but confirm generalization across files/μ.
+
+Artifacts: outputs/06_09_2026_output/peak_classifier_v2/{feature_distributions.png,
+classifier_performance.png,peak_classifier_results.pkl,classifier.log}.
+
+## 2026-06-09 — GBT hist-filter wired into eval + slides updated
+
+Deployed the histogram-only candidate classifier as an eval operating-point gate:
+- Rewrote `_hist_features` in run_eval_pvf_run3.py to EXACTLY match peak_classifier_v2
+  features 15-22 (peak_height, local_integral, hist_skewness, fwhm_mm, curvature,
+  rel_height, nearest_peak_dz, nearest_peak_ratio). Verified bit-exact vs the classifier
+  on 779 peaks (max|Δfeature|=0, max|Δproba|=0). Loaded via existing --gbt-filter-model
+  hook (reads gbt_hist_model from peak_classifier_results.pkl).
+- Gated eval on INDEPENDENT file r16633 (classifier trained on r16438 → no contamination),
+  GBT thr 0.3, min_height 0 (GBT replaces the floor): Eff=0.9272, fake=11.29/evt,
+  sigma=0.2824 mm. vs no-filter (r16438 ref) 0.9365 / 14.0 / 0.2908. Generalizes across runs.
+- Confirmed the resolution (sigma_vtx_vtx) plot is built from the POST-filter peak set:
+  _apply_gbt is applied to p_pvs_r (line 331) before pairwise_dz is accumulated (lines
+  332-336), so GBT-filtered peaks are correctly excluded from the resolution fit (σ tightens
+  0.291→0.282 as fakes are removed). No regeneration needed.
+
+Slides: appended a June-9 update section to presentations/mattia/04_16_2026/slides.tex
+(10 frames): v4b category counts, the clean-vs-merged classification fix (before/after TikZ;
+efficiency invariant), fake-suppression ladder (height-floor scan, neighbor ruled out,
+post-hoc classifier AUC 0.965 + track/hist redundancy ablation, GBT deployed on independent
+data), timing verdict (timing_validity.png; ~0.36 timed tracks/vertex, forward-only), and
+next steps (in-model objectness head). Compiles clean (latexmk -pdf), 50 pages.
+
+## 2026-06-22 — Wiki sync: docs/ brought up to current truth (v4b era)
+
+Synced the wiki to the code as of June 2026 (docs lagged at the April–early-May
+snapshot). Verified each change against the code/configs before editing.
+
+- **docs/index.md**: added the missing nav links (data/run_2, data/run_4, and a new
+  Research section linking peak_classification_study and resolution_bump_analysis).
+- **docs/evaluation/vertex_finding.md**:
+  - canonical HL-LHC checkpoint is now **v4b**
+    (`...v4b_3ep_280ch_4lat_stepwarmup_phase2_epoch_3`), v2-wide relabeled as earlier;
+    documented the load flags (`--e2e-type v2`, `v2≡v3` build `TracksToHist_v2`,
+    `--e2e-unet-channels 280 --e2e-latent-channels 4 --e2e-hidden 128×5`).
+  - documented the histogram-only GBT gate (`--gbt-filter-model` / `--gbt-threshold`,
+    default 0.7) with the r16633 deployment numbers.
+  - added the 2026-06-08/09 truth-side merged/clean fix to the matching section
+    (efficiency invariant; merged≈halved; a merged reco covers ≥2 truths).
+  - reconciled the 0.2-vs-0.5 contradiction: the mattia_finder diff table and
+    Outstanding Issues §2 now reflect the unified-0.5 decision (HL-LHC overrides 0.2).
+  - flagged NMS/smoothing as off-by-default and not used in canonical evals;
+    clarified `--min-height` default 0.03 vs headline numbers at 0.0.
+- **docs/training/vertex_finding.md**: added the v3→v4→v4b progression, the per-step
+  warmup recipe, the `--resume` flag, the v3-sweep + v4b config rows, and the v4b
+  MLflow run name.
+- **docs/data/run_4.md**: fixed the stale training recipe (was v1 lr=1e-3 /
+  `config_hllhc_pu200_e2e.yml`) to v4b; corrected the pileup description (μ spans
+  190–210, mean ≈200, not the literal pair {190,210}).
+- **docs/research/peak_classification_study.md**: added a 2026-06-09 update for the
+  v4b / 23-feature `peak_classifier_v2` study and the deployed histogram-only gate;
+  kept the May v1 study as the original record.

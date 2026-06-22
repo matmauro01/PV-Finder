@@ -67,6 +67,21 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf.py \
 | `INTEGRAL_THRESHOLD` | `0.5` | Min peak area — performance counts (clean/merged/split/fake, efficiency, FP, all peak-count plots) |
 | `INTEGRAL_THRESHOLD_RES` | `0.5` | Min peak area — σ_vtx_vtx pairwise Δz fit |
 | `min_width` | `3` bins | Min peak width |
+| `min_height` | `0.03` (run3 eval) | Min peak amplitude — drops lowest-amplitude fakes |
+
+**Height floor (2026-06-09):** `pv_locations_updated_res` gained a `min_height`
+arg (default `0.0` = off; `run_eval_pvf_run3.py --min-height` defaults to `0.03`).
+The integral cut gates on *area*, so a wide low shoulder (~0.06 tall) clears it;
+a height floor removes those. Operating-point scan (`diagnostics/peak_operating_point.py`,
+v4b, 300 evt): floor `0.03` removes ~1 fake/evt for ~0.3 pp efficiency (near-free
+junk removal). Pushing higher is a real efficiency trade — fake p90 (0.16) overlaps
+real-peak p10 (0.14), so amplitude alone cannot separate fakes from low-ntrks PVs
+beyond this point. See JOURNAL 2026-06-09.
+
+Note on defaults: `run_eval_pvf_run3.py --min-height` defaults to `0.03`, but the
+**headline Run 2 / Run 3 and HL-LHC baseline numbers are quoted at `--min-height 0.0`**
+(reproduction parity); the `0.03` floor is reported as a separate HL-LHC
+operating point, not the baseline.
 
 **Unified-threshold (2026-04-16):** Both performance and resolution use `0.5`
 by default on Run 2 / Run 3 / MC. This is consistent and filters small sidelobe
@@ -117,7 +132,8 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 | Model | File | Notes |
 |-------|------|-------|
 | **Run 2 MC — canonical (Model B, ep300)** | `model_weights/03_24_2026/reproduction_T2HIST_400ep_T2KDE100_K2H150_epoch_300_fullstate.pth` | E2E v1, 400-epoch Qi Bin reproduction, initialized from T2KDE ep100 + K2H ep150. `trackstoHists_UNet_1000` with default width (64 UNet ch, [100]×5 MLP). **Default for all Run 2 MC / Run 2 data / Run 3 data evals.** Previously used ep150 — moved to ep300 on 2026-04-15 (later in the 400-epoch schedule, more converged). |
-| **HLLHC PU200 — canonical (v2 wide)** | `model_weights/hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100_fullstate.pth` | E2E v1 **wide** variant (`n_UNetChannels=96`, `l_HiddenNodes=[128]×5`, 680K params). Load via `--e2e-wide`. Phase 2 epoch 100, which is **150 effective epochs** counting the 50-epoch MLP warmup in Phase 1. LR-stable recipe: 1e-4 + 5-ep warmup + cosine decay + grad-clip. |
+| **HLLHC PU200 — canonical (v4b)** | `model_weights/hllhc_pu200_e2e_v4b_3ep_280ch_4lat_stepwarmup_phase2_epoch_3_fullstate.pth` | `TracksToHist_v2`, 280 UNet channels, 4 latent channels, `[128]×5` MLP (~3.55M params). **Default for HL-LHC PU200 evals**, run via `run_eval_pvf_run3.py` (the only script with the architecture flags): `--e2e-type v2 --e2e-unet-channels 280 --e2e-latent-channels 4 --e2e-hidden 128 128 128 128 128`, with `--integral-threshold 0.2 --integral-threshold-res 0.2`. See [training](../training/vertex_finding.md). |
+| HLLHC PU200 — v2 wide (earlier) | `model_weights/hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100_fullstate.pth` | E2E v1 **wide** variant (`n_UNetChannels=96`, `l_HiddenNodes=[128]×5`, 680K params). Load via `--e2e-wide`. Phase 2 epoch 100, which is **150 effective epochs** counting the 50-epoch MLP warmup in Phase 1. LR-stable recipe: 1e-4 + 5-ep warmup + cosine decay + grad-clip. Superseded by v4b. |
 | E2E v1 ep130 (Strategy B, older) | `model_weights/e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_130_fullstate.pth` | 50-ep MLP warmup + 400-ep E2E (`train_mlp_hist_then_e2e.py`). The "old Run 2 model" reference used in the 2026-04-09 HLLHC-vs-Run2 comparison. Default-width v1. |
 | E2E v1 ep191 (tracks→hist) | `model_weights/tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` | Manually extracted from a mattia_finder `.pyt` artifact (see Outstanding Issues). |
 | E2E v2 ep90 (TracksToHist_v2) | `model_weights/T2HIST_v2_100epochs_epoch_90_fullstate.pth` | |
@@ -135,7 +151,7 @@ This table is the ground truth for what is and isn't matched:
 |--------|--------------|-----------|--------|
 | Truth source | ROOT `TruthVertex_z`, nTracks≥2 | Same (via `--root-truth`) | ✅ Matched |
 | h5↔ROOT index mapping | `qibin_test_main_indices_v2.p` | Same | ✅ Matched |
-| Peak finder thresholds (performance) | threshold=0.01, int=0.2, width=3 | Same | ✅ Matched |
+| Peak finder thresholds (performance) | threshold=0.01, int=0.2, width=3 | threshold=0.01, int=**0.5**, width=3 | ⚠️ Intentional — unified to 0.5 (2026-04-16) |
 | Peak finder thresholds (σ) | threshold=0.01, int=0.5, width=3 | Same | ✅ Matched |
 | Pileup variable | `ActualNumOfInt` (float, rounded) | Same when ROOT available | ✅ Matched |
 | Summary pileup filter | μ∈[55,65] | Same | ✅ Matched |
@@ -173,6 +189,18 @@ This replaced an older per-reco-independent algorithm (2026-04-23) that inflated
 the merged count: if reco R saw truth T1 and T2, it was always "merged" even if
 another reco R2 was a better match for T2. The greedy algorithm correctly assigns
 R→T1 and R2→T2 as two clean matches.
+
+**Truth-side merged/clean fix (2026-06-08/09).** On the truth side, a truth vertex
+that wins its own dedicated reco in pass 1 (`primary_truth`) is labeled **clean**
+even when that reco later absorbs a weaker neighbour; only the *absorbed* truth
+(claimed in pass 2, with no dedicated reco of its own) is labeled **merged**. This
+re-labels truth vertices *within* the non-missed set, so the efficiency
+`(N_clean + N_merged) / N_truth` is unchanged — but the per-event merged count is
+roughly halved (the absorbed-neighbour fraction) and the clean count rises
+correspondingly. A merged reconstructed vertex therefore still accounts for two (or
+more) truth vertices: the clean primary plus at least one absorbed neighbour. See
+JOURNAL 2026-06-08/09 and `compare_res_reco` in
+`efficiency_res_optimized_atlas.py`.
 
 ### σ_vtx_vtx is both output and input
 σ_vtx_vtx is computed from the pairwise Δz distribution, then **used as the matching window** in `compare_res_reco`. This creates a mild circular dependency: a very different model will give a different σ, which changes how clean/merged/fake are counted. Keep this in mind when comparing numbers across very different models.
@@ -221,7 +249,13 @@ Evaluates PV-Finder on real collision data (Run 2 or Run 3), using AMVF reconstr
 | `--t2kde-model` + `--k2h-model` | Tracks → T2KDE (MaskedDNN) → K2H (UNet_1000) |
 | `--e2e-model` + `--e2e-type v1` | Tracks → trackstoHists_UNet_1000 end-to-end |
 | `--e2e-model` + `--e2e-type v1 --e2e-wide` | Same class, but wider (96 UNet ch, [128]×5 MLP) — for the HLLHC v2 checkpoint |
-| `--e2e-model` + `--e2e-type v2` | Tracks → TracksToHist_v2 end-to-end |
+| `--e2e-model` + `--e2e-type v2` (or `v3`) | Tracks → TracksToHist_v2 end-to-end |
+
+`--e2e-type` accepts `v1`, `v2`, `v3`; `v2` and `v3` build the **same**
+`TracksToHist_v2` class (the labels are historical). For the canonical v4b
+checkpoint, pass the architecture explicitly:
+`--e2e-type v2 --e2e-unet-channels 280 --e2e-latent-channels 4 --e2e-hidden 128 128 128 128 128`
+(defaults are 64 channels / 1 latent / `[100]×5`).
 
 The same script also runs on **HLLHC PU200** ROOT files (Run 4) — the tree layout
 is identical. Pass `--mu-min`/`--mu-max` to move the summary window from the Run 2/3
@@ -259,13 +293,15 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
     --k2h-model model_weights/reproduction_KDE2HIST_matmauro_200epochs_epoch_190_fullstate.pth \
     --max-events 2500 --output-dir outputs/eval_pvf_run2
 
-# HLLHC PU200 — same script, custom pileup window + threshold override:
+# HLLHC PU200 — canonical v4b model, custom pileup window + threshold override:
 python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
-    --root data/run4/Run4_MC21_ITk/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \
-    --e2e-model model_weights/hllhc_pu200_mlp50_e2e400_v2_phase2_epoch_100_fullstate.pth \
-    --e2e-type v1 --e2e-wide --mu-min 190 --mu-max 220 \
-    --integral-threshold 0.2 --integral-threshold-res 0.2 \
-    --max-events 2550 --output-dir outputs/eval_hllhc_ep100 \
+    --root data/run4/PU200_withTiming/ATLAS_PVFinderData_601229_e8481_s4494_r16438_PU200.root \
+    --e2e-model model_weights/hllhc_pu200_e2e_v4b_3ep_280ch_4lat_stepwarmup_phase2_epoch_3_fullstate.pth \
+    --e2e-type v2 --e2e-unet-channels 280 --e2e-latent-channels 4 \
+    --e2e-hidden 128 128 128 128 128 \
+    --mu-min 185 --mu-max 215 \
+    --integral-threshold 0.2 --integral-threshold-res 0.2 --min-height 0.0 \
+    --max-events 2500 --output-dir outputs/eval_hllhc_v4b_ep3 \
     --dataset-name "HL-LHC PU200"
 ```
 
@@ -302,6 +338,13 @@ eval behavior.
 Same as MC eval: `resolution_plot.png`, `performance_plot.png`, `stats_histogram.png`, `eval_results.pkl`.
 
 ### Post-Processing: Smoothing + NMS
+
+> **Off by default, not used in canonical evals.** Both steps default to off
+> (`--smooth-sigma 0`, `--nms-min-sep 0`), and the headline Run 2 / Run 3 / HL-LHC
+> numbers do **not** use them — sidelobe peaks are simply counted as fakes. They are
+> experimental Run 3 tools and are **counterproductive at PU200**, where the fakes
+> are not sidelobes and genuine close pairs dominate the suppression window (see
+> [resolution_bump_analysis](../research/resolution_bump_analysis.md)).
 
 Two optional post-processing steps reduce fake sidelobe peaks on Run 3 data.
 The E2E model produces UNet deconvolution sidelobes — small spurious peaks
@@ -352,6 +395,38 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
     --output-dir outputs/eval_run3_s2_nms03
 ```
 
+### Histogram-only GBT fake gate (HL-LHC, 2026-06-09)
+
+At PU200 the sidelobe tools above do not apply (the fakes are not sidelobes).
+Instead, a post-hoc gradient-boosted-tree classifier on **histogram-only** peak
+features can gate fakes without retraining the model.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--gbt-filter-model` | — | Path to a `peak_classifier_results.pkl` (reads the `gbt_hist_model` entry) |
+| `--gbt-threshold` | `0.7` | Keep peaks with predicted P(real) ≥ threshold |
+
+The gate uses the 8 histogram-shape features (`_hist_features`) that match
+`peak_classifier_v2.py` features 15–22 exactly (peak height, local integral,
+skewness, FWHM, curvature, relative height, nearest-peak Δz and height ratio). It is
+applied right after peak finding, so filtered peaks are excluded from **both** the
+category counts and the σ_vtx_vtx pairwise-Δz fit. Trained on `r16438` and validated
+on the independent file `r16633`, the v4b gate at `--gbt-threshold 0.3` gives
+Eff ≈ 0.927, ~11.3 fake/evt, σ ≈ 0.282 mm (vs ~14 fake/evt with no gate). See the
+[peak_classification_study](../research/peak_classification_study.md) and JOURNAL
+2026-06-09.
+
+```bash
+python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
+    --root data/run4/.../ATLAS_PVFinderData_..._r16633_PU200.root \
+    --e2e-model model_weights/hllhc_pu200_e2e_v4b_3ep_280ch_4lat_stepwarmup_phase2_epoch_3_fullstate.pth \
+    --e2e-type v2 --e2e-unet-channels 280 --e2e-latent-channels 4 \
+    --e2e-hidden 128 128 128 128 128 \
+    --integral-threshold 0.2 --integral-threshold-res 0.2 --min-height 0.0 \
+    --gbt-filter-model outputs/.../peak_classifier_results.pkl --gbt-threshold 0.3 \
+    --mu-min 185 --mu-max 215 --output-dir outputs/MM_DD_YYYY_output/eval_v4b_gbt
+```
+
 ### NMS Diagnostic Script
 
 `src/pv_finder/evaluation/vertex_finding/nms_diagnostic.py` — re-runs inference
@@ -375,6 +450,6 @@ Outputs: `removal_stats.png` (4-panel summary), `zoom_plots/` (~40 per-vertex
 
 1. **E2E checkpoint extraction** — `tracks2hist_1channel_200epochs_epoch_191_fullstate.pth` was manually extracted. Other epoch checkpoints have not been extracted. Automate if needed.
 
-2. **σ_vtx_vtx fit differences vs clean_run3** — clean_run3 excludes central |x|≤0.3 mm bins from the sigmoid fit and tries a Gaussian notch fit first; PV-Finder fits all bins with a sigmoid only. clean_run3 uses different peak-finding thresholds (threshold=0.02, integral=0.4, width=2 vs our 0.01/0.2 counts / 0.5 resolution). Our dual-threshold design (0.2 for counts, 0.5 for resolution) is intentional — the scan on 2026-04-15 confirmed 0.2 is the right operating point for the peak-count plots while 0.5 keeps the pairwise-Δz sigmoid fit clean.
+2. **σ_vtx_vtx fit differences vs clean_run3** — clean_run3 excludes central |x|≤0.3 mm bins from the sigmoid fit and tries a Gaussian notch fit first; PV-Finder fits all bins with a sigmoid only. clean_run3 uses different peak-finding thresholds (threshold=0.02, integral=0.4, width=2 vs our 0.01/0.5). Note: the earlier dual-threshold design (0.2 for counts, 0.5 for resolution) was **superseded on 2026-04-16** by a unified `0.5` for both counts and resolution, so the two metrics now account for the same peak set (see "Integral threshold — 0.5 for both"). HL-LHC PU200 overrides both to `0.2` because PU200 peaks are shallower.
 
 3. **No nTracks in h5** — the flat h5 `pv` field has only z positions. The nTracks≥2 filter requires ROOT. Running without `--root-truth` gives unfiltered truth (more merged, lower clean counts).

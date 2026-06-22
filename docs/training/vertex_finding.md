@@ -100,6 +100,31 @@ clipping and the scheduler without modifying the shared `trainNet` helper. It
 imports the Phase 1 MLP-only forward pass (`forward_mlp_hist`, `_squeeze_hist`)
 from `train_mlp_hist_then_e2e.py` to avoid duplication.
 
+### Strategy B (HLLHC PU200): v3 → v4 → v4b (current best)
+
+The v2 recipe trained on ~100k events. The model was then scaled and the data pool
+grown to the full 2.74M-event with-timing pool ([run_4](../data/run_4.md)):
+
+- **v3** — redesigned `TracksToHist_v2` (interpolation upsampling, 4-fold
+  bottleneck, smaller first kernel), 280 UNet channels, 4 latent channels
+  (~3.55M params, ≈5× v2). On ~100k events it reached the same plateau as v2, so
+  capacity is not the bottleneck. A three-GPU sweep over LR, optimizer (SGD) and an
+  added total-variation loss (`config_hllhc_pu200_e2e_v3_run{A,B,C}.yml`) confirmed
+  this.
+- **v4** — same architecture trained on the full 2.74M-event pool.
+- **v4b (current best)** — v4 with a corrected **per-step** LR warmup: Phase 2
+  ramps `1e-6 → 1e-4` over 3000 batches then cosine-decays to `eta_min = 0.01·lr`,
+  with the scheduler stepped every batch. Phase 1 and Phase 2 are 3 epochs each.
+  Checkpoint `hllhc_pu200_e2e_v4b_3ep_280ch_4lat_stepwarmup_phase2_epoch_3_fullstate.pth`.
+
+```bash
+python -m pv_finder.training.train_hllhc_e2e \
+    -c configs/vertex_finding/config_hllhc_pu200_e2e_v4b_stepwarmup.yml
+```
+
+**`--resume <phase2_checkpoint>`** restores the model, optimizer and scheduler
+state and continues Phase 2 (Phase 1 is skipped), reproducing an uninterrupted run.
+
 ## Configs
 
 | Config | Strategy | Key settings |
@@ -116,7 +141,9 @@ from `train_mlp_hist_then_e2e.py` to avoid duplication.
 | `config_hllhc_pu200_e2e_v2.yml` | B (HLLHC v2) | 50+400 epochs, Phase 2 lr=1e-4 + warmup + cosine + grad clip, 96-ch UNet, 128-node MLP |
 | `config_KDE2HIST_v2.yml` | A step 2 (v2) | 200 epochs, lr=0.0001, UNet_1000_v2 |
 | `config_hllhc_pu200_e2e_v3.yml` | B (HLLHC v3) | 50+200 epochs, 280-ch UNet (3.55M params), 4-ch latent, lr=1e-4, ~100k events |
-| `config_hllhc_pu200_e2e_v4.yml` | B (HLLHC v4) | **3+25 epochs**, multi-file ConcatDataset over 8 fixed-μ=200 ROOTs (**2.74M events**), `hllhc` resolution preset, global shuffle, persistent_workers, GPU 1, num_workers=16 |
+| `config_hllhc_pu200_e2e_v3_run{A,B,C}.yml` | B (HLLHC v3 sweep) | 3-GPU sweep: warm restarts / SGD / total-variation loss — all reached the same plateau |
+| `config_hllhc_pu200_e2e_v4.yml` | B (HLLHC v4) | multi-file ConcatDataset over 8 nominal-μ=200 ROOTs (**2.74M events**), `hllhc` resolution preset, global shuffle, persistent_workers, num_workers=16 |
+| `config_hllhc_pu200_e2e_v4b_stepwarmup.yml` | B (HLLHC **v4b**, current best) | 3+3 epochs, Phase 2 **per-step** warmup (3000 steps, 1e-6→1e-4) + cosine decay, grad clip 1.0, 280-ch UNet, 4-ch latent, `--resume` support |
 
 ## MLflow
 
@@ -141,9 +168,10 @@ Then from your laptop:
 ssh -L 5050:localhost:5050 matmauro@sneezy
 ```
 
-And open <http://localhost:5050> in a browser. The v4 run shows up under experiment
-**"HLLHC PU200 — E2E v4 (2.74M events, with-timing pool)"** with run name
-`hllhc_pu200_e2e_v4_2.7M_280ch_4lat_lr1e4`. Phase 1 metrics are
+And open <http://localhost:5050> in a browser. The current v4b run shows up under
+experiment **"HLLHC PU200 — E2E v4b (per-step warmup)"** with run name
+`hllhc_pu200_e2e_v4b_3ep_280ch_4lat_stepwarmup` (the earlier v4 run is under
+**"HLLHC PU200 — E2E v4 (2.74M events, with-timing pool)"**). Phase 1 metrics are
 `Train: Phase 1 loss` / `Val: Phase 1 loss`; Phase 2 metrics are
 `Train: Phase 2 loss` / `Val: Phase 2 loss` (+ `Val: efficiency`,
 `Val: FP rate` once they're populated by the per-epoch validator).

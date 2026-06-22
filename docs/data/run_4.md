@@ -12,9 +12,10 @@ ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root
 - Tree: `PVFinderData`
 - 99,800 events
 - ~927 tracks/event, ~126 truth primary vertices/event
-- **Pileup is discrete — μ ∈ {190, 210}** (not a continuous distribution around 200).
-  Use `--mu-min 185 --mu-max 215` on the eval scripts to catch both values in the
-  high-pileup summary / category-counts window.
+- **Pileup is discrete**: `ActualNumOfInt` spans integer values from μ = 190 to
+  μ = 210 (mean ≈ 200), up to floating-point roundoff — not a continuous spread.
+  Use `--mu-min 185 --mu-max 215` on the eval scripts for the high-pileup summary /
+  category-counts window.
 
 ## Converted HDF5
 
@@ -101,12 +102,22 @@ kept. Pass `--max-tracks-per-sub 0` (or `--max-pv 0`) to force the Pass-1 scan.
 
 ## Training
 
-HLLHC uses the MLP warmup + E2E recipe:
+HLLHC uses the MLP warmup + E2E recipe in `train_hllhc_e2e.py`. The original v1
+recipe (`config_hllhc_pu200_e2e.yml`, Phase 2 `lr=1e-3`) diverged and is kept only
+for reference. The current model is **v4b**:
 
-- Phase 1 (50 epochs): MLP-only histogram supervision, UNet disabled.
-- Phase 2 (400 epochs): full E2E, MSE loss, Adam lr=1e-3.
+- Phase 1 (3 epochs): MLP-only histogram supervision, UNet frozen, `lr=1e-3`.
+- Phase 2 (3 epochs): full E2E, MSE loss, Adam `lr=1e-4` with a per-step linear
+  warmup (3000 steps, `1e-6 → 1e-4`) then cosine decay to `eta_min = 0.01·lr`,
+  gradient clipping at norm 1.0.
+- Model: `TracksToHist_v2`, 280 UNet channels, 4 latent channels, `[128]×5` MLP
+  (~3.55M params).
+- Data: the 8-file with-timing pool (~2.74M events), globally shuffled, split
+  `0.96/0.03/0.01`.
 
-Config: `configs/vertex_finding/config_hllhc_pu200_e2e.yml`.
+Config: `configs/vertex_finding/config_hllhc_pu200_e2e_v4b_stepwarmup.yml`. See
+[training/vertex_finding](../training/vertex_finding.md) for the full v2 → v4b
+progression and the `--resume` flag.
 
 ## Beam spot
 
@@ -120,13 +131,13 @@ Same `PVFinderData` tree and 7-channel track layout as the original PU200 file.
 
 | Sample (DSID) | r-tag(s) | files | events | pileup |
 |---|---|---|---|---|
-| 601229 ttbar SingleLep | r16438 | 1 | 99,800 | fixed μ = 200 |
+| 601229 ttbar SingleLep | r16438 | 1 | 99,800 | nominal μ = 200 (190–210) |
 | 601229 ttbar SingleLep | r16443 | 1 | 100,000 | **flat μ ≈ 0–210** (mean ~100) |
-| 601229 ttbar SingleLep | r16633 | 1 | 99,800 | fixed μ = 200 |
+| 601229 ttbar SingleLep | r16633 | 1 | 99,800 | nominal μ = 200 (190–210) |
 | 601229 ttbar SingleLep | r16638 | 1 | 99,800 | **flat μ ≈ 0–210** (mean ~100) |
-| 601237 ttbar all-hadronic | r16633 | 6 (`_1`..`_6`) | ~2,541,000 | fixed μ = 200 |
+| 601237 ttbar all-hadronic | r16633 | 6 (`_1`..`_6`) | ~2,541,000 | nominal μ = 200 (190–210) |
 
-**Use the fixed-μ=200 tags (r16438, r16633, 601237) for PU200 training.**
+**Use the nominal-μ=200 tags (r16438, r16633, 601237) for PU200 training.**
 r16443 / r16638 carry a flat pileup spectrum (a broad-μ sample, not "PU200").
 The per-*track* parameter shapes are identical across all tags; only the
 per-event pileup/multiplicity differs.
