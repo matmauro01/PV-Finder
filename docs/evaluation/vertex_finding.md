@@ -337,6 +337,36 @@ eval behavior.
 
 Same as MC eval: `resolution_plot.png`, `performance_plot.png`, `stats_histogram.png`, `eval_results.pkl`.
 
+### AMVF-Only Run 3 Diagnostic
+
+`src/pv_finder/diagnostics/amvf_run3_performance_plots.py` produces AMVF-only
+plots from the Run 3 ROOT file without loading a PV-Finder checkpoint. It uses
+`RecoVertex_*` vertices with `nTracks >= 2`, computes the pairwise AMVF
+`Δz` resolution curve, and, when `TruthVertex_*` branches are present, classifies
+AMVF reconstructed vertices as matched, merged, split, or fake using the same
+`compare_res_reco` matching logic as the evaluation scripts.
+
+```bash
+source venv/bin/activate
+python -u src/pv_finder/diagnostics/amvf_run3_performance_plots.py \
+    --root data/run3/file_3.root \
+    --max-events 2500 \
+    --out-dir outputs/MM_DD_YYYY_output/amvf_run3_2500
+```
+
+Outputs are `amvf_resolution_delta_z.{png,pdf}`,
+`amvf_vertex_categories_vs_mu.{png,pdf}`, `summary.json`, and `amvf_arrays.npz`.
+
+The category plot **requires MC truth** (`TruthVertex_*`, nTracks ≥ 2). Real Run 3
+collision data (`data/run3/file_3.root`) has `NumTruthVtx = 0`, so on real data
+only the resolution plot is produced (the script detects this and skips the
+category plot with a message). For the category figure, use the MC ttbar sample
+`data/monte_carlo/ATLAS_PVFinderData_TruthMatched.root` (13 TeV, μ = 1–80), which
+is the same truth-matched sample used by `run_eval_pvf.py`. Category definitions
+(Matched = `reco_clean`, Merged, Split, Fake) are identical to the eval because
+the script calls the same `compare_res_reco`, with the matching window set to the
+fitted `sigma_vtx_vtx` (the AMVF reco–reco analogue of the eval's window).
+
 ### Post-Processing: Smoothing + NMS
 
 > **Off by default, not used in canonical evals.** Both steps default to off

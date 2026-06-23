@@ -2324,3 +2324,71 @@ snapshot). Verified each change against the code/configs before editing.
 - **docs/research/peak_classification_study.md**: added a 2026-06-09 update for the
   v4b / 23-feature `peak_classifier_v2` study and the deployed histogram-only gate;
   kept the May v1 study as the original record.
+
+---
+
+## 2026-06-23 — AMVF-only resolution + vertex-category plots
+
+Added `src/pv_finder/diagnostics/amvf_run3_performance_plots.py` — an AMVF-only
+diagnostic (no PV-Finder inference) that reproduces the two ATLAS PV-reconstruction
+reference figures:
+
+1. `amvf_resolution_delta_z.{png,pdf}` — pairwise AMVF reco–reco `Δz` distribution
+   with the central dip fit by the same symmetric sigmoid notch as
+   `run_eval_pvf_run3.py`, yielding `σ_vtx-vtx`. Needs no truth (works on real data).
+2. `amvf_vertex_categories_vs_mu.{png,pdf}` — average AMVF reconstructed vertices per
+   category (All reconstructed / Matched / Merged / Split / Fake) vs `ActualNumOfInt`.
+
+**Definitions kept identical to the latest eval** by reusing `compare_res_reco`
+directly: Matched = `reco_clean`, plus `reco_merged` / `reco_split` / `reco_fake`
+(same greedy closest-first, primary-vs-absorbed-truth logic). Truth = `TruthVertex`
+with nTracks ≥ 2, detector frame, no beam correction (mirrors the eval's `has_truth`
+branch). Matching window = fitted `σ_vtx-vtx` (the AMVF analogue of how the eval
+reuses its sigma as the window).
+
+**Data-availability finding:** real Run 3 collision data (`data/run3/file_3.root`)
+has `NumTruthVtx = 0` — the `TruthVertex_*` branches are empty — so matched/merged/
+split/fake are undefined on it (the script auto-detects this and emits the resolution
+plot only). The category figure therefore uses the MC ttbar sample
+`data/monte_carlo/ATLAS_PVFinderData_TruthMatched.root` (13 TeV, μ = 1–80), the same
+truth-matched sample as `run_eval_pvf.py`, matching the reference figures' caption.
+
+**Generated:** `outputs/06_23_2026_output/amvf_mc_ttbar_2500/` (2500 events).
+σ_vtx-vtx = 0.793 mm; per-event means all_reco=22.8, matched=17.1, merged=4.68,
+split=0.01, fake=1.02.
+
+Updated: `docs/evaluation/vertex_finding.md` (AMVF-only diagnostic section).
+
+---
+
+## 2026-06-23 — AMVF vs ATLAS reference: shape investigation + slides
+
+Compared the two AMVF plots against the ATLAS PV-reconstruction reference figures
+(`temp/AMVF_reference_1.png` = categories, `_2.png` = resolution) and explained the
+two differences flagged by the prof.
+
+**Resolution dip (ours wider/rounder vs reference's sharp "sigmoid"):** *not*
+binning — the sigmoid-notch fit gives σ_vtx-vtx = 0.792 mm stable across 0.2 → 0.025
+mm bins. It is **vertex quality**: tightening the nTracks cut on the cached pairwise
+Δz sharpens and narrows the dip — nTrk ≥ 2/4/10/20 → σ = 0.79/0.75/0.65/0.54 mm with
+edge slope 5.5/6.7/11.2/24. Our loose nTracks ≥ 2 keeps poorly-resolved 2-track
+vertices, which round the shoulders. (Both plots are AMVF reco–reco pairwise Δz.)
+
+**Category steepness (our matched/merged less concave/convex than reference):**
+high-μ endpoints already agree (matched ≈ 27, merged ≈ 11–13, all ≈ 42). The gap is
+the matching **observable**: ATLAS classifies via track-to-truth weight + a purity
+threshold (track contamination at high μ flips vertices to merged → matched
+saturates, merged accelerates), whereas we use greedy z-position matching, which
+under-counts merged. The MC ntuple has **no `RecoVertex_assocTracks`** (only
+`TruthVertex_assocTracks`), so the weight definition is not reproducible here.
+Window-sensitivity check: widening 0.4 → 1.2 mm moves matched 75% → 66% and merged
+7.0 → 10.5 at μ ≈ 70 but cannot reproduce the curvature — confirming it is the
+observable, not a threshold.
+
+**Slides** (`presentations/mattia/04_16_2026/slides.tex`, 4 new frames before the
+annex): resolution side-by-side, categories side-by-side, a category-definition
+schematic (`images/amvf_category_definitions_sketch.png`, generated to mirror
+`compare_res_reco` exactly), and a greedy-algorithm / why-we-differ slide. Deck
+recompiles (54 pages). Note: `presentations/` is untracked and holds files > 500 KB
+(slides.pdf, the reference PNG) that the large-file pre-commit hook blocks, so the
+slide assets are not part of this commit.
