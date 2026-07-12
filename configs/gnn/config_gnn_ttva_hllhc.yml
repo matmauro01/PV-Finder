@@ -1,0 +1,37 @@
+# GNN TTVA training on HL-LHC PU200 (mu=200) truth graphs — July 2026
+# Graphs built by gnn.data.root_to_graphs from
+# ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root (99,800 evt):
+# kNN edge construction k=20 (99.50% true-edge coverage, ~6.4x fewer edges
+# than fully connected), 'hllhc' resolution preset (A,B,C)=(0.17898,0.7274,0).
+#
+# Usage (inside tmux):
+#   python -u -m gnn.training.train_ttva -c configs/gnn/config_gnn_ttva_hllhc.yml
+
+# --- Data ---
+data_file: "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/pu200_truth_k20_30k.pt"
+train_split: [0.7, 0.25, 0.05]  # 21k train / 7.5k val / 1.5k test (indices 28500+)
+batch_size: 32
+num_workers: 2
+
+# --- Model architecture (same as mu~60 baseline; one change at a time) ---
+model_config:
+  track_input_size: 8   # d0, z0, d0_err, z0_err, cov, theta, phi, pt_scaled
+  pv_input_size: 2      # z_position, peak_height
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3      # long_sig, horiz_sig, |dz|
+  dropout: 0.25
+
+# --- Training ---
+n_epochs: 201
+learning_rate: 0.001
+device_id: 0
+
+# --- Checkpointing ---
+save_weights: true
+save_frequency: 25
+save_folder: "/data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_hllhc/"
+
+# --- MLflow ---
+experimentname: "TTVA_GNN"
+runname: "ttva_gat_pu200_k20"

@@ -2559,3 +2559,56 @@ end-to-end reproduction training on the existing 51k-graph dataset
 (split [0.7,0.25,0.05], bs 32, lr 1e-3, 201 epochs, save every 25).
 
 Outputs: outputs/07_12_2026_ttva_reproduction/amvf/.
+
+---
+
+## 2026-07-12 — HL-LHC PU200 TTVA: kNN graphs, zero-shot collapse, training launched
+
+Pivoted training to PU200 (retraining on the μ≈60 MC would only reproduce the
+existing checkpoint; PU200 is where training adds knowledge).
+
+**Scale analysis:** fully-connected μ=200 events have ~118k edges
+(~927 tracks × ~128 truth PVs) — 8× the μ≈60 scale, ~370 GB for a 51k-event
+dataset. Implemented **kNN edge construction** in create_training_graph
+(knn=k → each track connects to its k nearest PVs in |Δz|; knn=None stays
+fully connected and bit-exact with earlier builds). Coverage study (200
+events, 187k true edges): k=20 keeps 99.50% of true edges; the missing tail
+is tracks whose z0 is tens of mm from their true vertex (p99.9 |Δz| = 41 mm)
+— unlearnable for any z-based method. Chose k=20 → ~18.5k edges/event,
+Run-3-like memory.
+
+**New files:**
+- `gnn/data/root_to_graphs.py` — truth graphs directly from PVFinderData
+  ROOT (uproot; jagged TruthVertex_assocTracks verified: per-vertex track
+  lists, disjoint, lengths == nTracks). Uses the 'hllhc' resolution preset
+  (0.17898, 0.7274, 0) for PV heights + edge significances, and stores
+  per-track `track.truth_pv` (-1 = none) so evaluation is exact even for
+  kNN-dropped true edges. ~45 events/s.
+- `gnn/evaluation/evaluate_ttva_graphs.py` — eval on self-labelled graphs
+  (no truth h5 needed at PU200); shared classify_assignments core + edge-level
+  purity/efficiency.
+- `configs/gnn/config_gnn_ttva_hllhc.yml` — 30k graphs, split [0.7,0.25,0.05],
+  bs 32, lr 1e-3, 201 epochs, save every 25 → model_weights/ttva_gnn_hllhc/.
+
+**Training-leg bug found & fixed** (validating exactly what the smoke test
+was for): train_ttva.py created the Adam optimizer and called
+count_parameters before the lazy GATConv layers (in_channels=(-1,-1)) were
+materialized → ValueError on any fresh training. Fresh training had never
+been run through this script (all prior work loaded existing weights). Fix:
+dummy forward on train_data[0] before optimizer creation. 2-epoch smoke on
+200 PU200 graphs: loss 1.55 → 1.32, checkpoint round-trips strict=True,
+39,521 params (docs previously said ~26k — never actually counted).
+
+**Zero-shot result (μ≈60 checkpoint on 200 PU200 truth graphs, MaxScore
+t=0.5): clean 44.9%, merged 23.9%, split 15.2%, fake 16.0%, edge purity
+0.64** — versus ~77% clean in-domain. The μ≈60 model does not survive μ=200
+density; retraining is scientifically necessary, not optional.
+
+**Launched** (tmux `ttva_pu200`, GPU 0): build 30k graphs (~12 min) →
+zero-shot baseline on held-out test slice (28500+) → 201-epoch training
+(~4-5 min/epoch ≈ 15 h). Log: outputs/07_12_2026_ttva_hllhc/chain.log.
+MLflow run `ttva_gat_pu200_k20` in experiment "TTVA_GNN".
+
+When training finishes: evaluate best checkpoint on the test slice with
+evaluate_ttva_graphs, compare to the zero-shot baseline and to the μ≈60
+in-domain numbers; then the PU200 full chain (PVF e2e peaks → GNN).

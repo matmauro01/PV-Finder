@@ -13,7 +13,6 @@ Migrated from:
 
 from __future__ import annotations
 
-import argparse
 import math
 from pathlib import Path
 
@@ -22,12 +21,10 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from torch_geometric.data import HeteroData
-from tqdm import tqdm
 
 from pv_finder.utils.constants import (
     BIN_WIDTH_MM,
     BINS_PER_MM,
-    PT_SCALE,
     PV_MIN_TRACKS,
     PV_RES_A,
     PV_RES_B,
@@ -144,12 +141,26 @@ def _compute_edge_attributes(
 # ---------------------------------------------------------------------------
 # Training graph construction (from MC truth)
 # ---------------------------------------------------------------------------
-def create_training_graph(event_data: dict[str, np.ndarray]) -> HeteroData:
+def create_training_graph(
+    event_data: dict[str, np.ndarray],
+    knn: int | None = None,
+    pv_res_all: np.ndarray | None = None,
+) -> HeteroData:
     """Build a heterogeneous graph from a single MC event with truth labels.
 
     Expects event_data dict with keys:
         z_0, d_0, sig_z_0, sig_d_0, tracks_event_stack,
         pv_loc_z, pv_ntracks, pv_assoctracks, pv_type
+
+    Args:
+        event_data: Per-event arrays (see above).
+        knn: If set, connect each track only to its knn nearest PVs in |dz|
+            instead of all PVs (required at high pileup: fully-connected
+            mu=200 events have ~117k edges). None = fully connected
+            (backward-compatible default; bit-exact with earlier builds).
+        pv_res_all: Per-PV z resolution in mm. None = Run-3 fit constants
+            via compute_pv_sigma (backward-compatible default). Pass a
+            custom array to use e.g. the HL-LHC resolution preset.
 
     Returns a HeteroData graph with ToUndirected applied.
     """
@@ -164,7 +175,8 @@ def create_training_graph(event_data: dict[str, np.ndarray]) -> HeteroData:
     pv_assoctracks_event = event_data["pv_assoctracks"]
     pv_type_event = event_data["pv_type"]
 
-    pv_res_all = compute_pv_sigma(pv_ntracks_event)
+    if pv_res_all is None:
+        pv_res_all = compute_pv_sigma(pv_ntracks_event)
 
     # Get bin numbers for all PVs
     nbins_all = bin_number(pv_loc_z_event)
@@ -197,15 +209,22 @@ def create_training_graph(event_data: dict[str, np.ndarray]) -> HeteroData:
     )
     truth_track_indices_all = pv_assoctracks_event
 
-    # Create edge index and edge attributes
+    # Create edge index: fully connected, or k nearest PVs per track in |dz|
     num_tracks = len(z_0_event)
     num_good_pvs = len(pv_loc_z_event)
 
-    track_indices, pv_indices = np.meshgrid(
-        np.arange(num_tracks), np.arange(num_good_pvs), indexing="ij"
-    )
-    track_indices_flat = track_indices.flatten()
-    pv_indices_flat = pv_indices.flatten()
+    if knn is not None and 0 < knn < num_good_pvs:
+        dz_matrix = np.abs(z_0_event[:, np.newaxis] - pv_loc_z_event[np.newaxis, :])
+        nearest = np.argpartition(dz_matrix, knn - 1, axis=1)[:, :knn]
+        nearest = np.sort(nearest, axis=1)  # deterministic edge ordering
+        track_indices_flat = np.repeat(np.arange(num_tracks), knn)
+        pv_indices_flat = nearest.flatten()
+    else:
+        track_indices, pv_indices = np.meshgrid(
+            np.arange(num_tracks), np.arange(num_good_pvs), indexing="ij"
+        )
+        track_indices_flat = track_indices.flatten()
+        pv_indices_flat = pv_indices.flatten()
 
     longitudinal_significance, horizontal_significance, abs_diff_z = (
         _compute_edge_attributes(
@@ -310,180 +329,3 @@ def create_inference_graph(
     data[("track", "to", "pv")].edge_attr = edge_attr_tensor
 
     return T.ToUndirected()(data)
-
-
-# ---------------------------------------------------------------------------
-# Batch processing: build training graphs from H5
-# ---------------------------------------------------------------------------
-def build_training_graphs_from_h5(
-    filepath: str,
-    indices_path: str,
-    nevents: int | None = None,
-) -> list[HeteroData]:
-    """Build training graphs for all events in an H5 file.
-
-    Args:
-        filepath: Path to ATLAS HDF5 file (from CreatingTargetHistogram.py).
-        indices_path: Path to event indices (.npy or pickled list).
-        nevents: Max number of events to process (None = all valid events).
-
-    Returns:
-        List of HeteroData graphs, one per valid event.
-    """
-    import h5py
-
-    event_data_list: list[HeteroData] = []
-
-    with h5py.File(filepath, "r") as dataFile:
-        d_0 = dataFile["recoTrk_d"]
-        z_0 = dataFile["recoTrk_z"]
-        sig_d_0 = dataFile["recoTrk_d_err"]
-        sig_z_0 = dataFile["recoTrk_z_err"]
-        sig_d_0_z_0 = dataFile["recoTrk_d_z_err"]
-        pt = dataFile["recoTrk_pt"]
-        theta = dataFile["recoTrk_theta"]
-        phi = dataFile["recoTrk_phi"]
-
-        pv_loc_z = dataFile["pv_loc_z"]
-        pv_assoctracks = dataFile["pv_assoc_tracks"]
-        pv_ntracks = dataFile["pv_ntracks"]
-        pv_type = dataFile["pv_type"]
-
-        # Get available events from HDF5 file
-        print("Scanning HDF5 file for available events...")
-        available_events_in_hdf5 = set(d_0.keys())
-        print(f"Found {len(available_events_in_hdf5)} events in HDF5 file.")
-
-        # Load indices file (.npy or pickled list)
-        pubnote_indices = load_event_indices(indices_path)
-
-        # Filter indices to only include events that exist in HDF5
-        requested_event_keys = [f"Event{i}" for i in pubnote_indices]
-        valid_event_keys = [
-            ek for ek in requested_event_keys if ek in available_events_in_hdf5
-        ]
-
-        # Report on missing events
-        missing_events = set(requested_event_keys) - set(valid_event_keys)
-        if missing_events:
-            print(
-                f"Warning: {len(missing_events)} events from indices file "
-                "are not in HDF5 file."
-            )
-            print(f"First few missing: {sorted(list(missing_events))[:10]}")
-
-        # Auto-detect number of events if not specified
-        if nevents is None or nevents <= 0:
-            nevents = len(valid_event_keys)
-            print(f"Processing {nevents} valid events.")
-        else:
-            valid_event_keys = valid_event_keys[:nevents]
-            print(
-                f"Processing first {len(valid_event_keys)} valid events "
-                f"(requested: {nevents})."
-            )
-
-        for event_key in tqdm(valid_event_keys):
-            # Node: Tracks
-            d_0_event = d_0[event_key][:]
-            z_0_event = z_0[event_key][:]
-            sig_d_0_event = sig_d_0[event_key][:]
-            sig_z_0_event = sig_z_0[event_key][:]
-            sig_d_0_z_0_event = sig_d_0_z_0[event_key][:]
-            pt_event = pt[event_key][:] / PT_SCALE
-            theta_event = theta[event_key][:]
-            phi_event = phi[event_key][:]
-
-            # Node: PVs
-            pv_loc_z_event = pv_loc_z[event_key][:]
-
-            # Label/Edge: Track-Vertex Associativity
-            pv_assoctracks_event = pv_assoctracks[event_key][:]
-            pv_ntracks_event = pv_ntracks[event_key][:]
-            pv_type_event = pv_type[event_key][:]
-
-            tracks_event_stack = np.stack(
-                [
-                    d_0_event,
-                    z_0_event,
-                    sig_d_0_event,
-                    sig_z_0_event,
-                    sig_d_0_z_0_event,
-                    theta_event,
-                    phi_event,
-                    pt_event,
-                ]
-            ).T.astype(np.float32)
-
-            current_event_data = {
-                "z_0": z_0_event,
-                "d_0": d_0_event,
-                "sig_z_0": sig_z_0_event,
-                "sig_d_0": sig_d_0_event,
-                "tracks_event_stack": tracks_event_stack,
-                "pv_loc_z": pv_loc_z_event,
-                "pv_ntracks": pv_ntracks_event,
-                "pv_assoctracks": pv_assoctracks_event,
-                "pv_type": pv_type_event,
-            }
-
-            graph = create_training_graph(current_event_data)
-
-            if graph is not None:
-                event_data_list.append(graph)
-
-    print(f"Finished constructing {len(event_data_list)} graphs.")
-    return event_data_list
-
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
-def _parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for training graph construction."""
-    parser = argparse.ArgumentParser(
-        description=(
-            "Construct training graphs from an ATLAS HDF5 file "
-            "(from CreatingTargetHistogram.py)."
-        )
-    )
-    parser.add_argument(
-        "-f",
-        "--filepath",
-        help="Path to input ATLAS HDF5 file",
-        type=str,
-        required=True,
-    )
-    parser.add_argument(
-        "-i",
-        "--indices",
-        help="Path to event indices (.npy or pickled list)",
-        type=str,
-        required=True,
-    )
-    parser.add_argument(
-        "-n",
-        "--nevents",
-        help="Number of events to process (default: all valid)",
-        default=None,
-        type=int,
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        help="Output filepath (.pt) for constructed graphs",
-        type=str,
-        required=True,
-    )
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-    args = _parse_args()
-    event_data_list = build_training_graphs_from_h5(
-        args.filepath, args.indices, args.nevents
-    )
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(event_data_list, output_path)
-    print(f"Saved {len(event_data_list)} graphs to {output_path}")

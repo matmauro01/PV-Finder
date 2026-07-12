@@ -75,6 +75,12 @@ def main(
         dropout=model_cfg.get("dropout", 0.25),
     )
     model.to(device)
+
+    # Materialize lazy GATConv parameters (in_channels=(-1, -1)) with a dummy
+    # forward pass — required before the optimizer sees model.parameters().
+    model.eval()
+    with torch.no_grad():
+        model(train_data[0].clone().to(device))
     print(f"GNN model:\n{model}")
 
     optimizer = torch.optim.Adam(

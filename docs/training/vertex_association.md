@@ -6,7 +6,7 @@ Training procedure for the GNN TTVA model.
 
 1. Build training graphs from MC HDF5 file:
 ```bash
-python -m gnn.data.graph_construction \
+python -m gnn.data.h5_to_graphs \
     -f /share/lazy/qibinlei/recoTracks_incamvfassoc.h5 \
     -i /path/to/indices.npy \
     -o /path/to/ttva_graphs.pt
@@ -36,7 +36,28 @@ python -m gnn.training.train_ttva \
 
 ## Config
 
-See `configs/gnn/config_gnn_ttva.yml` for all parameters.
+See `configs/gnn/config_gnn_ttva.yml` for all parameters. Variants:
+- `config_gnn_ttva_repro.yml` — μ≈60 end-to-end reproduction (existing 51k
+  fully-connected graph set from the Nov 2025 workspace).
+- `config_gnn_ttva_hllhc.yml` — HL-LHC PU200 (30k kNN k=20 graphs built by
+  `gnn.data.root_to_graphs`, hllhc resolution preset).
+
+## HL-LHC PU200 training
+
+```bash
+# 1. Build truth graphs from ROOT (~15 min for 30k events)
+python -u -m gnn.data.root_to_graphs \
+    --input data/run4/Run4_MC21_ITk/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \
+    --output data/run4/ttva_graphs/pu200_truth_k20_30k.pt \
+    --max-events 30000
+
+# 2. Train (tmux; ~4-5 min/epoch on an A100, 201 epochs ≈ 15 h)
+python -u -m gnn.training.train_ttva -c configs/gnn/config_gnn_ttva_hllhc.yml
+```
+
+Note: `train_ttva` materializes the lazy GATConv layers with a dummy forward
+before creating the optimizer — do not reorder that block; fresh training
+breaks without it.
 
 ## Reference training run (Nov 2025 baseline)
 

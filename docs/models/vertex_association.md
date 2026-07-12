@@ -50,7 +50,8 @@ sigmoid gives an association score in [0,1].
 
 ## Architecture: TTVAGATModel
 
-**Code:** `src/gnn/models/ttva_gat.py` (~26k parameters)
+**Code:** `src/gnn/models/ttva_gat.py` (39,521 parameters once the lazy
+GATConv layers are materialized)
 
 ```
 track.x (n_t, 8) ──► Linear(8,32)+LeakyReLU ──┐
@@ -88,9 +89,26 @@ inference graphs: peak-finds each histogram with
 and calls `create_inference_graph`. Accepts .npy / pickle / HDF5 histogram
 inputs.
 
-PV resolution model used for truth-graph heights and edge significances:
-`σ_PV(N) = 0.238·N^(−0.495) − 0.0008` (Run-3 fit; see
-`pv_finder/utils/constants.py`).
+**Code:** `src/gnn/data/root_to_graphs.py` — driver from a **PVFinderData
+ROOT ntuple** to truth-training graphs (for samples without an event-keyed
+h5, i.e. HL-LHC PU200). Reads `RecoTrack_*` + jagged
+`TruthVertex_assocTracks` with uproot; also stores per-track
+`data['track'].truth_pv` for exact evaluation.
+
+**kNN edge construction** (`create_training_graph(knn=...)`): at μ=200 a
+fully-connected event has ~118k edges (927 tracks × 128 PVs), 8× the μ≈60
+scale. With `knn=k` each track connects only to its k nearest PVs in |Δz|.
+Coverage measured on PU200 (200 events, 187k true edges): k=20 keeps 99.50%
+of true edges (k=10: 98.8%, k=50: 99.9% — the tail is badly-measured tracks
+whose z0 sits tens of mm from their true vertex; those are unlearnable for
+any z-based method). `knn=None` (default) = fully connected, bit-exact with
+earlier builds.
+
+PV resolution model for truth-graph heights and edge significances:
+`σ_PV(N) = A·N^(−B) + C` with presets from
+`pv_finder/data/resolution_presets.py` — `run3` (0.238, 0.495, −0.0008,
+default in `create_training_graph`) and `hllhc` (0.179, 0.727, 0; default in
+`root_to_graphs`).
 
 ## Data
 
@@ -114,17 +132,27 @@ PV resolution model used for truth-graph heights and edge significances:
 
 ## Status (2026-07-12)
 
-- Nov 2025 baseline **reproduced bit-exactly** end-to-end with this package:
-  graphs regenerated from saved PVF histograms are tensor-identical, and the
-  2,550-event Clean/Merged/Split/Fake rows match the saved baseline exactly.
-  See [evaluation](../evaluation/vertex_association.md) for numbers and the
-  Qi Bin UNet-85 comparison.
-- Not yet done: retraining in this repo, ground-truth-vertex eval refresh,
-  Run 2/3 agreement-with-AMVF eval, Run 4 PU200.
+- Nov 2025 baseline **reproduced bit-exactly** end-to-end with this package
+  (graphs tensor-identical, eval rows identical). AMVF comparison done: same
+  clean rate, PVF+GNN finds 16% more vertices (clean-vertex efficiency 70.0%
+  vs 60.9%). See [evaluation](../evaluation/vertex_association.md).
+- **PU200 zero-shot**: the μ≈60 checkpoint collapses at μ=200 (clean
+  ~45% vs ~77% in-domain; edge purity ~64%) → retraining on PU200 required.
+- **PU200 training launched 2026-07-12** (`ttva_gat_pu200_k20`): 30k truth
+  graphs (k=20, hllhc preset), split [0.7, 0.25, 0.05], 201 epochs — config
+  `configs/gnn/config_gnn_ttva_hllhc.yml`, checkpoints in
+  `model_weights/ttva_gnn_hllhc/`, MLflow experiment "TTVA_GNN".
+- Training-leg bug fixed on the way: lazy GATConv params must be materialized
+  by a dummy forward before the optimizer is created (train_ttva.py); fresh
+  training was broken before, only weight-loading paths had been exercised.
+- Not yet done: Run 2/3 agreement-with-AMVF eval, PU200 full-chain
+  (PVF peaks → GNN) eval, track-level TTVA metrics.
 
 ## Known limitations / next steps (from internal note §7)
 
-1. Fully-connected graphs scale poorly to PU200 → kNN in z or (z, d0).
+1. ~~Fully-connected graphs scale poorly to PU200~~ → kNN in |Δz| implemented
+   (k=20 default); ranking by significance or (z, d0) still worth exploring.
 2. Hard-scatter identification (max sum-pT²) not yet addressed.
 3. pT underused — weighting/attention on high-pT tracks expected to help.
-4. TTVA is the natural home for HGTD timing features (z ambiguity breaking).
+4. TTVA is the natural home for HGTD timing features (z ambiguity breaking);
+   the PU200_withTiming samples carry the needed branches.

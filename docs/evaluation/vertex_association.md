@@ -99,12 +99,25 @@ before producing any output, while the *identical* module run via
 oddity (4.15 kernel, NFS-mounted data); not worth chasing — use the runpy
 form.
 
+## HL-LHC PU200 (zero-shot, 2026-07-12)
+
+`gnn.evaluation.evaluate_ttva_graphs` evaluates graphs that carry their own
+labels (`track.truth_pv` / edge `y`) — needed for PU200, which has no
+event-keyed truth h5. The μ≈60 checkpoint on 200 PU200 truth-vertex graphs
+(k=20): **clean 44.9%, merged 23.9%, split 15.2%, fake 16.0%; edge purity
+0.64** — vs ~77% clean in-domain. Domain shift at μ=200 is severe;
+retraining on PU200 launched the same day (see training doc). The held-out
+zero-shot baseline (test slice 28500+) is in
+`outputs/07_12_2026_ttva_hllhc/zeroshot_mu60_ckpt/`.
+
 ## Code
 
 - `src/gnn/evaluation/evaluate_ttva.py` — GNN eval CLI (restored from commit
   `51523df` after accidental deletion in `0da13fd`).
 - `src/gnn/evaluation/classification.py` — shared `classify_assignments`
-  core (model-free) + `build_truth_adjacency`; used by both GNN and AMVF
-  evals so the comparison is apples-to-apples.
+  core (model-free) + `build_truth_adjacency`; used by all evals so
+  comparisons are apples-to-apples.
 - `src/gnn/evaluation/evaluate_amvf_ttva.py` — AMVF baseline classification
   from `reco_pv_assoc_tracks`.
+- `src/gnn/evaluation/evaluate_ttva_graphs.py` — eval on self-labelled
+  graphs (PU200); also reports edge-level purity/efficiency.

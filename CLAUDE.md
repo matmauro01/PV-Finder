@@ -111,9 +111,9 @@ src/pv_finder/                   ← source code (vertex finding)
   utils/                           utilities, efficiency, jagged, constants
 src/gnn/                         ← source code (track-to-vertex association)
   models/                          ttva_gat (heterogeneous GAT)
-  data/                            graph_construction, pvf_to_graphs (PVF hists → graphs)
+  data/                            graph_construction (kNN), pvf_to_graphs, root_to_graphs
   training/                        train_ttva, training_loop
-  evaluation/                      evaluate_ttva (Clean/Merged/Split/Fake)
+  evaluation/                      evaluate_ttva, evaluate_amvf_ttva, evaluate_ttva_graphs
   diagnostics/                     track probability distributions (MC, Run3)
 configs/vertex_finding/          ← YAML training configs (PVF)
 configs/gnn/                     ← YAML training configs (GNN TTVA)
