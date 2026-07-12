@@ -4,7 +4,7 @@ Diagnostic and visualization tools for the GNN TTVA model.
 
 ## Run3 Track Probability Distribution
 
-**Script:** `src/pv_finder/diagnostics/run3_track_probability.py`
+**Script:** `src/gnn/diagnostics/run3_track_probability.py`
 
 Runs the full PVF → peak-finding → GNN pipeline on Run3 events (NPZ cache) and
 plots the distribution of per-edge GNN association scores.
@@ -29,7 +29,7 @@ plots the distribution of per-edge GNN association scores.
 ### Usage
 
 ```bash
-python -m pv_finder.diagnostics.run3_track_probability \
+python -m gnn.diagnostics.run3_track_probability \
     --cache data/run3/cache_file3_2000ev_seed42.npz \
     --pvf-weights model_weights/tracks2kde_KDE_A_z_epoch180.pyt \
     --gnn-weights model_weights/gnn_ttva_epoch100.pyt \
@@ -47,6 +47,14 @@ old codebase, because the PVF weights were pickled with the legacy
 - ~8–9 s/event on CPU with 300 tracks and ~20 PVF peaks (fully connected graph)
 - The score distribution is expected to peak sharply near 0 (most track–PV pairs
   are non-associations) with a secondary peak near 1 (true associations)
+
+## MC Track Probability Distribution
+
+**Script:** `src/gnn/diagnostics/mc_track_probability.py`
+
+Same idea as the Run3 script but on MC events: truth PV positions are used
+directly as PV nodes (`create_training_graph`), so no PVF inference step is
+needed and the setup matches training exactly.
 
 ## Not Yet Migrated
 

@@ -10,7 +10,7 @@ Given candidate primary vertices (from PVF peak finding or MC truth) and reconst
 
 **Type:** Heterogeneous bipartite GAT with edge attributes.
 
-**Code:** `src/pv_finder/models/ttva_gnn.py`
+**Code:** `src/gnn/models/ttva_gat.py`
 
 ```
 Track features (8-dim) ──► Linear(8,32) + LeakyReLU ──┐
@@ -35,7 +35,7 @@ PV features (2-dim) ────► Linear(2,32) + LeakyReLU ──┘
 
 ## Graph Construction
 
-**Code:** `src/pv_finder/data/graph_construction.py`
+**Code:** `src/gnn/data/graph_construction.py`
 
 Two modes:
 - `create_training_graph()`: from MC truth HDF5 — includes truth edge labels
@@ -50,5 +50,12 @@ PV resolution modeled as: `sigma_pv(N) = 0.238 * N^(-0.495) - 0.001` (fitted fro
 
 ## Trained Weights
 
-Existing checkpoint: `test_GATConv_edgeattr_BCE_100.pyt` (100 epochs, BCE loss).
+- `model_weights/gnn_ttva_epoch100.pyt` — byte-identical (md5-verified) copy of
+  `test_GATConv_edgeattr_BCE_100.pyt`, the Nov 2025 checkpoint used for the ACAT /
+  internal-note baseline. Loads into `TTVAGATModel` with `strict=True` (38/38 keys).
+- Full checkpoint series (epochs 0–200, every 25) lives in the legacy workspace:
+  `~/codice/atlas_pvfinder/tracks_to_vertex/model_weights/test_GATConv_edgeattr_BCE_*.pyt`
+- Training run tracked in MLflow experiment "ATLAS 2025 GNN TTVA"
+  (`/share/lazy/qibinlei/trackstoHists`).
+
 State dict keys are backward-compatible with the original `TTVA_GATGraphConv_Model`.

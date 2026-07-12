@@ -21,11 +21,11 @@ Each reconstructed PV is classified as one of:
 ## Usage
 
 ```bash
-python -m pv_finder.evaluation.evaluate_gnn_ttva \
+python -m gnn.evaluation.evaluate_ttva \
     -r /path/to/reco_graphs.pt \
-    -f /path/to/recoTracks_inctype.h5 \
-    -i /path/to/test_indices.npy \
-    -w /path/to/model_weights.pyt \
+    -f /share/lazy/qibinlei/recoTracks_incamvfassoc.h5 \
+    -i configs/qibin_test_main_indices_v2.p \
+    -w model_weights/gnn_ttva_epoch100.pyt \
     -e MaxScore \
     -t 0.5 \
     -d 0
@@ -33,6 +33,25 @@ python -m pv_finder.evaluation.evaluate_gnn_ttva \
 
 Results are saved as `.npy` files with per-event classification counts and per-PV info.
 
+## Baseline to reproduce (Nov 2025, PVF e400 + GNN e100, MaxScore t=0.5)
+
+From `~/codice/atlas_pvfinder/tracks_to_vertex/total_results_MaxScore.p`
+(2,550 test events, `qibin_test_main_indices_v2.p`):
+
+| Metric | Value |
+|--------|-------|
+| Reco PVs | 66,472 (truth 72,189 → 92.1% recovery) |
+| Clean | 76.04% |
+| Merged | 16.49% |
+| Split | 7.05% |
+| Fake | 0.42% |
+
+PVF peaks were found with `threshold=1e-2`, `integral_threshold=0.2`,
+`min_width=3` (see legacy `tracks_to_vertex/pvfinder_output_to_graph.py`).
+PVF model: `e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_400.pyt`
+(in `~/codice/atlas_pvfinder/model_weights/e2e_attempt4_mlp_hist/`).
+
 ## Code
 
-`src/pv_finder/evaluation/evaluate_gnn_ttva.py`
+`src/gnn/evaluation/evaluate_ttva.py` — restored from commit `51523df`
+(deleted by mistake in the March 2026 eval cleanup `0da13fd`).

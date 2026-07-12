@@ -2392,3 +2392,58 @@ schematic (`images/amvf_category_definitions_sketch.png`, generated to mirror
 recompiles (54 pages). Note: `presentations/` is untracked and holds files > 500 KB
 (slides.pdf, the reference PNG) that the large-file pre-commit hook blocks, so the
 slide assets are not part of this commit.
+
+---
+
+## 2026-07-12 — TTVA restructure: new src/gnn package + restored eval script
+
+Restarting the track-to-vertex association effort. First step: gave TTVA its
+own top-level package so it stops being scattered across four pv_finder
+subfolders (which is how the eval script got deleted by mistake in March).
+
+**Moves (git mv, history preserved):**
+
+- `src/pv_finder/models/ttva_gnn.py` → `src/gnn/models/ttva_gat.py`
+- `src/pv_finder/data/graph_construction.py` → `src/gnn/data/graph_construction.py`
+- `src/pv_finder/training/train_gnn_ttva.py` → `src/gnn/training/train_ttva.py`
+- `src/pv_finder/training/training_gnn.py` → `src/gnn/training/training_loop.py`
+- `src/pv_finder/diagnostics/{run3,mc}_track_probability.py` → `src/gnn/diagnostics/`
+- `configs/vertex_association/` → `configs/gnn/`
+
+**Restored:** `src/gnn/evaluation/evaluate_ttva.py` from commit 51523df.
+It was deleted in 0da13fd ("superseded by vertex_finding/ implementations") —
+wrongly: no GNN eval exists in vertex_finding/. Clean/Merged/Split/Fake
+classification with MaxScore/Threshold edge selection.
+
+**Dependency rule:** `gnn` imports from `pv_finder` (constants, peak finding,
+utilities, gradient diagnostics) — never the reverse.
+
+**Small fixes while moving:** indices loading now accepts both .npy and pickled
+lists (`load_event_indices` in graph_construction.py — needed for the legacy
+`qibin_test_main_indices_v2.p`); `torch.load(..., weights_only=False)` for graph
+files; stale `python -m pv_finder...` usage strings updated.
+
+**Verified:** ruff clean; `gnn_ttva_epoch100.pyt` loads strict=True (38/38 keys);
+forward pass on toy bipartite graph gives correct edge-logit count; top-1
+selection picks one edge per track; legacy pickle indices load (2,550 events).
+
+**Reproduction assets located** (for the next step — reproducing Qi Bin's
+ACAT/internal-note numbers):
+
+- `model_weights/gnn_ttva_epoch100.pyt` is md5-identical to
+  `test_GATConv_edgeattr_BCE_100.pyt` (the baseline checkpoint); full epoch
+  0–200 series in `~/codice/atlas_pvfinder/tracks_to_vertex/model_weights/`.
+- `configs/qibin_test_main_indices_v2.p` is md5-identical to the indices used
+  in the Nov 2025 eval.
+- Target numbers from `~/codice/atlas_pvfinder/tracks_to_vertex/total_results_MaxScore.p`
+  (2,550 events, PVF e400 + GNN e100, MaxScore t=0.5): 66,472 reco / 72,189
+  truth PVs (92.1% recovery), Clean 76.04%, Merged 16.49%, Split 7.05%,
+  Fake 0.42%. Recorded in docs/evaluation/vertex_association.md.
+- Peak finding used threshold=1e-2, integral_threshold=0.2, min_width=3.
+- Pre-built graphs still on disk in the old repo (`test_graphs_ground_truth.pyt`,
+  `test_graphs_pvfinder_e400_fixed.pyt`, `training_graphs_full_51k.pyt`).
+- Training data: `/share/lazy/qibinlei/recoTracks_incamvfassoc.h5` (51k events,
+  truth `pv_assoc_tracks` + AMVF `reco_pv_assoc_tracks`).
+
+Updated: docs/{models,training,evaluation,diagnostics}/vertex_association.md,
+CLAUDE.md project map.
