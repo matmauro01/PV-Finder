@@ -111,7 +111,7 @@ src/pv_finder/                   ← source code (vertex finding)
   utils/                           utilities, efficiency, jagged, constants
 src/gnn/                         ← source code (track-to-vertex association)
   models/                          ttva_gat (heterogeneous GAT)
-  data/                            graph_construction (bipartite track-PV graphs)
+  data/                            graph_construction, pvf_to_graphs (PVF hists → graphs)
   training/                        train_ttva, training_loop
   evaluation/                      evaluate_ttva (Clean/Merged/Split/Fake)
   diagnostics/                     track probability distributions (MC, Run3)

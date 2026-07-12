@@ -2480,3 +2480,46 @@ reproduction_summary.md).
 Next: rebuild the inference graphs ourselves (PVF e400 inference → peak
 finding → create_inference_graph) to validate the graph-construction leg,
 then the ground-truth-vertex eval, then retrain.
+
+---
+
+## 2026-07-12 — Graph-construction leg validated; Qi Bin + ground-truth comparisons
+
+Completed the reproduction matrix (all with GNN e100, MaxScore t=0.5, 2,550
+test events; summary in outputs/07_12_2026_ttva_reproduction/).
+
+**New file:** `src/gnn/data/pvf_to_graphs.py` — driver from PVF histogram
+outputs (.npy/pickle/.h5) to TTVA inference graphs (peak finding at baseline
+params 1e-2/0.2/3 + create_inference_graph). Replaces the legacy
+pvfinder_output_to_graph.py.
+
+**Validation:** graphs regenerated from the saved aggregated PVF-e400
+histograms are tensor-identical to the Nov 2025 test_graphs_pvfinder_e400_fixed.pyt
+for all 2,550 events; eval rows again bit-identical. Combined with yesterday's
+result, every leg of the migrated pipeline is now validated:
+histogram → peaks → graphs → GNN → Clean/Merged/Split/Fake.
+
+**Comparisons:**
+
+| PV source | Clean | Merged | Split | Fake |
+|---|---|---|---|---|
+| PVF e400 (baseline + regen, bit-exact) | 76.04% | 16.49% | 7.05% | 0.42% |
+| Qi Bin UNet-85 histograms | 76.84% | 16.53% | 6.30% | 0.33% |
+| Ground-truth vertices | 76.74% | 11.67% | 5.59% | 6.00% |
+
+Qi Bin's own PVF outputs (test_dropout_t2h_1000_unet_results_85.h5; row order
+verified against Target_Y truth) give 76.8% clean through our pipeline — at
+the top of the note's preliminary "70–75% clean" envelope. His MLflow runs
+log only training losses, so the note text is the only written record of his
+rates; the discrepancy in fake rate (note: 5–10%; us: 0.3–0.4%) is consistent
+with the note pre-dating the integral_threshold=0.2 peak-finding fix.
+Ground-truth clean rate 76.74% matches the note's 77–78% baseline; that run's
+6% fake + reco>truth counts come from nTrk<2 truth vertices present in the
+truth graphs.
+
+Docs: evaluation/vertex_association.md now carries the full results table;
+models/vertex_association.md rewritten as the self-contained TTVA overview
+("start here" for a fresh context).
+
+Next: retrain the GNN in this repo (train_ttva on truth graphs, sequential
+split), then Run 2/3 (agreement-with-AMVF) and Run 4 PU200 (needs kNN graphs).
