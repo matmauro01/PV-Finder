@@ -2447,3 +2447,36 @@ ACAT/internal-note numbers):
 
 Updated: docs/{models,training,evaluation,diagnostics}/vertex_association.md,
 CLAUDE.md project map.
+
+---
+
+## 2026-07-12 — TTVA baseline reproduced bit-exactly
+
+Ran the restored `gnn.evaluation.evaluate_ttva` on the Nov 2025 pre-built
+inference graphs (`test_graphs_pvfinder_e400_fixed.pyt`, PVF epoch-400 peaks)
+with `gnn_ttva_epoch100.pyt`, MaxScore t=0.5, 2,550 test events
+(`qibin_test_main_indices_v2.p`), GPU, ~5 min.
+
+**Result: per-event [clean, merged, split, fake, reco, truth] rows are
+bit-identical to the saved Nov 2025 `total_results_MaxScore.p` for all 2,550
+events.** Totals: 66,472 reco / 72,189 truth (92.1% recovery), Clean 76.04%,
+Merged 16.49%, Split 7.05%, Fake 0.42%.
+
+This validates the Feb 2026 migration + today's restoration end-to-end
+(model, weights loading, top-1 edge selection, Clean/Merged/Split/Fake
+classification). Note: the original Evaluation_GNN_TTVA.py printed swapped
+split/fake *totals* (accumulation bug, fixed in migration), but its saved
+per-event rows were in correct [clean, merged, split, fake] order — so the
+baseline numbers were always right and the comparison is apples-to-apples.
+
+Eval-script changes on the way (commit 1f4ce55): `-o/--output-dir`,
+`-n/--max-events`, working CPU fallback (`-d -1`), and a split of the
+classification logic into `gnn/evaluation/classification.py` (500-line limit).
+Verified before/after split on 20 events: identical rows.
+
+Outputs: `outputs/07_12_2026_ttva_reproduction/` (results .npy, log,
+reproduction_summary.md).
+
+Next: rebuild the inference graphs ourselves (PVF e400 inference → peak
+finding → create_inference_graph) to validate the graph-construction leg,
+then the ground-truth-vertex eval, then retrain.

@@ -33,7 +33,12 @@ python -m gnn.evaluation.evaluate_ttva \
 
 Results are saved as `.npy` files with per-event classification counts and per-PV info.
 
-## Baseline to reproduce (Nov 2025, PVF e400 + GNN e100, MaxScore t=0.5)
+## Baseline (Nov 2025, PVF e400 + GNN e100, MaxScore t=0.5)
+
+**Reproduced bit-exactly on 2026-07-12** with the restored `gnn` pipeline:
+per-event rows identical to the saved baseline for all 2,550 events
+(`outputs/07_12_2026_ttva_reproduction/`, using the Nov 2025 pre-built
+inference graphs).
 
 From `~/codice/atlas_pvfinder/tracks_to_vertex/total_results_MaxScore.p`
 (2,550 test events, `qibin_test_main_indices_v2.p`):
