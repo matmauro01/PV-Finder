@@ -1,5 +1,5 @@
 # GNN Track-to-Vertex Association (TTVA) training configuration
-# Usage: python -m pv_finder.training.train_gnn_ttva -c configs/vertex_association/config_gnn_ttva.yml
+# Usage: python -m gnn.training.train_ttva -c configs/gnn/config_gnn_ttva.yml
 
 # --- Data ---
 data_file: "/path/to/ttva_graph_data.pt"  # List[HeteroData] saved with torch.save

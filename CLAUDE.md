@@ -97,11 +97,11 @@ docs/                            ← wiki (current truth)
   training/                        vertex_finding, vertex_association
   evaluation/                      vertex_finding, vertex_association
   diagnostics/                     vertex_finding, vertex_association
-src/pv_finder/                   ← source code
-  models/                          autoencoder_models, alt_loss_A, ttva_gnn
-  data/                            collectdata_poca_KDE, h5_dataset, graph_construction
-  training/                        train scripts, trainNet loop, training_gnn, weight init
-  evaluation/                      evaluate_pvf, vertex_matching, evaluate_gnn_ttva
+src/pv_finder/                   ← source code (vertex finding)
+  models/                          autoencoder_models, alt_loss_A
+  data/                            collectdata_poca_KDE, h5_dataset
+  training/                        train scripts, trainNet loop, weight init
+  evaluation/                      vertex_finding eval pipeline
   diagnostics/                     plotting, visualization
     domain_shift_investigation/      MC vs Run 3 analysis
       feature_distribution/          feature comparison
@@ -109,7 +109,13 @@ src/pv_finder/                   ← source code
     per_vertex_visualization/        per-vertex histogram plots
   scratch/                           data_exploration.ipynb
   utils/                           utilities, efficiency, jagged, constants
+src/gnn/                         ← source code (track-to-vertex association)
+  models/                          ttva_gat (heterogeneous GAT)
+  data/                            graph_construction (bipartite track-PV graphs)
+  training/                        train_ttva, training_loop
+  evaluation/                      evaluate_ttva (Clean/Merged/Split/Fake)
+  diagnostics/                     track probability distributions (MC, Run3)
 configs/vertex_finding/          ← YAML training configs (PVF)
-configs/vertex_association/      ← YAML training configs (GNN TTVA)
+configs/gnn/                     ← YAML training configs (GNN TTVA)
 tests/                           ← tests (coming)
 ```

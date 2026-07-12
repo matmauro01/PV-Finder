@@ -80,6 +80,24 @@ def norm_cdf(mu: float, sigma: float, x: float) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Indices loading (.npy or pickled list)
+# ---------------------------------------------------------------------------
+def load_event_indices(indices_path: str | Path) -> list[int]:
+    """Load event indices from a .npy file or a pickled list (.p/.pkl).
+
+    The original atlas_pvfinder pipeline used pickled index lists
+    (e.g. qibin_test_main_indices_v2.p); newer files use .npy.
+    """
+    path = Path(indices_path)
+    if path.suffix == ".npy":
+        return [int(x) for x in np.load(path)]
+    import pickle
+
+    with open(path, "rb") as f:
+        return [int(x) for x in pickle.load(f)]
+
+
+# ---------------------------------------------------------------------------
 # Shared edge attribute computation
 # ---------------------------------------------------------------------------
 def _compute_edge_attributes(
@@ -306,7 +324,7 @@ def build_training_graphs_from_h5(
 
     Args:
         filepath: Path to ATLAS HDF5 file (from CreatingTargetHistogram.py).
-        indices_path: Path to .npy file with event indices.
+        indices_path: Path to event indices (.npy or pickled list).
         nevents: Max number of events to process (None = all valid events).
 
     Returns:
@@ -336,8 +354,8 @@ def build_training_graphs_from_h5(
         available_events_in_hdf5 = set(d_0.keys())
         print(f"Found {len(available_events_in_hdf5)} events in HDF5 file.")
 
-        # Load indices file (.npy)
-        pubnote_indices = [int(x) for x in np.load(indices_path)]
+        # Load indices file (.npy or pickled list)
+        pubnote_indices = load_event_indices(indices_path)
 
         # Filter indices to only include events that exist in HDF5
         requested_event_keys = [f"Event{i}" for i in pubnote_indices]
@@ -439,7 +457,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-i",
         "--indices",
-        help="Path to .npy file with event indices",
+        help="Path to event indices (.npy or pickled list)",
         type=str,
         required=True,
     )

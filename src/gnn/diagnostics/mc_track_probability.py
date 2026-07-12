@@ -8,7 +8,7 @@ Unlike the Run3 version, no PVF inference step is needed: truth PV positions
 (pv_loc_z) are used directly as PV nodes, matching the training setup.
 
 Usage:
-    python -m pv_finder.diagnostics.mc_track_probability \\
+    python -m gnn.diagnostics.mc_track_probability \\
         --h5 data/monte_carlo/track_associations.h5 \\
         --gnn-weights model_weights/gnn_ttva_epoch100.pyt \\
         --output-dir outputs/mc_track_probability \\
@@ -31,8 +31,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from pv_finder.data.graph_construction import create_training_graph
-from pv_finder.models.ttva_gnn import TTVAGATModel
+from gnn.data.graph_construction import create_training_graph
+from gnn.models.ttva_gat import TTVAGATModel
 from pv_finder.utils.constants import GNN_SCORE_THRESHOLD, PT_SCALE
 
 

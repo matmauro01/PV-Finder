@@ -15,8 +15,8 @@ import mlflow
 import torch
 import yaml
 
-from pv_finder.models.ttva_gnn import TTVAGATModel
-from pv_finder.training.training_gnn import trainNet
+from gnn.models.ttva_gat import TTVAGATModel
+from gnn.training.training_loop import trainNet
 from pv_finder.utils.utilities import (
     count_parameters,
     load_checkpoint,

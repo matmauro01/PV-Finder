@@ -13,7 +13,7 @@ legacy 'model.autoencoder_models' package.  Pass --legacy-model-path pointing
 to the mattia_finder/ directory so that module is importable at load time.
 
 Usage:
-    python -m pv_finder.diagnostics.run3_track_probability \\
+    python -m gnn.diagnostics.run3_track_probability \\
         --cache data/run3/cache_file3_2000ev_seed42.npz \\
         --pvf-weights model_weights/tracks2kde_KDE_A_z_epoch180.pyt \\
         --gnn-weights model_weights/gnn_ttva_epoch100.pyt \\
@@ -36,8 +36,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from pv_finder.data.graph_construction import create_inference_graph
-from pv_finder.models.ttva_gnn import TTVAGATModel
+from gnn.data.graph_construction import create_inference_graph
+from gnn.models.ttva_gat import TTVAGATModel
 from pv_finder.utils.constants import GNN_SCORE_THRESHOLD, PT_SCALE
 from pv_finder.utils.peak_finding import pv_locations_updated_res
 
