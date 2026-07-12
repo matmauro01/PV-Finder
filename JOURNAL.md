@@ -2523,3 +2523,39 @@ models/vertex_association.md rewritten as the self-contained TTVA overview
 
 Next: retrain the GNN in this repo (train_ttva on truth graphs, sequential
 split), then Run 2/3 (agreement-with-AMVF) and Run 4 PU200 (needs kNN graphs).
+
+---
+
+## 2026-07-12 — AMVF TTVA baseline comparison; training config prepared
+
+**Refactor:** extracted the model-free classification core out of
+categorize_event into `classify_assignments` + `build_truth_adjacency`
+(gnn/evaluation/classification.py). Re-verified: 20-event GNN eval rows still
+bit-identical to the Nov 2025 baseline after the refactor.
+
+**New:** `gnn/evaluation/evaluate_amvf_ttva.py` — classifies AMVF's own
+vertices+associations (`reco_pv_*` in recoTracks_incamvfassoc.h5) with the
+identical Clean/Merged/Split/Fake logic. Full comparison on the same 2,550
+test events:
+
+| Chain | Reco PVs | Clean | Merged | Split | Fake |
+|---|---|---|---|---|---|
+| PVF e400 + GNN e100 | 66,472 (92.1% of truth) | 76.04% | 16.49% | 7.05% | 0.42% |
+| AMVF | 57,329 (79.4% of truth) | 76.69% | 20.05% | 2.51% | 0.75% |
+
+Headline: same clean rate, but PVF+GNN finds 16% more vertices → clean-vertex
+efficiency per truth PV 70.0% vs AMVF's 60.9%. AMVF trades splits for merges
+(2.5%/20.1% vs our 7.1%/16.5%), consistent with its ~2× worse σ_vtx-vtx.
+
+**Environment quirk (unresolved, workaround documented):** `python -m
+gnn.evaluation.evaluate_amvf_ttva` with data args hangs at 100% CPU before
+any output on sneezy; the same module via `runpy.run_module` or direct import
+runs in ~1 min. `--help`/plain import fine; other gnn CLIs fine under -m.
+Documented in docs/evaluation/vertex_association.md; use the runpy form.
+
+**Prepared (not launched):** `configs/gnn/config_gnn_ttva_repro.yml` —
+end-to-end reproduction training on the existing 51k-graph dataset
+(training_graphs_full_51k.pyt), mirroring the Nov 2025 reference run
+(split [0.7,0.25,0.05], bs 32, lr 1e-3, 201 epochs, save every 25).
+
+Outputs: outputs/07_12_2026_ttva_reproduction/amvf/.

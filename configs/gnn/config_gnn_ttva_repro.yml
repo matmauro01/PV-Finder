@@ -1,0 +1,37 @@
+# GNN TTVA end-to-end reproduction training (July 2026)
+# Mirrors the Nov 2025 reference run (test_GATConv_edgeattr_BCE):
+# same graphs, same split, same hyperparameters.
+# Usage (inside tmux):
+#   python -u -m gnn.training.train_ttva -c configs/gnn/config_gnn_ttva_repro.yml
+
+# --- Data ---
+# Pre-built 51k-event truth-graph dataset from the Nov 2025 workspace
+# (source: recoTracks_incamvfassoc.h5, all 51k events, pubnote ordering).
+# NOTE: ~46 GB, loaded fully into RAM by train_ttva.
+data_file: "/data/home/matmauro/codice/atlas_pvfinder/tracks_to_vertex/outputs/training_graphs_full_51k.pyt"
+train_split: [0.7, 0.25, 0.05]  # train / val / test — same as reference run
+batch_size: 32
+num_workers: 2
+
+# --- Model architecture (reference defaults) ---
+model_config:
+  track_input_size: 8   # d0, z0, d0_err, z0_err, cov, theta, phi, pt_scaled
+  pv_input_size: 2      # z_position, peak_height
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3      # long_sig, horiz_sig, |dz|
+  dropout: 0.25
+
+# --- Training ---
+n_epochs: 201
+learning_rate: 0.001
+device_id: 0
+
+# --- Checkpointing ---
+save_weights: true
+save_frequency: 25      # reference run saved every 25 epochs
+save_folder: "/data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn/"
+
+# --- MLflow ---
+experimentname: "TTVA_GNN"
+runname: "ttva_gat_repro_jul2026"

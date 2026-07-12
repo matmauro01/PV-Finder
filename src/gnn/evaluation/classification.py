@@ -148,10 +148,46 @@ def categorize_event(
     # d0 and z0 are available at [0,:] and [1,:] for downstream use.
     pt_event = tracks_event_stack[2, :]
 
+    truth_track_indices, truth_pv_indices = build_truth_adjacency(
+        pv_loc_z_event, pv_ntracks_event, pv_assoctracks_event
+    )
+
+    num_reco_pvs_in_event = len(reco_graph_event["pv"].x[:, 0].cpu().numpy())
+    truth_pvs_count = int((pv_ntracks_event >= 2).sum())
+
+    # Collect the tracks the GNN assigned to each reco PV
+    matched_tracks_per_pv: list[np.ndarray] = []
+    for i in range(num_reco_pvs_in_event):
+        i_pv_indices = (
+            torch.nonzero(graph_edge_index_pv == i, as_tuple=False).view(-1).cpu()
+        )
+        output_pv = output_probs[i_pv_indices]
+        i_track_indices = graph_edge_index_track[i_pv_indices]
+        matched = torch.unique(i_track_indices[output_pv], sorted=True).cpu().numpy()
+        matched_tracks_per_pv.append(matched)
+
+    return classify_assignments(
+        matched_tracks_per_pv,
+        pt_event,
+        truth_track_indices,
+        truth_pv_indices,
+        truth_pvs_count,
+    )
+
+
+def build_truth_adjacency(
+    pv_loc_z_event: np.ndarray,
+    pv_ntracks_event: np.ndarray,
+    pv_assoctracks_event: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Unpack flat per-PV track lists into (track_indices, pv_indices) pairs.
+
+    pv_assoctracks_event concatenates the associated track indices of each
+    truth PV; pv_ntracks_event gives the group lengths.
+    """
     truth_track_indices = np.zeros(len(pv_assoctracks_event))
     truth_pv_indices = np.zeros(len(pv_assoctracks_event))
 
-    # Build truth adjacency: truth associations between reco tracks and truth PVs
     counter = 0
     for i in range(len(pv_loc_z_event)):
         n = int(pv_ntracks_event[i])
@@ -160,36 +196,49 @@ def categorize_event(
         ]
         truth_pv_indices[counter : counter + n] = i
         counter += n
+    return truth_track_indices, truth_pv_indices
 
-    num_reco_pvs_in_event = len(reco_graph_event["pv"].x[:, 0].cpu().numpy())
-    truth_pvs_count = int((pv_ntracks_event >= 2).sum())
 
+def classify_assignments(
+    matched_tracks_per_pv: list[np.ndarray],
+    pt_event: np.ndarray,
+    truth_track_indices: np.ndarray,
+    truth_pv_indices: np.ndarray,
+    truth_pvs_count: int,
+) -> tuple[list[int], list[dict[str, Any]]]:
+    """Classify reco PVs given explicit per-PV track assignments.
+
+    Model-free core shared by the GNN eval (assignments from edge scores)
+    and the AMVF eval (assignments from reco_pv_assoc_tracks), so both
+    algorithms are judged by the identical Clean/Merged/Split/Fake logic.
+
+    Args:
+        matched_tracks_per_pv: For each reco PV, array of assigned track
+            indices (unique).
+        pt_event: Per-track pT (same units for all callers).
+        truth_track_indices / truth_pv_indices: Flat truth adjacency from
+            build_truth_adjacency.
+        truth_pvs_count: Number of truth PVs with >= 2 tracks.
+
+    Returns:
+        Tuple of (results_list, reco_pv_info_list) where results_list is
+        [clean, merged, split, fake, n_reco_pvs, n_truth_pvs].
+    """
+    num_reco_pvs_in_event = len(matched_tracks_per_pv)
     reco_pv_info_list: list[dict[str, Any]] = []
 
-    for i in range(num_reco_pvs_in_event):
-        # Get all edge indices associated with this reconstructed vertex
-        i_pv_indices = (
-            torch.nonzero(graph_edge_index_pv == i, as_tuple=False).view(-1).cpu()
-        )
-        output_pv = output_probs[i_pv_indices]
-        i_track_indices = graph_edge_index_track[i_pv_indices]
-
-        # Grab tracks that are associated to reco pv
-        matched_tracks = torch.unique(i_track_indices[output_pv], sorted=True).cpu()
-
+    for i, matched_tracks in enumerate(matched_tracks_per_pv):
         # Calculate sum pT^2 of all tracks associated with PV
         pv_assoc_pt_event = pt_event[matched_tracks]
         sum_pt_sq = (pv_assoc_pt_event**2).sum()
 
         # Calculate if reco PV is clean, merged, split, or fake
-        w_total_reco = output_pv.sum()
+        w_total_reco = len(matched_tracks)
         w_pvtruth_in_pvvreco: dict[str, int] = {}
 
         for j in matched_tracks:
             # Find truth PV each reco track is truth associated with
-            truth_index = torch.nonzero(truth_track_indices == j, as_tuple=False).view(
-                -1
-            )
+            truth_index = np.nonzero(truth_track_indices == j)[0]
             truth_pv_num = truth_pv_indices[truth_index]
 
             if not truth_pv_num.size > 0:
