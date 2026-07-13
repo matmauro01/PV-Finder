@@ -171,6 +171,49 @@ guard). Results + plots: `outputs/07_13_2026_ttva_hllhc_eval/`
 (learning_curve.json, plots/); zero-shot baseline also in
 `outputs/07_12_2026_ttva_hllhc/zeroshot_mu60_ckpt/`.
 
+## HL-LHC PU200 full chain (2026-07-13): PVF peaks → GNN vs AMVF
+
+First end-to-end HL-LHC number. `gnn.data.pu200_chain_graphs` runs the
+production PVF finder (v4b epoch 3: TracksToHist_v2 [128]×5 / 4-latent /
+UNet-280, peak thr 1e-2, integral 0.40, min-height 0.03) on ROOT test
+entries 28500+ (same events as the truth-graph test slice; alignment
+verified, Σtruth = 148,133), builds kNN k=20 inference graphs with
+`track.truth_pv`, and computes the AMVF baseline from
+`RecoVertex_assocTracks` through the identical classifier. 88.4 peaks/event.
+
+Clean/truth (148,133 truth PVs, GNN = PU200-retrained e175):
+
+| Chain | clean/truth | fake rate |
+|---|---|---|
+| AMVF (own finding + association) | 0.573 | 0.9% |
+| **PVF v4b + GNN, t = 0.95** | **0.580** | 0.7% |
+| **PVF v4b + GNN, t = 0.98** | **0.619** | 1.4% |
+| PVF v4b + GNN, t = 0.99 | 0.640 | 2.7% |
+| GNN on truth vertices (ceiling, t = 0.95) | 0.913 | — |
+
+**PVF+GNN beats AMVF at HL-LHC pileup** — narrowly at matched fake rate,
+by +4.6 points if 1.4% fakes are acceptable. The 29-point gap to the
+associator ceiling is the finder leg (88.4 peaks vs ~99 truth PVs ≥2trk;
+chain merged rate 21–30% = peaks blending two truth PVs). Threshold
+tuning matters even more at PU200 than μ60: t=0.5 → 0.533 only.
+Full scan: `outputs/07_13_2026_ttva_chain/chain_tscan_e175.json`.
+
+**Latency per event at μ=200** (A100, batch 1, shared GPU, medians;
+`chain_info.json` + `gnn_benchmark.json`):
+
+| Stage | ms |
+|---|---|
+| PVF model inference | 4.2 |
+| Peak finding (`pv_locations_updated_res`) | **60.8** |
+| Graph construction (kNN k=20) | 2.0 |
+| **GNN forward (39.5k params, 18.3k edges)** | **3.8** |
+| MaxScore selection (Python loop) | 11.7 |
+
+The GNN is 4.6% of the chain and ~16× faster than the PVF stage. The
+optimization targets are the peak finder (74% of the budget, pure-Python
+bin loop) and the selection loop — both vectorizable, neither is the
+model.
+
 ## Run 3 real data (truth-free, 2026-07-13)
 
 `gnn.evaluation.evaluate_ttva_run3` runs the full chain (T2KDE e130 + K2H

@@ -2666,3 +2666,44 @@ plot_ttva_performance — runpy workaround applies (documented).
 
 Open next: PU200 full chain (PVF peaks → GNN), hard-scatter ID, PU200
 training rerun with lr schedule.
+
+## 2026-07-13 (later) — PU200 full chain lands: PVF+GNN beats AMVF at HL-LHC; stable retrain running
+
+User directives: full-pipeline HL-LHC eval with the production PVF model,
+concurrent stable GNN retraining, AMVF must be beaten, GNN must not be the
+latency bottleneck.
+
+**Exploratory experiments first** (grounding the plan; μ60 t*=0.98 unless
+noted): (a) split-merge post-processing is a measured dead end — splits
+never cost clean/truth, every truth-free merge rule only lost (best 0.740
+vs 0.745 baseline); (b) unassigned tracks (9.6%) are 99.2% truth-matched
+but badly measured (median z0_err 2.2x worse) — the GNN abstains on hard
+tracks; (c) hard-scatter ID: GNN 98.1% vs AMVF 98.9%; (d) PU200 e175
+threshold scan on truth graphs: clean/truth 0.796 (t=0.5) -> 0.913
+(t=0.95-0.98) — threshold tuning is free performance at PU200 too.
+
+**Full chain**: new `gnn.data.pu200_chain_graphs` runs PVF v4b epoch 3
+(production ckpt + operating point: thr 1e-2 / integral 0.40 / floor 0.03)
+on ROOT test entries 28500+, builds kNN k=20 inference graphs carrying
+track.truth_pv (alignment verified: sum truth = 148,133), and computes the
+AMVF baseline through the identical classifier in the same pass.
+create_inference_graph gained an optional knn parameter;
+evaluate_ttva_graphs now tolerates graphs without edge labels.
+Result (e175): **clean/truth 0.619 @ t=0.98 (fake 1.4%) and 0.580 @ t=0.95
+(fake 0.7%) vs AMVF 0.573 (fake 0.9%)** — PVF+GNN outperforms AMVF at
+HL-LHC pileup. Ceiling on truth vertices: 0.913 — the ~29-point gap is the
+finder leg (88.4 peaks/evt vs ~99 truth PVs; chain merged 21-30%).
+
+**Latency** (new `gnn.evaluation.benchmark_ttva` + chain timings, per
+event at mu=200): PVF 4.2 ms, peak finding 60.8 ms, graph build 2.0 ms,
+GNN forward 3.8 ms, selection loop 11.7 ms. The GNN is NOT the bottleneck
+(4.6% of chain); peak finding and the Python selection loop are the
+vectorization targets.
+
+**Stable retrain v2** launched (tmux ttva_pu200_v2, GPU 0, ~3.6 h):
+identical architecture, cosine LR 1e-3->1e-5 + grad clip 1.0 (new opt-in
+config keys in train_ttva/training_loop; config_gnn_ttva_hllhc_v2.yml).
+To be evaluated against e175 when done; chain eval reruns if better.
+
+Campaign-2 plan rewritten with all measured findings:
+~/.claude/plans/ttva-campaign-2-pu200-chain.md.
