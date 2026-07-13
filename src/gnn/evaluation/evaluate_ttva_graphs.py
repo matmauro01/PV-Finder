@@ -71,7 +71,10 @@ def evaluate_graph(
     scores = torch.sigmoid(logits).cpu().numpy()
 
     edge_index = graph[("track", "to", "pv")].edge_index.cpu().numpy()
-    y = graph[("track", "to", "pv")].y.cpu().numpy()
+    # Inference graphs (PV nodes = PVF peaks) carry no edge labels: edge-level
+    # metrics are undefined there, only the vertex classification applies.
+    edge_store = graph[("track", "to", "pv")]
+    y = edge_store.y.cpu().numpy() if "y" in edge_store else None
 
     if eval_method == "MaxScore":
         selected = get_top_k_associations(scores, edge_index, k=1, threshold=threshold)
@@ -103,15 +106,17 @@ def evaluate_graph(
         truth_pvs_count,
     )
 
-    # Edge-level metrics
-    edge_metrics = {
-        "n_edges": float(len(y)),
-        "n_true_edges": float((y > 0.5).sum()),
-        "sum_scores_true": float(scores[y > 0.5].sum()),
-        "sum_scores_false": float(scores[y <= 0.5].sum()),
-        "n_correct_selected": float((selected & (y > 0.5)).sum()),
-        "n_selected": float(selected.sum()),
-    }
+    # Edge-level metrics (only when the graph carries edge labels)
+    edge_metrics = {}
+    if y is not None:
+        edge_metrics = {
+            "n_edges": float(len(y)),
+            "n_true_edges": float((y > 0.5).sum()),
+            "sum_scores_true": float(scores[y > 0.5].sum()),
+            "sum_scores_false": float(scores[y <= 0.5].sum()),
+            "n_correct_selected": float((selected & (y > 0.5)).sum()),
+            "n_selected": float(selected.sum()),
+        }
     return results, info, edge_metrics
 
 
