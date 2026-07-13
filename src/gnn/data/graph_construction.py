@@ -281,22 +281,35 @@ def create_inference_graph(
     pred_z: np.ndarray,
     pred_heights: np.ndarray,
     pred_sigmas: np.ndarray,
+    knn: int | None = None,
 ) -> HeteroData:
     """Build a heterogeneous graph from pre-computed PV-Finder predictions.
 
     Unlike create_training_graph, this does NOT embed peak finding.
     The caller provides pre-computed pred_z, pred_heights, pred_sigmas.
 
+    Args:
+        knn: If set, connect each track only to its knn nearest peaks in
+            |dz| (must match the training-graph construction at high
+            pileup). None = fully connected (backward-compatible default).
+
     Returns a HeteroData graph with ToUndirected applied.
     """
     num_tracks = len(z_0_event)
     num_pvs = len(pred_z)
 
-    track_indices, pv_indices = np.meshgrid(
-        np.arange(num_tracks), np.arange(num_pvs), indexing="ij"
-    )
-    track_indices_flat = track_indices.flatten()
-    pv_indices_flat = pv_indices.flatten()
+    if knn is not None and 0 < knn < num_pvs:
+        dz_matrix = np.abs(z_0_event[:, np.newaxis] - pred_z[np.newaxis, :])
+        nearest = np.argpartition(dz_matrix, knn - 1, axis=1)[:, :knn]
+        nearest = np.sort(nearest, axis=1)  # deterministic edge ordering
+        track_indices_flat = np.repeat(np.arange(num_tracks), knn)
+        pv_indices_flat = nearest.flatten()
+    else:
+        track_indices, pv_indices = np.meshgrid(
+            np.arange(num_tracks), np.arange(num_pvs), indexing="ij"
+        )
+        track_indices_flat = track_indices.flatten()
+        pv_indices_flat = pv_indices.flatten()
 
     pv_event_features = np.stack((pred_z, pred_heights)).T
 
