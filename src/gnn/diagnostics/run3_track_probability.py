@@ -150,8 +150,11 @@ def _run_gnn_event(
         [d0, z0, d0_err, z0_err, cov, theta, phi, pt / PT_SCALE], axis=1
     ).astype(np.float32)  # (n_tracks, 8)
 
+    # NOTE: signature is (z0, d0, sig_z0, sig_d0, ...) — z0_err comes first.
+    # Before 2026-07-13 this call passed (d0_err, z0_err) swapped, so earlier
+    # Run 3 score distributions used transposed errors in the edge attributes.
     graph = create_inference_graph(
-        z0, d0, d0_err, z0_err, tracks_stack, pred_z, pred_heights, pred_sigmas
+        z0, d0, z0_err, d0_err, tracks_stack, pred_z, pred_heights, pred_sigmas
     )
 
     if graph["track"].num_nodes == 0 or graph["pv"].num_nodes == 0:
