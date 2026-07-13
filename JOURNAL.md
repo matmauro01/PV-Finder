@@ -2612,3 +2612,57 @@ MLflow run `ttva_gat_pu200_k20` in experiment "TTVA_GNN".
 When training finishes: evaluate best checkpoint on the test slice with
 evaluate_ttva_graphs, compare to the zero-shot baseline and to the μ≈60
 in-domain numbers; then the PU200 full chain (PVF e2e peaks → GNN).
+
+## 2026-07-13 — TTVA evaluation campaign: working point, publication plots, Run 3 data, PU200 retrained
+
+Executed the 4-track campaign planned yesterday (all evals on GNN e100
+unless noted; shared classify_assignments core throughout).
+
+**Track 1 — threshold scan → t\* = 0.98.** New `edge_metrics.py` (edge
+ROC AUC 0.9981 on 45.3M labelled edges) and `threshold_scan.py` (scores
+cached once; MaxScore grid 0.05–0.999 + Threshold-mode points; track-level
+efficiency/purity/F1 with AMVF as same-code reference). The sigmoid scores
+are saturated — nothing moves below t≈0.9. Moving the working point from
+the historical t=0.5 to **t\*=0.98** lifts clean-vertex efficiency
+70.0% → **74.5%** at 0.90% fake rate. Track-level: GNN F1 0.866 vs AMVF
+0.849 — the GNN is the better pure associator. Found and characterised GPU
+forward nondeterminism (~1e-5, GATConv scatter atomics): event 1564 has a
+track with top-2 score gap 4e-7 and flips Split↔Fake between runs; new
+`regression_guard.py` passes bit-exact or knife-edge-only diffs (PASS).
+
+**Track 2 — publication plots.** At t\*: PVF+GNN clean 80.9% / merged
+11.8% / split 6.3% / fake 0.9% on 66,472 vertices (AMVF 76.7/20.0/2.5/0.7
+on 57,329; GNN-on-truth 79.9%, clean/truth 89.1%). ATLAS-style figures
+(mplhep, "Simulation Internal", Okabe-Ito palette) in
+outputs/07_13_2026_ttva_publication/: category bars, clean-vertex
+efficiency, efficiency vs truth-PV nTracks (GNN above AMVF in every bin,
+largest gains at low multiplicity), edge-score distributions.
+
+**Track 3 — Run 3 real data, truth-free.** `run3_assoc_cache.py` extracted
+RecoVertex_assocTracks for the 2,000 cached events (RecoVertex_z alignment
+verified per event; assoc counts == nTracks branch). New
+`evaluate_ttva_run3.py`: full chain T2KDE e130 + K2H e190 → peaks →
+GNN @ t\*. Agreement with AMVF: **84.6%** of AMVF-assigned tracks
+(92.6% among both-assigned; window-insensitive 0.5–2 mm); breakdown 8.6%
+GNN-unassigned / 4.3% unmatched vertex / 2.4% different vertex.
+Leading-vertex agreement 84.8%. Self-check AMVF-vs-AMVF = 1.0000. PVF leg
+reproduces run_eval_pvf_run3.py peak counts exactly. Score overlay vs MC:
+all-edge shape matches; per-track max scores show a ~3× larger ambiguous
+population on data. Fixed a real bug found on the way: run3_track_probability
+passed (d0_err, z0_err) swapped into create_inference_graph — pre-2026-07-13
+Run 3 score plots used transposed errors (MC path unaffected).
+
+**Track 4 — PU200 retraining evaluated.** Training finished (201 epochs,
+~3.5 h, val loss 0.2265). New `evaluate_checkpoints.py` (loads 28 GB graph
+set once, all checkpoints + zero-shot regression in one go). Best:
+**epoch 175 — clean 62.1%, clean/truth 0.796, edge purity 0.802** vs
+zero-shot 44.7%/0.574/0.639 (zero-shot re-run bit-identical to yesterday's
+baseline). Learning curve unstable at epochs 50–75 (lr 1e-3 likely too
+high) then plateaus 125–200. Plots in outputs/07_13_2026_ttva_hllhc_eval/.
+
+Infra: mplhep added to requirements; shared plot_style.py; the known
+"python -m + h5 args hangs at 100% CPU" quirk also hit
+plot_ttva_performance — runpy workaround applies (documented).
+
+Open next: PU200 full chain (PVF peaks → GNN), hard-scatter ID, PU200
+training rerun with lr schedule.

@@ -44,9 +44,57 @@ python -m gnn.evaluation.evaluate_ttva \
 Results are saved as `.npy` files: per-event rows
 `[clean, merged, split, fake, n_reco, n_truth]` plus per-PV info dicts.
 
+## Working point (2026-07-13): t* = 0.98
+
+`gnn.evaluation.threshold_scan` scans the MaxScore threshold on the PVF-e400
+inference graphs (scores cached from one GNN pass, selection re-applied per
+t; grid 0.05–0.95 plus a fine tail to 0.999 — the sigmoid scores are
+strongly saturated, so nothing moves below t ≈ 0.9). Criterion: maximise
+clean vertices / truth PVs subject to fake rate ≤ 1%.
+
+**t\* = 0.98**: clean-vertex efficiency **74.5%** (70.0% at the historical
+t = 0.5) at fake rate 0.90%. The max-track-F1 alternative is t = 0.95
+(F1 = 0.867). Edge-level ROC AUC (ground-truth graphs, 45.3M edges):
+**0.9981** (`gnn.evaluation.edge_metrics`).
+
+Track-level TTVA quality (a track is correctly assigned iff its vertex's
+dominant truth PV equals the track's own truth PV; identical classification
+core for both methods):
+
+| | GNN @ t=0.5 | GNN @ t*=0.98 | AMVF |
+|---|---|---|---|
+| Track efficiency | 0.857 | 0.846 | 0.839 |
+| Track purity | 0.857 | 0.887 | 0.859 |
+| Track F1 | 0.857 | 0.866 | 0.849 |
+
+The GNN is a better pure associator than AMVF at every threshold below the
+extreme tail. Scan data + plots: `outputs/07_13_2026_ttva_metrics/`
+(scan_results.json, plots/, edge_level/).
+
+**Reproducibility note:** the GPU forward is nondeterministic at ~1e-5
+(GATConv scatter atomics), so an event whose top-2 scores for a track are
+closer than that can flip between runs (1 event in 2,550 observed). The
+regression guard (`gnn.evaluation.regression_guard`) passes bit-exact rows
+or knife-edge-only diffs; anything else fails.
+
+## Results at t* (2026-07-13, GNN e100, MaxScore t=0.98, 2,550 test events)
+
+Truth PVs (nTrk≥2): 72,189. Numbers + publication plots (category bars,
+clean-vertex efficiency, efficiency vs truth-PV nTracks, score
+distributions) in `outputs/07_13_2026_ttva_publication/`.
+
+| PV source + association | Reco PVs | Clean | Merged | Split | Fake | Clean/truth |
+|---|---|---|---|---|---|---|
+| **PVF e400 peaks + GNN (t\*)** | 66,472 | **80.9%** | 11.8% | 6.3% | 0.9% | **74.5%** |
+| AMVF (its own finding + association) | 57,329 | 76.7% | 20.0% | 2.5% | 0.7% | 60.9% |
+| Ground-truth vertices + GNN (t\*, upper bound) | 80,498 | 79.9% | 7.6% | 3.9% | 8.6% | 89.1% |
+
+The efficiency-vs-nTracks curve shows PVF+GNN above AMVF in every
+multiplicity bin, with the largest gains for low-multiplicity truth PVs.
+
 ## Results (2026-07-12, GNN e100, MaxScore t=0.5, 2,550 test events)
 
-Truth PVs (nTrk≥2): 72,189. Full details in
+Historical default-threshold numbers. Full details in
 `outputs/07_12_2026_ttva_reproduction/reproduction_summary.md`.
 
 | PV source + association | Reco PVs | Clean | Merged | Split | Fake |
@@ -99,16 +147,58 @@ before producing any output, while the *identical* module run via
 oddity (4.15 kernel, NFS-mounted data); not worth chasing — use the runpy
 form.
 
-## HL-LHC PU200 (zero-shot, 2026-07-12)
+## HL-LHC PU200 (2026-07-13, retrained)
 
 `gnn.evaluation.evaluate_ttva_graphs` evaluates graphs that carry their own
 labels (`track.truth_pv` / edge `y`) — needed for PU200, which has no
-event-keyed truth h5. The μ≈60 checkpoint on 200 PU200 truth-vertex graphs
-(k=20): **clean 44.9%, merged 23.9%, split 15.2%, fake 16.0%; edge purity
-0.64** — vs ~77% clean in-domain. Domain shift at μ=200 is severe;
-retraining on PU200 launched the same day (see training doc). The held-out
-zero-shot baseline (test slice 28500+) is in
+event-keyed truth h5. `gnn.evaluation.evaluate_checkpoints` loads the graph
+set once and runs every checkpoint (learning curve).
+
+All numbers: held-out test slice (graphs 28500+, 1,500 events, 148,133
+truth PVs), truth-vertex graphs k=20, MaxScore t=0.5.
+
+| Model | Clean | Merged | Split | Fake | Clean/truth | Edge purity | Edge eff |
+|---|---|---|---|---|---|---|---|
+| μ≈60 zero-shot (e100) | 44.7% | 24.0% | 15.0% | 16.2% | 0.574 | 0.639 | 0.646 |
+| **PU200 retrained, epoch 175** | **62.1%** | 18.1% | 10.1% | 9.7% | **0.796** | 0.802 | 0.813 |
+| (μ≈60 in-domain reference) | 76.7% | — | — | — | — | — | — |
+
+Retraining recovers most of the domain-shift loss but stays below the μ≈60
+in-domain level — μ=200 is intrinsically harder. The learning curve dips
+hard at epochs 50–75 before plateauing at 125–200 (see training doc).
+Zero-shot re-run reproduced the 2026-07-12 baseline exactly (T4 regression
+guard). Results + plots: `outputs/07_13_2026_ttva_hllhc_eval/`
+(learning_curve.json, plots/); zero-shot baseline also in
 `outputs/07_12_2026_ttva_hllhc/zeroshot_mu60_ckpt/`.
+
+## Run 3 real data (truth-free, 2026-07-13)
+
+`gnn.evaluation.evaluate_ttva_run3` runs the full chain (T2KDE e130 + K2H
+e190 → peaks at threshold 1e-2 / integral 0.5 / min_width 3 → GNN e100 at
+t\* = 0.98) on the 2,000 cached Run 3 events and compares to AMVF's own
+associations (extracted by `gnn.data.run3_assoc_cache`, row-alignment
+verified). AMVF vertex z is beam-corrected (−BeamPosZ); vertices matched
+one-to-one by |Δz|.
+
+- **Track-assignment agreement: 84.6%** of AMVF-assigned tracks land on the
+  matched vertex (window 1 mm; 84.5/84.7% at 0.5/2 mm — insensitive).
+  Among tracks assigned by both methods: **92.6%**.
+- Disagreement breakdown: 8.6% GNN-unassigned (GNN assigns 87.7% of tracks
+  vs AMVF's 94.8%), 4.3% assigned to a peak with no AMVF partner, 2.4%
+  assigned to a different matched vertex.
+- **Leading-vertex (max sum-pT², hard-scatter proxy) agreement: 84.8%.**
+- Vertices/event: 27.3 PVF peaks vs 29.0 AMVF (nTrk ≥ 2).
+- Self-check (AMVF scored against itself through the same machinery):
+  agreement = 1.0000 exactly.
+- PVF-leg cross-check: peaks/event identical to `run_eval_pvf_run3.py`
+  on the same events (26.15 on the first 20).
+
+Results: `outputs/07_13_2026_ttva_run3/` (run3_summary.json, run3_hists.npz,
+plots/). The Run 3 vs MC score overlay: the all-edge score shape on data
+closely tracks MC, while the per-track max-score distribution has a ~3×
+larger population at intermediate scores (0.1–0.7) — more ambiguous tracks
+on real data, consistent with the 8.6% GNN-unassigned fraction at t\*.
+Domain shift is mild but visible.
 
 ## Code
 
@@ -121,3 +211,13 @@ zero-shot baseline (test slice 28500+) is in
   from `reco_pv_assoc_tracks`.
 - `src/gnn/evaluation/evaluate_ttva_graphs.py` — eval on self-labelled
   graphs (PU200); also reports edge-level purity/efficiency.
+- `src/gnn/evaluation/evaluate_checkpoints.py` — learning-curve driver
+  (loads graphs once, evaluates every `*epoch_N.pyt` in a directory).
+- `src/gnn/evaluation/edge_metrics.py` — edge-level ROC/AUC + score
+  distributions on labelled graphs.
+- `src/gnn/evaluation/threshold_scan.py` — MaxScore threshold scan,
+  track-level metrics, working-point selection;
+  `regression_guard.py` — knife-edge-tolerant baseline comparison.
+- `src/gnn/evaluation/evaluate_ttva_run3.py` — truth-free Run 3 eval;
+  `src/gnn/data/run3_assoc_cache.py` — AMVF assoc extraction.
+- Plot scripts: see docs/diagnostics/vertex_association.md.

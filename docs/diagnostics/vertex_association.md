@@ -2,6 +2,23 @@
 
 Diagnostic and visualization tools for the GNN TTVA model.
 
+## Plotting infrastructure (2026-07-13)
+
+All TTVA figures share `src/gnn/diagnostics/plot_style.py`: mplhep ATLAS
+style, Okabe-Ito colourblind-safe palette, common category/algorithm
+colours, and a `save_figure` helper (300-dpi PNG + vector PDF). The ATLAS
+label defaults to **"Simulation Internal"** (flip `ATLAS_STATUS` once
+results are approved for a different label).
+
+Plotting scripts (each reads the JSON/npz written by the matching eval):
+
+| Script | Input | Figures |
+|---|---|---|
+| `plot_threshold_scan.py` | `threshold_scan` + `edge_metrics` outputs | ROC, score distributions, vertex rates vs t, clean-vertex efficiency vs t, track-level metrics vs t |
+| `plot_ttva_performance.py` | t* eval outputs + AMVF + GNN-on-truth | publication bars, clean-vertex efficiency, efficiency vs truth-PV nTracks |
+| `plot_ttva_pu200.py` | `evaluate_checkpoints` learning curve | PU200 learning curve, zero-shot vs retrained |
+| `plot_ttva_run3.py` | `evaluate_ttva_run3` outputs | Run 3 vs MC score overlay, multiplicity, AMVF agreement |
+
 ## Run3 Track Probability Distribution
 
 **Script:** `src/gnn/diagnostics/run3_track_probability.py`
@@ -47,6 +64,12 @@ old codebase, because the PVF weights were pickled with the legacy
 - ~8–9 s/event on CPU with 300 tracks and ~20 PVF peaks (fully connected graph)
 - The score distribution is expected to peak sharply near 0 (most track–PV pairs
   are non-associations) with a secondary peak near 1 (true associations)
+- **Bug fixed 2026-07-13**: the `create_inference_graph` call passed
+  `(d0_err, z0_err)` where the signature expects `(sig_z0, sig_d0)`, so
+  score distributions produced before that date used transposed errors in
+  the edge attributes. The truth-free Run 3 evaluation
+  (`gnn.evaluation.evaluate_ttva_run3`) supersedes this diagnostic for
+  quantitative statements.
 
 ## MC Track Probability Distribution
 

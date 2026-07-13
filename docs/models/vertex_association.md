@@ -130,23 +130,28 @@ default in `create_training_graph`) and `hllhc` (0.179, 0.727, 0; default in
   Vtx GNN TTVA" at `/share/lazy/qibinlei/trackstoHists` (training losses only,
   no eval rates).
 
-## Status (2026-07-12)
+## Status (2026-07-13)
 
 - Nov 2025 baseline **reproduced bit-exactly** end-to-end with this package
-  (graphs tensor-identical, eval rows identical). AMVF comparison done: same
-  clean rate, PVF+GNN finds 16% more vertices (clean-vertex efficiency 70.0%
-  vs 60.9%). See [evaluation](../evaluation/vertex_association.md).
-- **PU200 zero-shot**: the μ≈60 checkpoint collapses at μ=200 (clean
-  ~45% vs ~77% in-domain; edge purity ~64%) → retraining on PU200 required.
-- **PU200 training launched 2026-07-12** (`ttva_gat_pu200_k20`): 30k truth
-  graphs (k=20, hllhc preset), split [0.7, 0.25, 0.05], 201 epochs — config
-  `configs/gnn/config_gnn_ttva_hllhc.yml`, checkpoints in
-  `model_weights/ttva_gnn_hllhc/`, MLflow experiment "TTVA_GNN".
-- Training-leg bug fixed on the way: lazy GATConv params must be materialized
-  by a dummy forward before the optimizer is created (train_ttva.py); fresh
-  training was broken before, only weight-loading paths had been exercised.
-- Not yet done: Run 2/3 agreement-with-AMVF eval, PU200 full-chain
-  (PVF peaks → GNN) eval, track-level TTVA metrics.
+  (graphs tensor-identical, eval rows identical). AMVF comparison done. See
+  [evaluation](../evaluation/vertex_association.md) for the full results
+  matrix.
+- **Working point retuned (2026-07-13)**: threshold scan moved the MaxScore
+  cut from the historical t=0.5 to **t\* = 0.98** — clean-vertex efficiency
+  74.5% (from 70.0%) at fake rate 0.9%; edge-level ROC AUC 0.998. Track-level
+  TTVA metrics implemented; GNN beats AMVF as a pure associator (F1 0.867 vs
+  0.849).
+- **PU200 retraining DONE** (`ttva_gat_pu200_k20`, 201 epochs, ~3.5 h): best
+  checkpoint `model_weights/ttva_gnn_hllhc/ttva_gat_pu200_k20_epoch_175.pyt`
+  — clean 62.1% / edge purity 0.80 on the held-out slice, vs 44.7% / 0.64
+  zero-shot with the μ≈60 model.
+- **Run 3 real-data eval (truth-free)**: full PVF+GNN chain vs AMVF
+  associations — see evaluation doc, section "Run 3".
+- GPU forward is nondeterministic at the ~1e-5 level (GATConv scatter
+  atomics): events with near-degenerate top-2 scores can flip between runs
+  (~1 event in 2,550). The regression guard in `threshold_scan` allows
+  knife-edge flips explicitly.
+- Not yet done: PU200 full-chain (PVF peaks → GNN) eval, hard-scatter ID.
 
 ## Known limitations / next steps (from internal note §7)
 

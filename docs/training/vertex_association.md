@@ -59,6 +59,15 @@ Note: `train_ttva` materializes the lazy GATConv layers with a dummy forward
 before creating the optimizer — do not reorder that block; fresh training
 breaks without it.
 
+**Completed run (2026-07-12/13, `ttva_gat_pu200_k20`):** 201 epochs in
+~3.5 h on one A100 (21,000 train / 7,500 val graphs), final train loss
+0.2551 / val 0.2265. Checkpoints every 25 epochs in
+`model_weights/ttva_gnn_hllhc/`. Training was unstable around epochs
+50–75 (clean rate dipped to ~34%, likely lr=1e-3 too aggressive) before
+recovering; the plateau spans epochs 125–200 and **epoch 175 is the best
+checkpoint** (see docs/evaluation/vertex_association.md). A lower lr or a
+schedule is the first thing to try for a future rerun.
+
 ## Reference training run (Nov 2025 baseline)
 
 The checkpoint behind the ACAT/internal-note numbers was trained with
