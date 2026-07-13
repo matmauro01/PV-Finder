@@ -50,6 +50,7 @@ def atlas_label(
     status: str = ATLAS_STATUS,
     desc: str | None = None,
     loc: int = 0,
+    desc_xy: tuple[float, float] = (0.05, 0.86),
 ) -> None:
     """Draw the ATLAS <status> label, with an optional description line.
 
@@ -58,12 +59,13 @@ def atlas_label(
         status: Text after "ATLAS" (e.g. "Simulation Internal").
         desc: Optional sample/selection description placed below the label.
         loc: mplhep label location code (0 = top-left inside the axes).
+        desc_xy: Axes-fraction position of the description text.
     """
     hep.atlas.text(status, ax=ax, loc=loc)
     if desc:
         ax.text(
-            0.05,
-            0.86,
+            desc_xy[0],
+            desc_xy[1],
             desc,
             transform=ax.transAxes,
             fontsize="small",
