@@ -33,8 +33,17 @@ def trainNet(
     *,
     notebook: bool | None = None,
     epoch_start: int = 0,
+    scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
+    grad_clip: float | None = None,
 ):
-    """Run GNN training, yielding GNNResults after each epoch."""
+    """Run GNN training, yielding GNNResults after each epoch.
+
+    Args:
+        scheduler: Optional epoch-stepped LR scheduler (stepped after each
+            epoch's validation).
+        grad_clip: Optional max gradient norm (clip_grad_norm_ before each
+            optimizer step).
+    """
     if not notebook:
         print("{:=^80}".format(" HYPERPARAMETERS "))
         print(
@@ -64,8 +73,9 @@ def trainNet(
         training_start_time = time.time()
 
         total_train_loss = _train_one_epoch(
-            model, train_loader, optimizer, device, progress=progress
-        )
+            model, train_loader, optimizer, device, progress=progress,
+            grad_clip=grad_clip,
+        )  # fmt: skip
         cost_epoch = total_train_loss / len(train_loader)
 
         total_val_loss = _validate_one_epoch(
@@ -83,10 +93,14 @@ def trainNet(
         momentum_norm = get_momentum_norm(optimizer)
         grad_momentum_angle = get_gradient_momentum_angle(optimizer)
 
+        current_lr = optimizer.param_groups[0]["lr"]
+        if scheduler is not None:
+            scheduler.step()
+
         write = getattr(progress, "write", print)
         write(
             f"Epoch {epoch}: train={cost_epoch:.6}, val={val_epoch:.6}, "
-            f"took {time_epoch:.5} s"
+            f"lr={current_lr:.3g}, took {time_epoch:.5} s"
         )
         write(
             f"  Gradient Norm: {gradient_norm:.4f}, Update Norm: {update_norm:.4f}, "
@@ -115,6 +129,7 @@ def _train_one_epoch(
     device: torch.device,
     *,
     progress,
+    grad_clip: float | None = None,
 ) -> float:
     """Single training epoch. Returns total loss summed over batches."""
     total_loss = 0.0
@@ -137,6 +152,8 @@ def _train_one_epoch(
         outputs = model(batch)
         loss = _compute_bce_loss(outputs, labels, device)
         loss.backward()
+        if grad_clip is not None:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
 
         total_loss += loss.data.item()

@@ -87,6 +87,23 @@ def main(
         model.parameters(), lr=configs["learning_rate"], betas=(0.9, 0.999)
     )
 
+    # Optional epoch-stepped LR schedule + gradient clipping (stability)
+    scheduler = None
+    sched_cfg = configs.get("lr_schedule")
+    if sched_cfg:
+        if sched_cfg.get("type") != "cosine":
+            msg = f"Unsupported lr_schedule type: {sched_cfg.get('type')}"
+            raise ValueError(msg)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=configs["n_epochs"],
+            eta_min=sched_cfg.get("eta_min", 1e-5),
+        )
+        print(f"LR schedule: cosine -> {sched_cfg.get('eta_min', 1e-5)}")
+    grad_clip = configs.get("grad_clip")
+    if grad_clip:
+        print(f"Gradient clipping: max norm {grad_clip}")
+
     # Resume from checkpoint
     epoch_start = 0
     if resume_checkpoint is not None:
@@ -121,6 +138,8 @@ def main(
             configs["n_epochs"],
             notebook=False,
             epoch_start=epoch_start,
+            scheduler=scheduler,
+            grad_clip=grad_clip,
         )
     )
 
