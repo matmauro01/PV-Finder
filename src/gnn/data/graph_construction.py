@@ -33,13 +33,18 @@ from pv_finder.utils.constants import (
 )
 
 # ---------------------------------------------------------------------------
-# Derived binning arrays (matching original ProbRange computation)
+# Derived binning arrays for the PV-height recipe
 # ---------------------------------------------------------------------------
+# NOTE (2026-07-14): the original Nov 2025 ProbRange added Z_MIN here even
+# though z_centers_prob (see compute_truth_pv_heights) already includes it,
+# so the CDF was evaluated 240 mm away from every vertex and ALL truth-graph
+# PV heights were exactly 0 -- the height feature was dead in every training
+# to date, while inference graphs carry real peak heights. Graph files built
+# before this date (mu60 ground-truth set, pu200_truth_k20_30k.pt) retain the
+# zero heights for reproduction; rebuilds get real heights.
 _bins = np.arange(-5, 6)  # +/- 5 neighboring bins
 _edges = np.array([-BIN_WIDTH_MM / 2, BIN_WIDTH_MM / 2])
-PROB_RANGE: np.ndarray = (
-    BIN_WIDTH_MM * _bins[np.newaxis, :] + _edges[:, np.newaxis] + Z_MIN
-)
+PROB_RANGE: np.ndarray = BIN_WIDTH_MM * _bins[np.newaxis, :] + _edges[:, np.newaxis]
 
 
 # ---------------------------------------------------------------------------
@@ -141,10 +146,32 @@ def _compute_edge_attributes(
 # ---------------------------------------------------------------------------
 # Training graph construction (from MC truth)
 # ---------------------------------------------------------------------------
+def compute_truth_pv_heights(
+    pv_loc_z_event: np.ndarray, pv_res_all: np.ndarray
+) -> np.ndarray:
+    """PV-node heights via the Gaussian-CDF recipe (matches PVF targets)."""
+    nbins_all = bin_number(pv_loc_z_event)
+    z_centers_prob = (nbins_all / BINS_PER_MM) + Z_MIN
+    z_probRanges_all = z_centers_prob[:, np.newaxis, np.newaxis] + PROB_RANGE
+
+    probValues_all = norm_cdf(
+        pv_loc_z_event[:, np.newaxis, np.newaxis],
+        pv_res_all[:, np.newaxis, np.newaxis],
+        z_probRanges_all,
+    )
+    populate_all = probValues_all[:, 1, :] - probValues_all[:, 0, :]
+
+    scaling_factor = 0.15 / pv_res_all[:, np.newaxis]
+    condition = scaling_factor > 1
+    populate_all = np.where(condition, scaling_factor * populate_all, populate_all)
+    return np.max(populate_all, axis=1)
+
+
 def create_training_graph(
     event_data: dict[str, np.ndarray],
     knn: int | None = None,
     pv_res_all: np.ndarray | None = None,
+    pv_heights_override: np.ndarray | None = None,
 ) -> HeteroData:
     """Build a heterogeneous graph from a single MC event with truth labels.
 
@@ -161,6 +188,11 @@ def create_training_graph(
         pv_res_all: Per-PV z resolution in mm. None = Run-3 fit constants
             via compute_pv_sigma (backward-compatible default). Pass a
             custom array to use e.g. the HL-LHC resolution preset.
+        pv_heights_override: Per-PV node heights. None = synthesize from
+            pv_res_all via the Gaussian-CDF recipe (backward-compatible
+            default). Used by chain-like augmentation, where heights and
+            sigmas are sampled independently from measured peak
+            distributions.
 
     Returns a HeteroData graph with ToUndirected applied.
     """
@@ -178,27 +210,10 @@ def create_training_graph(
     if pv_res_all is None:
         pv_res_all = compute_pv_sigma(pv_ntracks_event)
 
-    # Get bin numbers for all PVs
-    nbins_all = bin_number(pv_loc_z_event)
-
-    # Calculate probabilities and peak vals for all z values
-    z_centers_prob = (nbins_all / BINS_PER_MM) + Z_MIN
-    z_probRanges_all = z_centers_prob[:, np.newaxis, np.newaxis] + PROB_RANGE
-
-    probValues_all = norm_cdf(
-        pv_loc_z_event[:, np.newaxis, np.newaxis],
-        pv_res_all[:, np.newaxis, np.newaxis],
-        z_probRanges_all,
-    )
-
-    populate_all = probValues_all[:, 1, :] - probValues_all[:, 0, :]
-
-    scaling_factor = 0.15 / pv_res_all[:, np.newaxis]
-    condition = scaling_factor > 1
-
-    populate_all = np.where(condition, scaling_factor * populate_all, populate_all)
-
-    pv_heights_all = np.max(populate_all, axis=1)
+    if pv_heights_override is not None:
+        pv_heights_all = pv_heights_override
+    else:
+        pv_heights_all = compute_truth_pv_heights(pv_loc_z_event, pv_res_all)
 
     # Construct PV nodes
     pv_event_features = np.stack((pv_loc_z_event, pv_heights_all)).T.astype(np.float32)
