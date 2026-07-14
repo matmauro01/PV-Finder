@@ -2779,3 +2779,29 @@ stub): task, graph/TikZ schematic, architecture, metrics + conventions,
 mu60 + Run 3, PU200 chain vs AMVF with yield-ladder figure, transfer gap,
 latency, outlook. Compiles clean. PU200 publication plots:
 plot_ttva_pu200_pub (yield ladder / chain scan / miss-vs-nTrk).
+
+## 2026-07-14 (later) — v3 evaluated: transfer gap closed, chain at 96% of oracle
+
+v3 training finished in 3.2 h (162 shard-epochs, ~70 s each, smooth
+cosine descent to val 0.2120 on augmented graphs). Evaluation
+(outputs/07_14_2026_ttva_v3/):
+
+- **Full chain: clean/truth 0.716 @ 0.05% fakes (t=0.98)** — +6.9 pts
+  over v1's drop-empty best, **+14.3 pts over AMVF at 18x lower fakes**,
+  96% of the oracle-association bound (0.748). Robust (e150: 0.715).
+- Truth graphs (fixed heights): 0.823 @ t=0.5, 0.9155 @ t=0.95 — matches
+  v2's ceiling despite training mostly on distorted (chain-like) inputs.
+- **HS-ID 98.1% @ t=0.5 — now beats AMVF (97.5%)** (v1 merely tied).
+- Height-bug evidence quantified: v1/v2 degrade 5/9 pts when evaluated
+  on live-height truth graphs; v3 (trained with real heights) gains.
+- **Production checkpoint: v3-e156**
+  (ttva_gnn_hllhc_v3/ttva_gat_pu200_k20_v3_aug180k_epoch_156.pyt).
+  Working points frozen: t=0.98 (vertex classification), t=0.5 (HS-ID).
+
+Publication plots regenerated with v3 (yield ladder, chain scan,
+v3 learning curve; outputs/07_14_2026_ttva_pu200_publication/) and the
+technical-note GNN section + conclusions updated with the final numbers
+(compiles clean). The remaining chain inefficiency is now almost entirely
+the finder's (misses 19%, unavoidable merges 6%): next lever is an
+associator-aware finder objective / objectness head, plus the 2.5M-event
+sample for further scaling.

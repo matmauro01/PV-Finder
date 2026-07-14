@@ -148,11 +148,14 @@ default in `create_training_graph`) and `hllhc` (0.179, 0.727, 0; default in
   Truth-graph ceiling clean/truth 0.9175 (v2, t=0.95). **v1-e175 is still
   the chain production checkpoint** (transfer gap: v2's fake floor on
   peak-node graphs is ~4.5%).
-- **PU200 FULL CHAIN (updated 2026-07-14)**: PVF v4b peaks + GNN beats
-  AMVF — clean/truth **0.647 @ 0.08% fakes** (v1-e175, t=0.995,
-  drop-empty convention) vs AMVF 0.573 @ 0.91%. Bounds: oracle
-  association on peaks 0.748, finder cap 0.810, GNN-on-truth 0.918.
-  HS-ID ties AMVF (97.5%). Optimized chain latency ≈ 11 ms/event
+- **PU200 FULL CHAIN — FINAL (v3, 2026-07-14)**: PVF v4b peaks + GNN v3
+  reaches **clean/truth 0.716 @ 0.05% fakes** (t=0.98, drop-empty) vs
+  AMVF 0.573 @ 0.91% — **+14.3 pts at 18× lower fakes, 96% of the
+  oracle bound** (0.748; finder cap 0.810). HS-ID **98.1% > AMVF
+  97.5%**. Production checkpoint:
+  `model_weights/ttva_gnn_hllhc_v3/ttva_gat_pu200_k20_v3_aug180k_epoch_156.pyt`
+  (train with fixed heights + chain-like augmentation + 180k all-hadronic
+  events). v1/v2 kept for reference. Optimized chain latency ≈ 11 ms/event
   (numba peak finder + vectorized selection). See evaluation doc.
 - **PV-height bug found + fixed (2026-07-14)**: the Gaussian-CDF height
   recipe added Z_MIN twice (inherited from Nov 2025), so every

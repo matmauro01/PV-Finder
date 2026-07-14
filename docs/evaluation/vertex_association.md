@@ -224,7 +224,7 @@ Current headline (`outputs/07_14_2026_ttva_gap/chain_scan_{v1,v2}/`,
 | Finder cap, 0.5 mm greedy match (bound) | 0.810 | — |
 | GNN v2-e175 on truth vertices (bound) | 0.918 | — |
 
-**+7.4 points over AMVF at 11× lower fake rate.** Decomposition
+**+7.4 points over AMVF at 11× lower fake rate** (pre-v3). Decomposition
 (`gnn.diagnostics.chain_gap_decomposition`,
 `outputs/07_14_2026_ttva_gap/gap_decomposition.json`): the finder misses
 19.0% of truth PVs (median nTrk 3 vs 7 for found); of the found, 6.2 pts
@@ -256,6 +256,34 @@ Optimized chain ≈ 11 ms/event. The GNN forward is now the largest learned
 component but still ~a third of the total; nothing about the model needs
 optimizing. Verification tool: `gnn.evaluation.verify_fast_paths` (also
 checked at μ60: 20×, 2 tied edges differ in 1/2,550 events).
+
+## v3 FINAL RESULT (2026-07-14): augmented training closes the transfer gap
+
+v3 (`ttva_gat_pu200_k20_v3_aug180k`, **production checkpoint = epoch 156**:
+`model_weights/ttva_gnn_hllhc_v3/ttva_gat_pu200_k20_v3_aug180k_epoch_156.pyt`)
+= fixed heights + chain-like augmentation + 180k all-hadronic events.
+All evals in `outputs/07_14_2026_ttva_v3/`:
+
+| Chain (1,500 events, 148,133 truth PVs) | clean/truth | fake (drop-empty) |
+|---|---|---|
+| AMVF | 0.573 | 0.91% |
+| PVF v4b + GNN v1-e175, t=0.995 | 0.647 | 0.08% |
+| **PVF v4b + GNN v3-e156, t=0.98** | **0.716** | **0.05%** |
+| Oracle association on peaks (bound) | 0.748 | 0.00% |
+
+**+14.3 points over AMVF at 18× lower fakes; 96% of the oracle bound.**
+Robust across checkpoints (e150: 0.715). Truth graphs (fixed heights):
+0.823 @ t=0.5 / **0.9155 @ t=0.95** — matches v2's ceiling while
+transferring to peaks. **HS-ID 98.1% @ t=0.5 — beats AMVF's 97.5%**
+(`hs_id_v3/`). Working points frozen: **t=0.98 vertex classification,
+t=0.5 HS-ID** (same forward pass).
+
+Transfer-gap evidence (learning curve `eval_learning_curve/`): on
+fixed-height truth graphs v1 drops 0.796→0.747 and v2 0.816→0.727 at
+t=0.5 (they trained with the dead zero-height input), while v3 reaches
+0.823. Smooth convergence over 162 shard-epochs (18 passes / 3.2 h).
+Verification: v3 t-scans share the machinery verified against the
+2026-07-13 rows; ΣtruthPV = 148,133 exact in every run.
 
 ## Run 3 real data (truth-free, 2026-07-13)
 

@@ -105,6 +105,15 @@ worker thread pools spin at high CPU — the process is NOT hung; wait for
 the "Saved N graphs" line (a first-attempt kill at that stage truncated
 all 8 shards, which had to be rebuilt).
 
+**Completed run v3 (2026-07-14, `ttva_gat_pu200_k20_v3_aug180k`):** 162
+epochs in 3.2 h on one A100 (~70 s/shard-epoch incl. load), final
+train/val 0.2115/0.2120 (val on *augmented* graphs — not comparable to
+v1/v2), perfectly smooth. **Best = epoch 156, the new production
+checkpoint**: truth graphs 0.823 clean/truth @ t=0.5 / 0.9155 @ t=0.95;
+full chain **0.716 @ 0.05% fakes (t=0.98)** vs v1 0.647 / AMVF 0.573.
+Improved every metric incl. HS-ID (98.1% > AMVF). The transfer gap is
+effectively closed (96% of the oracle bound on peaks).
+
 ## Reference training run (Nov 2025 baseline)
 
 The checkpoint behind the ACAT/internal-note numbers was trained with

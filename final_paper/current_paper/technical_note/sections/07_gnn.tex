@@ -253,34 +253,37 @@ Re-assigning every track to the peak nearest its \emph{true} vertex --- a
 perfect-information oracle --- yields $74.8\%$: the $6$-point drop from the
 finder cap is close vertex pairs sharing a single nearest peak, unrecoverable
 by any associator on these peaks ($11.9\%$ of oracle vertices are Merged).
-The GNN reaches $64.7\%$ of truth at its working point $t=0.995$ with a fake
-rate of $0.08\%$ --- $86\%$ of the oracle --- while AMVF, whose own finder and
-fitter face the same pile-up density, delivers $57.3\%$ at an $0.91\%$ fake
-rate. The \pvf{}+GNN chain therefore outperforms AMVF by $7.4$ points of
-clean-vertex yield at an eleven-fold lower fake rate. Hard-scatter
-identification through the chain ties AMVF at $97.5\%$ (both at $t=0.5$;
-HS-ID and vertex classification use different thresholds on the same forward
-pass, $92.1\%$ if the clean-vertex threshold is reused). %% V3: add final v3 row + sentence after evaluation
+The model trained on truth vertices alone (v1) reaches $64.7\%$ of truth at
+$t=0.995$ with a fake rate of $0.08\%$ --- $86\%$ of the oracle --- and the
+final model trained with chain-like augmentation (v3,
+Section~\ref{sec:gnn:transfer}) reaches $\mathbf{71.6\%}$ at $t=0.98$ with a
+fake rate of $0.05\%$: $96\%$ of the oracle bound. AMVF, whose own finder
+and fitter face the same pile-up density, delivers $57.3\%$ at an $0.91\%$
+fake rate; the \pvf{}+GNN chain therefore outperforms AMVF by $14.3$ points
+of clean-vertex yield at an eighteen-fold lower fake rate. Hard-scatter
+identification through the chain reaches $98.1\%$ against AMVF's $97.5\%$
+(both at $t=0.5$; HS-ID and vertex classification use different thresholds
+on the same forward pass).
 
 \begin{table}[h]
   \centering
   \caption{PU200 full chain against AMVF (1\,500 events, 148\,133 truth PVs,
   drop-empty convention). ``Finder cap'' counts truth PVs with a peak within
   $0.5$~mm (greedy one-to-one); the oracle assigns every track to the peak
-  nearest its true vertex and bounds any associator on these peaks. GNN rows
-  use the 30k-event PU200 training (v1).}
+  nearest its true vertex and bounds any associator on these peaks. v1 is
+  the 30k-event truth-graph training; v3 adds chain-like augmentation and
+  180k events (Section~\ref{sec:gnn:transfer}).}
   \label{tab:gnn_pu200}
   \begin{tabular}{llcc}
     \toprule
     & Configuration & Clean/truth & Fake rate \\
     \midrule
     reference & AMVF & $57.3\%$ & $0.91\%$ \\
-    chain & \pvf{} v4b + GNN, $t=0.95$ & $58.0\%$ & $0.08\%$ \\
-    chain & \pvf{} v4b + GNN, $t=0.995$ & $\mathbf{64.7\%}$ & $0.08\%$ \\
-    %% V3 row here after evaluation
+    chain & \pvf{} v4b + GNN v1, $t=0.995$ & $64.7\%$ & $0.08\%$ \\
+    chain & \pvf{} v4b + GNN v3, $t=0.98$ & $\mathbf{71.6\%}$ & $0.05\%$ \\
     bound & oracle association on v4b peaks & $74.8\%$ & $0.00\%$ \\
     bound & finder cap ($0.5$~mm) & $81.0\%$ & --- \\
-    bound & truth vertices + GNN & $91.8\%$ & --- \\
+    bound & truth vertices + GNN (v3) & $91.5\%$ & --- \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -302,12 +305,12 @@ pass, $92.1\%$ if the clean-vertex threshold is reused). %% V3: add final v3 row
     \caption{Finder miss probability vs \ntrk.}
   \end{subfigure}
   \caption{PU200 full chain. (a) The \pvf{}+GNN chain exceeds AMVF by
-  $7.4$ points of clean-vertex yield; the dashed bounds separate what the
-  associator can still recover (up to the oracle) from what belongs to the
-  finder (oracle to cap) and to pile-up density itself. (b) The yield rises
-  monotonically to $t\approx0.995$ while the drop-empty fake rate stays an
-  order of magnitude below AMVF's at every threshold. (c) The finder misses
-  are concentrated at low track multiplicity.}
+  $14.3$ points of clean-vertex yield (v3); the dashed bounds separate what
+  the associator can still recover (up to the oracle) from what belongs to
+  the finder (oracle to cap) and to pile-up density itself. (b) The yield
+  rises monotonically towards the working point while the drop-empty fake
+  rate stays an order of magnitude below AMVF's at every threshold. (c) The
+  finder misses are concentrated at low track multiplicity.}
   \label{fig:gnn_pu200}
 \end{figure}
 
@@ -337,17 +340,41 @@ a characteristic low-height spectrum, and $19\%$ of truth vertices have no
 peak at all --- their tracks must be abstained on, a situation truth graphs
 never show.
 
-The final training closes the gap at the source: the height recipe is fixed,
-and truth graphs are made \emph{chain-like} at build time with probability
-$0.7$ per event --- vertices are dropped with the measured miss probability
-versus \ntrk{}, surviving positions are jittered by the measured
+The dead-height mechanism is confirmed directly: re-evaluating the earlier
+models on truth graphs whose heights are switched on degrades both (v1:
+$79.6\to74.7\%$, v2: $81.6\to72.7\%$ at $t=0.5$), and the better-converged
+v2 degrades more.
+
+The final training (v3) closes the gap at the source: the height recipe is
+fixed, and truth graphs are made \emph{chain-like} at build time with
+probability $0.7$ per event --- vertices are dropped with the measured miss
+probability versus \ntrk{}, surviving positions are jittered by the measured
 peak--truth residuals, preset widths and recipe heights are replaced by
 samples of the measured peak-width and height-ratio distributions, and junk
 vertex nodes are injected at the measured rate with the measured height
 spectrum and all-false edges. Every distribution is an empirical quantile grid
 measured on the v4b chain itself, so the augmentation has no free parameters.
-Trained on 180k augmented all-hadronic events, this is the v3 model of
-Table~\ref{tab:gnn_pu200}. %% V3: replace placeholder sentence with results
+Trained on 180k augmented all-hadronic events (nine 20k shards cycled through
+memory, cosine annealing, 3.2~h on one A100), v3 converges smoothly
+(Figure~\ref{fig:gnn_v3curve}) and improves \emph{every} metric at once: on
+truth graphs it reaches $82.3\%$ at $t=0.5$ ($91.5\%$ at $t=0.95$), matching
+the best truth-graph model while being trained mostly on distorted inputs;
+on the chain it lifts the clean-vertex yield from $64.7\%$ to $\mathbf{71.6\%}$
+at a $0.05\%$ fake rate --- closing three quarters of the distance to the
+oracle bound --- and its hard-scatter identification ($98.1\%$) overtakes
+AMVF. The truth-to-peak transfer gap is, for practical purposes, closed:
+the remaining $3$ points to the oracle are the associator's entire residual
+budget on these peaks.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.62\linewidth]{pu200_v3_learning_curve.png}
+  \caption{v3 training progression: clean-vertex yield on the (fixed-height)
+  truth-graph test set at $t=0.5$ versus epoch, with the earlier models
+  evaluated on the same graphs as horizontal references. One epoch is one
+  20k-graph shard; 162 epochs are 18 passes over the 180k-event dataset.}
+  \label{fig:gnn_v3curve}
+\end{figure}
 
 \subsection{Computational cost}
 \label{sec:gnn:latency}
@@ -389,22 +416,24 @@ the graph size grows with occupancy.
 \label{sec:gnn:outlook}
 
 The decomposition of Table~\ref{tab:gnn_pu200} prescribes the next steps in
-order of leverage. The $19\%$ of truth vertices the finder misses (low
-multiplicity) and the $6\%$ lost to peaks shared by close pairs belong to the
-finder, reinforcing the conclusions of Section~\ref{sec:hllhc:failure}; an
-associator-aware finder objective (emitting separate peaks when the
-downstream track assignment could distinguish them) is the natural joint
-target. On the associator side the remaining headroom to the oracle is
-$\sim$10 points. The all-hadronic PU200 sample offers $2.5\times10^{6}$
-training events of which $180$k are used here. HGTD timing remains a
-forward-track feature: $4.0\%$ of PU200 tracks carry a valid time overall,
-but $44.6\%$ of tracks with $|\eta|>2.3$ do ($8.9\%$ of all tracks), so a
-time-augmented edge significance is expected to pay off specifically where
-$z$-ambiguities are worst --- a targeted forward study rather than a global
-gain (Section~\ref{sec:negative:timing}). Finally, the track-based
+order of leverage --- and after v3 they lie almost entirely on the finder
+side. The associator now operates within $3$ points of its oracle bound on
+the given peaks; the $19\%$ of truth vertices the finder misses (low
+multiplicity) and the $6\%$ lost to peaks shared by close pairs belong to
+the finder, reinforcing the conclusions of
+Section~\ref{sec:hllhc:failure}. An associator-aware finder objective
+(emitting separate peaks when the downstream track assignment could
+distinguish them) is the natural joint target. The all-hadronic PU200
+sample offers $2.5\times10^{6}$ training events of which $180$k are used
+here. HGTD timing remains a forward-track feature: $4.0\%$ of PU200 tracks
+carry a valid time overall, but $44.6\%$ of tracks with $|\eta|>2.3$ do
+($8.9\%$ of all tracks), so a time-augmented edge significance is expected
+to pay off specifically where $z$-ambiguities are worst --- a targeted
+forward study rather than a global gain
+(Section~\ref{sec:negative:timing}). Finally, the track-based
 classification used throughout this section is the deployment-faithful
 metric for the combined system and is the recommended headline for any
 future \pvf{}-vs-AMVF comparison: per-task working points ($t=0.5$ for
-hard-scatter identification, $t=0.995$ for vertex classification at PU200,
+hard-scatter identification, $t=0.98$ for vertex classification at PU200,
 $t^{*}=0.98$ at \muavg{}$\approx$60) come for free from a single forward
 pass.

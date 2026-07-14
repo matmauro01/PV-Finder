@@ -1,0 +1,53 @@
+\section{Conclusions and outlook}
+\label{sec:conclusions}
+
+\pvf{} reconstructs primary vertices by mapping reconstructed tracks directly to a
+one-dimensional histogram of vertex density and finding its peaks, at an inference
+cost that does not grow with pile-up. The two-network pipeline has been merged into
+a single end-to-end model, and the intermediate KDE has been removed from training
+by warming up the MLP on the histogram target before enabling the U-Net. At low
+pile-up the model matches AMVF and exceeds it in vertex--vertex resolution
+($0.42$~mm against $0.76$~mm on Run~2 simulation), and is validated on Run~2 and
+Run~3 collision data.
+
+The main result of this note is the extension to HL-LHC PU200. After scaling the
+model and stabilizing the optimization schedule, and training on the full
+$2.74\times10^{6}$-event sample with HL-LHC-specific target widths derived from an
+ITk resolution fit, the algorithm reconstructs clean vertices at a yield slightly
+above AMVF ($70.5$ against $67.9$ per event) at a lower fake rate ($14.0$ against
+$15.2$ per event, falling to $11.3$ with the post-hoc histogram gate), and a tighter
+vertex--vertex resolution of $0.29$~mm. It does so at an
+inference cost that is flat with pile-up (Section~\ref{sec:timing}): where AMVF pays a
+combinatorial cost that grows with the vertex multiplicity the HL-LHC is designed to
+increase, \pvf{} pays the same fixed cost per event. This is the operational reason to
+pursue the method at Run~4 even where the reconstruction quality is only comparable.
+
+The chain is completed by the graph-network track-to-vertex association
+(Section~\ref{sec:gnn}), which turns the found peaks into per-vertex track
+lists at negligible cost ($3.8$~ms per event; the optimized full chain runs
+in $\sim$11~ms). Judged by the track-based purity criteria applied
+identically to both algorithms, the combined \pvf{}+GNN chain delivers a
+clean-vertex yield of $71.6\%$ of truth vertices at PU200 against $57.3\%$
+for AMVF, at an eighteen-fold lower fake rate, and identifies the
+hard-scatter vertex at least as often ($98.1\%$ against $97.5\%$). The
+associator operates within three points of its oracle bound on the given
+peaks, so the remaining inefficiency belongs to the finder.
+
+Two findings shape the next steps. Capacity and the optimization schedule do not
+seem to be the bottleneck: a fivefold-larger model and a sweep over learning rate,
+optimizer and loss all reach the same plateau; the limit lies in the
+mean-squared-error loss against fixed-width Gaussian targets. A non-negligible
+part of the residual inefficiency is physical: about $15\%$ of adjacent truth
+vertices at PU200 are closer than the resolution and cannot be separated at the
+current output granularity. The fake-versus-real signal is already present in the
+predicted histogram, so a learned post-hoc gate recovers most of the available
+separation, and an in-model objectness head would mainly serve to clean up the
+histogram during training.
+
+The priorities going forward are loss functions that penalise fake,
+merged and missed vertices directly rather than through a uniform mean-squared
+error, with an in-model objectness head as the concrete first step; a finer output
+representation or a deconvolution step to recover the close pairs that lie above the
+physical ceiling; and, with the association step now essentially saturated on the
+peaks it is given, joint finder--associator objectives that emit separate peaks
+wherever the downstream track assignment could distinguish them.

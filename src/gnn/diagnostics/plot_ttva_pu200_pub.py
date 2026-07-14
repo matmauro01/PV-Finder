@@ -132,6 +132,37 @@ def plot_miss_ntrk(gap: dict, out: Path):
     plt.close(fig)
 
 
+def plot_learning_curve(curve_path: str, out: Path):
+    """v3 clean/truth vs epoch (truth graphs, t=0.5) with v1/v2 references."""
+    with open(curve_path) as f:
+        rows = json.load(f)
+    epochs, values, refs = [], [], {}
+    for row in rows:
+        label = row.get("label", "")
+        if label.startswith("v1"):
+            refs["v1-e175"] = row["clean_per_truth"]
+        elif label.startswith("v2"):
+            refs["v2-e175"] = row["clean_per_truth"]
+        else:
+            epochs.append(int(row["weights"].split("epoch_")[-1].split(".")[0]))
+            values.append(row["clean_per_truth"])
+    order = np.argsort(epochs)
+
+    fig, ax = plt.subplots(figsize=(8, 5.4))
+    ax.plot(np.array(epochs)[order], np.array(values)[order], "o-",
+            color=OKABE[0], ms=5, label="v3 (aug. 180k)")  # fmt: skip
+    for (label, v), ls in zip(refs.items(), ("--", ":")):
+        ax.axhline(v, color="0.35", ls=ls, lw=1.6)
+        ax.text(2, v + 0.004, f"{label}  {v:.3f}", fontsize=11, color="0.3")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Clean / truth PVs (truth graphs, $t=0.5$)")
+    ax.set_ylim(0.42, 0.9)
+    ax.legend(loc="lower right", fontsize=12)
+    atlas_label(ax, desc=LUMI_DESC, desc_xy=(0.03, 0.90))
+    save_figure(fig, out, "pu200_v3_learning_curve")
+    plt.close(fig)
+
+
 def main() -> None:
     """CLI entry point."""
     args = _parse_args()
@@ -150,6 +181,8 @@ def main() -> None:
     plot_ladder(gap, scans, args.truth_bound, out)
     plot_scan(scans, gap, out)
     plot_miss_ntrk(gap, out)
+    if args.learning_curve:
+        plot_learning_curve(args.learning_curve, out)
     for label, scan in scans.items():
         best = _best_point(scan)
         print(f"{label}: best t={best['t']} clean/truth "
@@ -164,6 +197,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--gap", required=True, type=str)
     p.add_argument("--scan", action="append", default=[], metavar="LABEL=PATH")
     p.add_argument("--truth-bound", default=0.9175, type=float)
+    p.add_argument("--learning-curve", default=None, type=str,
+                   help="learning_curve.json for the v3 panel")  # fmt: skip
     p.add_argument("-o", "--output-dir", required=True, type=str)
     return p.parse_args()
 
