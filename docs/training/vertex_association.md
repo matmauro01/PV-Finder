@@ -114,6 +114,17 @@ full chain **0.716 @ 0.05% fakes (t=0.98)** vs v1 0.647 / AMVF 0.573.
 Improved every metric incl. HS-ID (98.1% > AMVF). The transfer gap is
 effectively closed (96% of the oracle bound on peaks).
 
+## mu60 v2: fixed heights + augmentation (2026-07-14)
+
+`config_gnn_ttva_mu60_v2.yml`, run `ttva_gat_mu60_v2_aug`: augmented
+48,450-event rebuild in the exact legacy ordering (test excluded by
+construction; params from `gnn.diagnostics.mu60_aug_params`), 2 train
+shards + 12,750-graph val, 120 cosine epochs in 3.3 h (~97 s/epoch),
+final val 0.1057, smooth. **Best = epoch 115, the mu60 production
+checkpoint**: chain 0.7743 @ 0.02% fakes (t=0.99), truth graphs 0.857
+(t=0.5) / 0.892 (t=0.98), track F1 0.874, HS-ID 98.98%. See the
+evaluation doc for the full ladder.
+
 ## Reference training run (Nov 2025 baseline)
 
 The checkpoint behind the ACAT/internal-note numbers was trained with

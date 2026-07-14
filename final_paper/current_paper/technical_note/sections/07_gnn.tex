@@ -151,16 +151,19 @@ On the 2\,550-event \muavg{}$\approx$60 test sample the edge classifier
 reaches a ROC AUC of $0.998$ over $45.3$ million labelled edges, with the
 score distributions of true and false edges separated by three orders of
 magnitude at the extremes (Figure~\ref{fig:gnn_mu60}, top left). The
-threshold scan (top right) sets the working point at $t=0.995$, where the
-clean-vertex yield of the full \pvf{}+GNN chain reaches $\mathbf{77.0\%}$ at
-a $0.01\%$ fake rate, against $\mathbf{60.9\%}$ for AMVF judged identically
-(Table~\ref{tab:gnn_mu60}). The efficiency-vs-multiplicity curve (bottom
-left) shows the chain above AMVF in every \ntrk{} bin, with the largest
-gains for low-multiplicity vertices, which AMVF tends to absorb into merged
-fits: its merged rate is $20\%$ against $8.2\%$ for the chain. As a pure
-associator the GNN also exceeds AMVF at track level
-(efficiency$\times$purity $F_1 = 0.866$ vs $0.849$), and hard-scatter
-identification is statistically compatible ($98.1\%$ vs $98.9\%$).
+threshold scan (top right) sets the working point at $t=0.99$, where the
+clean-vertex yield of the full \pvf{}+GNN chain reaches $\mathbf{77.4\%}$ at
+a $0.02\%$ fake rate, against $\mathbf{60.9\%}$ for AMVF judged identically
+(Table~\ref{tab:gnn_mu60}). The same decomposition applied at PU200 below
+gives a finder cap of $85.2\%$ ($0.5$~mm) and an oracle-association bound of
+$81.9\%$ on these peaks, so the chain operates at $94.5\%$ of what any
+associator could reach. The efficiency-vs-multiplicity curve (bottom left)
+shows the chain above AMVF in every \ntrk{} bin, with the largest gains for
+low-multiplicity vertices, which AMVF tends to absorb into merged fits: its
+merged rate is $20\%$ against $7.4\%$ for the chain. As a pure associator
+the GNN also exceeds AMVF at track level (efficiency$\times$purity
+$F_1 = 0.874$ vs $0.849$), and it identifies the hard-scatter vertex at
+least as often ($99.0\%$ vs $98.8\%$).
 
 \begin{table}[h]
   \centering
@@ -173,9 +176,9 @@ identification is statistically compatible ($98.1\%$ vs $98.9\%$).
     \toprule
     Chain & Reco PVs & Clean & Merged & Split & Fake & Clean/truth \\
     \midrule
-    \pvf{} peaks + GNN, $t=0.995$ & 64\,008 & $86.8\%$ & $8.2\%$ & $5.0\%$ & $0.01\%$ & $\mathbf{77.0\%}$ \\
+    \pvf{} peaks + GNN, $t=0.99$ & 61\,845 & $90.4\%$ & $7.4\%$ & $2.2\%$ & $0.02\%$ & $\mathbf{77.4\%}$ \\
     AMVF               & 57\,329 & $76.7\%$ & $20.0\%$ & $2.5\%$ & $0.7\%$ & $60.9\%$ \\
-    truth vertices + GNN (bound) & 80\,498 & $79.9\%$ & $7.6\%$ & $3.9\%$ & $8.6\%$ & $89.1\%$ \\
+    truth vertices + GNN (bound) & 72\,544 & $88.8\%$ & $7.4\%$ & $3.8\%$ & $0.0\%$ & $89.2\%$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -187,7 +190,7 @@ identification is statistically compatible ($98.1\%$ vs $98.9\%$).
     \caption{Edge scores by truth label.}
   \end{subfigure}\hfill
   \begin{subfigure}{0.49\linewidth}
-    \includegraphics[width=\linewidth]{gnn_mu60_scan.png}
+    \includegraphics[width=\linewidth]{mu60_chain_scan.png}
     \caption{Working-point scan.}
   \end{subfigure}
   \par\medskip
@@ -207,13 +210,13 @@ identification is statistically compatible ($98.1\%$ vs $98.9\%$).
 \end{figure}
 
 The same chain runs unchanged on Run~3 collision data, where no truth exists
-and AMVF is used as a reference instead: $84.6\%$ of AMVF-assigned tracks
-land on the GNN vertex matched to their AMVF vertex ($92.6\%$ among tracks
-both methods assign), and the leading-$\sum p_{\mathrm{T}}^{2}$ vertex agrees
-in $84.8\%$ of events. The edge-score distributions on data closely track the
-simulation, with a somewhat larger population of ambiguous tracks at
-intermediate scores, a mild domain shift consistent with the larger
-unassigned fraction on data.
+and AMVF is used as a reference instead: $95.7\%$ of tracks assigned by both
+methods land on the same vertex ($83.7\%$ of all AMVF-assigned tracks), and
+the leading-$\sum p_{\mathrm{T}}^{2}$ vertex agrees in $88.7\%$ of events.
+The GNN assigns $83\%$ of tracks on data at its working point against
+AMVF's $95\%$: it abstains more often on data than in simulation,
+consistent with the harder, unlabelled environment, while agreeing with
+AMVF on the tracks it does assign.
 
 \subsection{HL-LHC: the full chain against AMVF}
 \label{sec:gnn:pu200}
@@ -389,4 +392,4 @@ $z$-ambiguities are worst, as a targeted forward study
 used throughout this section is the recommended headline for any future
 \pvf{}-vs-AMVF comparison, with per-task working points ($t=0.5$ for
 hard-scatter identification, $t=0.98$ for vertex classification at PU200,
-$t=0.995$ at \muavg{}$\approx$60) obtained from a single forward pass.
+$t=0.99$ at \muavg{}$\approx$60) obtained from a single forward pass.

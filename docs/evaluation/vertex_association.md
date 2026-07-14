@@ -87,6 +87,32 @@ closer than that can flip between runs (1 event in 2,550 observed). The
 regression guard (`gnn.evaluation.regression_guard`) passes bit-exact rows
 or knife-edge-only diffs; anything else fails.
 
+## mu60 CURRENT MODEL (2026-07-14): v2 retrain with fixed heights + augmentation
+
+`ttva_gat_mu60_v2_aug` **epoch 115 = the mu60 production checkpoint**
+(`model_weights/ttva_gnn_mu60_v2/`). Trained on the augmented 48,450-event
+rebuild (2 shards + val, exact legacy ordering, test excluded), 120 cosine
+epochs / 3.3 h, val 0.1057, smooth. All evals in
+`outputs/07_14_2026_ttva_mu60v2/`:
+
+| Chain (2,550 events, 72,189 truth PVs) | Reco PVs | Clean | Merged | Split | Fake | clean/truth |
+|---|---|---|---|---|---|---|
+| **PVF e400 + GNN v2-e115, t=0.99 (drop-empty)** | 61,845 | **90.4%** | 7.4% | 2.2% | 0.02% | **0.7743** |
+| PVF e400 + GNN legacy e100, t=0.995 (drop-empty) | 64,008 | 86.8% | 8.2% | 5.0% | 0.01% | 0.7700 |
+| AMVF | 57,329 | 76.7% | 20.0% | 2.5% | 0.7% | 0.6091 |
+| Oracle association on e400 peaks (bound) | — | — | — | — | 0.00% | 0.8189 |
+| Finder cap 0.5 mm (bound) | — | — | — | — | — | 0.8515 |
+| GNN v2 on truth vertices, t=0.98 (bound) | — | — | — | — | ~0 | 0.8920 |
+
+**+16.5 points over AMVF; 94.5% of the oracle bound.** Track-level: max
+F1 **0.874** (t=0.95) vs AMVF 0.849; edge AUC 0.9980 (45.3M edges).
+**HS-ID 98.98% vs AMVF 98.75%** (identical convention, both from info
+lists). At matched t=0.98 the current model gains +2.8 pts over legacy
+(0.773 vs 0.745); at respective optima +0.4 pts, with a flatter, more
+robust threshold curve. Truth graphs (fixed heights, t=0.5): 0.857 vs
+legacy 0.846. Working point: **t=0.99** (μ60), t=0.98 (PU200), t=0.5
+(HS-ID) — same forward pass.
+
 ## Results at t* (2026-07-13, GNN e100, MaxScore t=0.98, 2,550 test events)
 
 Truth PVs (nTrk≥2): 72,189. Numbers + publication plots (category bars,

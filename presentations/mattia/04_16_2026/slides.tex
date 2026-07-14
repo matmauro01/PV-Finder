@@ -1616,7 +1616,7 @@
                 \item[\textcolor{pennred}{\textbf{II.}}] \textbf{How it works}: events as graphs, a small attention network, one score per (track, vertex)
                 \item[\textcolor{pennred}{\textbf{III.}}] \textbf{How we judge it}: track-based vertex categories, identical for us and AMVF
                 \item[\textcolor{pennred}{\textbf{IV.}}] \textbf{Results}: \(\mu\approx60\), Run~3 data, and the full HL-LHC chain
-                \item[\textcolor{pennred}{\textbf{V.}}] \textbf{This week}: the truth\(\to\)peak transfer gap found and closed (v3)
+                \item[\textcolor{pennred}{\textbf{V.}}] \textbf{This week}: the truth\(\to\)peak transfer gap found and closed; retrained models at both pile-ups
             \end{enumerate}
         \end{column}
         \begin{column}{0.45\linewidth}
@@ -1746,8 +1746,8 @@
         \begin{column}{0.45\linewidth}
             \centering
             \includegraphics[width=0.94\linewidth, keepaspectratio]{images/clean_efficiency_vs_threshold.png}\\[2pt]
-            {\scriptsize\textcolor{black!55}{\(\mu\approx60\): clean-vertex efficiency vs \(t\); \(t^*=0.98\)
-            gains +4.5 points over \(t=0.5\).}}\\[3pt]
+            {\scriptsize\textcolor{black!55}{\(\mu\approx60\) threshold scan: the working point \(t=0.99\)
+            gives 77.4\% at a 0.02\% fake rate.}}\\[3pt]
             {\scriptsize \textbf{Convention fix:} zero-track vertices are dropped, not booked as Fake
             (clean/truth provably unchanged) -- unlocks higher \(t\).}
         \end{column}
@@ -1770,11 +1770,11 @@
     \begin{tabular}{lcccc}
         \textbf{Chain} & Clean & Merged & Fake & \textbf{Clean/truth} \\
         \hline
-        PV-Finder peaks + GNN (\(t^*=0.98\)) & 80.9\% & 11.8\% & 0.9\% & 74.5\% \\
-        \quad + drop-empty, \(t=0.995\) & 86.8\% & 8.2\% & 0.01\% & \textbf{77.0\%} \\
+        PV-Finder peaks + GNN (current, \(t=0.99\)) & 90.4\% & 7.4\% & 0.02\% & \textbf{77.4\%} \\
+        \quad legacy training, \(t=0.995\) & 86.8\% & 8.2\% & 0.01\% & 77.0\% \\
         AMVF & 76.7\% & 20.0\% & 0.7\% & 60.9\% \\
     \end{tabular}\\[3pt]
-    {\footnotesize Above AMVF in \emph{every} multiplicity bin; track-level \(F_1\) 0.866 vs 0.849.}
+    {\footnotesize Above AMVF in \emph{every} multiplicity bin; track-level \(F_1\) 0.874 vs 0.849; HS-ID 99.0\% vs 98.8\%.}
 \end{frame}
 
 \begin{frame}{TTVA VI: Run 3 Collision Data (truth-free check)}
@@ -1783,10 +1783,10 @@
             No truth on data \(\to\) use AMVF as a reference, not as truth:
             \begin{itemize}
                 \setlength\itemsep{0.5em}
-                \item \textbf{84.6\%} of AMVF-assigned tracks land on the GNN vertex matched to their AMVF vertex
-                (\textbf{92.6\%} among tracks both methods assign)
-                \item Leading-\(\sum p_T^2\) (hard-scatter proxy) vertex agrees in \textbf{84.8\%} of events
-                \item Sanity closure: AMVF scored against itself through the same machinery = 1.0000 exactly
+                \item \textbf{95.7\%} of tracks assigned by both methods land on the same vertex
+                (83.7\% of all AMVF-assigned tracks)
+                \item Leading-\(\sum p_T^2\) (hard-scatter proxy) vertex agrees in \textbf{88.7\%} of events
+                \item The GNN assigns 83\% of tracks on data vs AMVF's 95\%: it abstains more on data, and agrees with AMVF on what it does assign
             \end{itemize}
         \end{column}
         \begin{column}{0.45\linewidth}
@@ -1814,7 +1814,7 @@
                 low-multiplicity (median \(n_{trk}=3\); see backup miss-vs-\(n_{trk}\) plot)
                 \item \textbf{Oracle 74.8\%}: assign every track to the peak nearest its \emph{true} vertex --
                 the 6-point drop is close pairs sharing one peak, unrecoverable by \emph{any} associator
-                \item \textbf{GNN v3: 71.6\%} = \textbf{96\% of the oracle} -- the associator is nearly saturated;
+                \item \textbf{GNN (current): 71.6\%} = \textbf{96\% of the oracle} -- the associator is nearly saturated;
                 what remains belongs to the finder
             \end{itemize}
         \end{column}
@@ -1835,14 +1835,14 @@
                 \item \textbf{Distribution shift}: peak widths 2--5\(\times\) the preset, 9.4\% junk peaks, 19\% missing vertices
             \end{enumerate}
             \vspace{0.25em}
-            \textbf{v3 fix}: heights repaired + truth graphs made \emph{chain-like} at build time
+            \textbf{The fix}: heights repaired + truth graphs made \emph{chain-like} at build time
             (drop / jitter / resample widths, heights / inject junk -- all \emph{measured} on the chain,
             zero free parameters) + 180k events.
         \end{column}
         \begin{column}{0.45\linewidth}
             \centering
             \includegraphics[width=\linewidth, keepaspectratio]{images/pu200_v3_learning_curve.png}\\[2pt]
-            {\scriptsize\textcolor{black!55}{v3 training: smooth climb past both earlier models
+            {\scriptsize\textcolor{black!55}{Current training: smooth climb past the earlier models
             (evaluated on the same live-height graphs).}}
         \end{column}
     \end{columns}
@@ -1860,7 +1860,7 @@
                 & \textbf{Clean/truth} & \textbf{Fake} \\
                 \hline
                 AMVF & 57.3\% & 0.91\% \\
-                PVF + GNN v3 (\(t=0.98\)) & \textbf{71.6\%} & \textbf{0.05\%} \\
+                PVF + GNN (current, \(t=0.98\)) & \textbf{71.6\%} & \textbf{0.05\%} \\
                 \hline
                 oracle on these peaks & 74.8\% & --- \\
             \end{tabular}\\[8pt]
@@ -1882,7 +1882,7 @@
             \begin{itemize}
                 \setlength\itemsep{0.45em}
                 \item TTVA completes the PV-Finder chain: per-vertex track lists at negligible cost
-                \item Beats AMVF end-to-end at \(\mu\approx60\) (77.0 vs 60.9) \emph{and} PU200 (71.6 vs 57.3)
+                \item Beats AMVF end-to-end at \(\mu\approx60\) (77.4 vs 60.9) \emph{and} PU200 (71.6 vs 57.3)
                 \item Validated truth-free on Run 3 collision data
                 \item Associator now within 3 points of its oracle bound on the given peaks
             \end{itemize}
@@ -1892,7 +1892,6 @@
             \begin{itemize}
                 \setlength\itemsep{0.45em}
                 \item Objectness head / associator-aware finder: recover the 19\% missed low-\(n_{trk}\) vertices
-                \item \(\mu\approx60\) retrain with the height fix + augmentation (same gains expected there)
                 \item HGTD timing as a forward-track feature (44.6\% coverage at \(|\eta|>2.3\))
                 \item Scale training further: 2.5M events available, 180k used
             \end{itemize}

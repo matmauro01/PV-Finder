@@ -94,10 +94,11 @@ def plot_scan(scans: dict[str, dict], gap: dict, out: Path):
         fr = [r["drop_empty"]["fake_rate"] for r in scan["results"]]
         ax1.plot(t, cpt, "o-", color=color, label=f"PVF + GNN ({label})", ms=5)
         ax2.plot(t, fr, "o-", color=color, ms=5)
+    amvf_fake = gap.get("amvf_fake_rate", 0.0091)
     ax1.axhline(amvf, color="0.3", ls="--", lw=1.6)
     ax1.text(0.31, amvf + 0.004, f"AMVF  {amvf * 100:.1f}%", fontsize=11, color="0.3")
-    ax2.axhline(0.0091, color="0.3", ls="--", lw=1.6)
-    ax2.text(0.31, 0.0104, "AMVF fake rate", fontsize=11, color="0.3")
+    ax2.axhline(amvf_fake, color="0.3", ls="--", lw=1.6)
+    ax2.text(0.31, amvf_fake * 0.72, "AMVF fake rate", fontsize=11, color="0.3")
     ax1.set_ylabel("Clean / truth PVs")
     ax2.set_ylabel("Fake rate (drop-empty)")
     ax2.set_yscale("log")
@@ -132,6 +133,34 @@ def plot_miss_ntrk(gap: dict, out: Path):
     ax.set_ylim(0, 0.55)
     atlas_label(ax, desc=LUMI_DESC, desc_xy=(0.35, 0.97))
     save_figure(fig, out, "pu200_miss_ntrk")
+    plt.close(fig)
+
+
+def plot_category_bars(specs: list[str], out: Path, name: str):
+    """Grouped Clean/Merged/Split/Fake bars from explicit rates.
+
+    Each spec is LABEL=clean,merged,split,fake (fractions). Used for the
+    drop-empty convention, whose rates come from the chain_scan JSONs
+    rather than the legacy all-peaks .npy outputs.
+    """
+    cats = ["Clean", "Merged", "Split", "Fake"]
+    fig, ax = plt.subplots(figsize=(9, 5.6))
+    n = len(specs)
+    width = 0.8 / n
+    for i, spec in enumerate(specs):
+        label, csv = spec.rsplit("=", 1)
+        vals = [float(v) for v in csv.split(",")]
+        x = np.arange(4) + (i - (n - 1) / 2) * width
+        ax.bar(x, vals, width=width * 0.92, color=OKABE[i], label=label)
+        for xi, v in zip(x, vals):
+            ax.text(xi, v + 0.012, f"{v * 100:.1f}", ha="center", fontsize=11)
+    ax.set_xticks(np.arange(4))
+    ax.set_xticklabels(cats)
+    ax.set_ylabel("Fraction of reconstructed vertices")
+    ax.set_ylim(0, 1.05)
+    ax.legend(loc="upper right", fontsize=12)
+    atlas_label(ax, desc=LUMI_DESC, desc_xy=(0.36, 0.87))
+    save_figure(fig, out, name)
     plt.close(fig)
 
 
@@ -184,6 +213,14 @@ def main() -> None:
         with open(path) as f:
             scans[label] = json.load(f)
 
+    if args.bars:
+        plot_category_bars(args.bars, out, args.bars_name)
+        for label, scan in scans.items():
+            best = _best_point(scan)
+            print(f"{label}: best t={best['t']}")
+        print(f"Saved plots to {out}")
+        return
+
     plot_ladder(gap, scans, args.truth_bound, out)
     plot_scan(scans, gap, out)
     plot_miss_ntrk(gap, out)
@@ -207,6 +244,10 @@ def _parse_args() -> argparse.Namespace:
                    help="learning_curve.json for the training panel")  # fmt: skip
     p.add_argument("--desc", default=None, type=str,
                    help="dataset description for the ATLAS label")  # fmt: skip
+    p.add_argument("--bars", action="append", default=[],
+                   metavar="LABEL=c,m,s,f",
+                   help="only draw grouped category bars from these rates")  # fmt: skip
+    p.add_argument("--bars-name", default="category_bars", type=str)
     p.add_argument("-o", "--output-dir", required=True, type=str)
     return p.parse_args()
 

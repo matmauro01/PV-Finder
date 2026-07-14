@@ -2822,3 +2822,30 @@ formulation with TikZ sketch, GAT model, selection/categories/conventions,
 mu60 + Run 3 + PU200 chain results with the new publication plots,
 transfer-gap story, final verdict. Compiles with the deck's TL2017
 toolchain (PDF 6.7 MB stays local, over the repo size hook).
+
+## 2026-07-14 (night) — mu60 retrained (current model at both pile-ups); publication package finalized
+
+mu60 v2 retrain (fixed heights + chain-like augmentation, exact legacy
+event ordering, 120 cosine epochs / 3.3 h) delivered the new mu60
+production checkpoint **ttva_gnn_mu60_v2/..._epoch_115.pyt**:
+
+- Chain: **clean/truth 0.7743 @ 0.02% fakes (t=0.99)** vs AMVF 0.6091
+  (+16.5 pts); clean fraction 90.4% vs 76.7%; 94.5% of the oracle bound
+  (0.8189; finder cap 0.8515; truth-graph bound 0.8920).
+- Track level: max F1 0.874 vs AMVF 0.849; edge AUC 0.9980.
+- **HS-ID 98.98% vs AMVF 98.75%** (same info-list convention for both).
+- Run 3 (truth-free): co-assigned agreement 95.7% (legacy 92.6%),
+  leading-vertex agreement **88.7%** (legacy 84.8%); the model abstains
+  more on data (83% assigned vs AMVF 95%).
+
+mu60 oracle bound computed (chain_gap oracle on enriched e400 graphs);
+mu60 augmentation params measured by the new gnn.diagnostics.
+mu60_aug_params (sigmas recovered from edge attributes — no histograms
+needed). h5_to_graphs gained shard/augment options (runs via runpy —
+fourth CLI confirmed with the python -m h5+indices hang).
+
+Publication package synced everywhere: note section 07 (sober editorial
+pass; legacy/current nomenclature; drop-empty convention throughout;
+final tables and regenerated figures for both pile-ups incl. drop-empty
+category bars), weekly deck TTVA slides, docs, plots. Working points:
+t=0.99 (mu60 vertices), t=0.98 (PU200 vertices), t=0.5 (HS-ID).

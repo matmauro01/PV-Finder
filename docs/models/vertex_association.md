@@ -136,11 +136,12 @@ default in `create_training_graph`) and `hllhc` (0.179, 0.727, 0; default in
   (graphs tensor-identical, eval rows identical). AMVF comparison done. See
   [evaluation](../evaluation/vertex_association.md) for the full results
   matrix.
-- **Working point retuned (2026-07-13)**: threshold scan moved the MaxScore
-  cut from the historical t=0.5 to **t\* = 0.98** — clean-vertex efficiency
-  74.5% (from 70.0%) at fake rate 0.9%; edge-level ROC AUC 0.998. Track-level
-  TTVA metrics implemented; GNN beats AMVF as a pure associator (F1 0.867 vs
-  0.849).
+- **mu60 CURRENT MODEL (2026-07-14)**: v2 retrain (fixed heights +
+  augmentation, `ttva_gnn_mu60_v2/ttva_gat_mu60_v2_aug_epoch_115.pyt`) —
+  chain clean/truth **0.774 @ 0.02% fakes** (t=0.99, drop-empty) vs AMVF
+  0.609; oracle bound 0.819, finder cap 0.852, truth-graph bound 0.892;
+  track F1 0.874; **HS-ID 98.98% > AMVF 98.75%**; edge AUC 0.998. The
+  legacy e100 checkpoint is kept for reproduction only.
 - **PU200 retraining DONE, twice** — v1 (fixed lr, unstable mid-training):
   `model_weights/ttva_gnn_hllhc/ttva_gat_pu200_k20_epoch_175.pyt`; v2
   (cosine + clip, smooth, val −9.5%):
