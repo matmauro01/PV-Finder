@@ -76,6 +76,35 @@ best associator. NOTE: on full-chain (peak-node) graphs v1-e175 still
 gives the better low-fake operating points — see the evaluation doc's
 transfer-gap note before swapping checkpoints in the chain.
 
+## v3: big data + chain-like augmentation (2026-07-14)
+
+v3 attacks the truth→peak transfer gap and the data-volume ceiling at
+once (`config_gnn_ttva_hllhc_v3.yml`, run `ttva_gat_pu200_k20_v3_aug180k`):
+
+- **180k training graphs** from the all-hadronic 601237 r16633 PU200
+  sample (file 1, entries 0–180k), built by `scripts/build_v3_shards.sh`
+  as 9 shards × 20k with `root_to_graphs --augment-params`. Val = 5k
+  augmented graphs from file 2. Test stays the SAME SingleLep slice as
+  v1/v2 (entries 28500+), rebuilt with fixed heights as
+  `pu200_truth_k20_test_fixedheights.pt` (+ the chain graphs, unchanged).
+- **Chain-like augmentation** (p=0.7/event, `gnn.data.graph_augmentation`):
+  finder-miss vertex dropping, peak-residual z jitter, measured peak
+  sigmas/heights, junk-PV injection — all empirical quantiles measured on
+  the v4b chain by `gnn.diagnostics.chain_gap_decomposition`.
+- **PV heights fixed**: earlier trainings (μ60 baseline, v1, v2) had PV
+  heights ≡ 0 from the double-Z_MIN bug; v3 is the first training with a
+  live height feature.
+- **Shard cycling** (`gnn.training.shard_loader.ShardCyclingLoader`): one
+  20k shard resident at a time, advanced per epoch round-robin
+  (`data_files` + `val_file` config keys). 162 epochs = 18 dataset
+  passes, cosine 1e-3→1e-5 (T_max = 162), grad clip 1.0, checkpoints
+  every 6 epochs.
+
+Build gotcha: `torch.save` of a 20k-graph shard takes minutes while
+worker thread pools spin at high CPU — the process is NOT hung; wait for
+the "Saved N graphs" line (a first-attempt kill at that stage truncated
+all 8 shards, which had to be rebuilt).
+
 ## Reference training run (Nov 2025 baseline)
 
 The checkpoint behind the ACAT/internal-note numbers was trained with

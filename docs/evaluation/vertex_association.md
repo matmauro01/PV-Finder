@@ -197,36 +197,65 @@ Clean/truth (148,133 truth PVs):
 | GNN v2-e175 on truth vertices (ceiling, t = 0.95) | 0.917 | — |
 
 **PVF+GNN beats AMVF at HL-LHC pileup** — narrowly at matched fake rate,
-by +4.6 points if 1.4% fakes are acceptable. The ~30-point gap to the
-associator ceiling is the finder leg (88.4 peaks vs ~99 truth PVs ≥2trk;
-chain merged rate 21–30% = peaks blending two truth PVs). Threshold
-tuning matters even more at PU200 than μ60: t=0.5 → 0.533 only.
+by +4.6 points if 1.4% fakes are acceptable. Threshold tuning matters even
+more at PU200 than μ60: t=0.5 → 0.533 only.
 Scans: `outputs/07_13_2026_ttva_chain/chain_tscan_{e175,v2e175}.json`.
 
-**Model choice on the chain (transfer gap, 2026-07-13):** v2 is the
-better associator on truth-vertex graphs, but on chain graphs its fake
-floor is ~4.5% (it leaves junk peaks with no tracks, which the taxonomy
-counts as Fake), so under a ≤1–1.5% fake budget **v1-e175 remains the
-production chain checkpoint** (0.580 @ 0.7% / 0.619 @ 1.4%). The gap
-comes from training on truth-vertex PV nodes vs inferring on PVF-peak
-nodes — closing it (train/augment on chain-like PV nodes) is a top item
-in the campaign plan.
+## SUPERSEDED 2026-07-14: drop-empty convention + gap decomposition
+
+The 2026-07-13 numbers above book a vertex with **zero assigned tracks**
+as Fake (historical convention). No vertexing chain outputs a trackless
+vertex, so `gnn.evaluation.chain_scan` now classifies under both
+conventions; **drop-empty** (trackless candidates removed before
+classification) is the deployment-faithful one. Clean/truth is identical
+between conventions (an empty vertex is never Clean) — only fake/split
+bookkeeping moves. Under drop-empty the "v2 fake floor" (4.5–9%)
+evaporates: it was junk peaks v2 correctly left empty.
+
+Current headline (`outputs/07_14_2026_ttva_gap/chain_scan_{v1,v2}/`,
+1,500 events, 148,133 truth PVs):
+
+| Chain | clean/truth | fake (drop-empty) |
+|---|---|---|
+| AMVF (own finding + association) | 0.573 | 0.91% |
+| **PVF v4b + GNN v1-e175, t = 0.995** | **0.647** | **0.08%** |
+| PVF v4b + GNN v2-e175, t = 0.98 | 0.636 | 0.08% |
+| Oracle association on v4b peaks (bound) | 0.748 | 0.00% |
+| Finder cap, 0.5 mm greedy match (bound) | 0.810 | — |
+| GNN v2-e175 on truth vertices (bound) | 0.918 | — |
+
+**+7.4 points over AMVF at 11× lower fake rate.** Decomposition
+(`gnn.diagnostics.chain_gap_decomposition`,
+`outputs/07_14_2026_ttva_gap/gap_decomposition.json`): the finder misses
+19.0% of truth PVs (median nTrk 3 vs 7 for found); of the found, 6.2 pts
+are lost to close pairs sharing one peak (oracle Merged = 11.9%); the GNN
+captures 86% of the oracle. Junk peaks = 9.4% of peaks (8.3/event).
+v1 remains marginally better than v2 on chain graphs (0.647 vs 0.636) —
+the genuine residual transfer gap that v3 training attacks.
+
+**Hard-scatter ID at PU200** (`gnn.evaluation.hs_id_pu200`,
+`outputs/07_14_2026_ttva_gap/hs_id_v1/`): leading sum-pT² vertex is the
+true HS vertex in **97.5%** of events for the GNN chain at t=0.5 — exactly
+ties AMVF (97.5%). At the clean-vertex WP t=0.995 it drops to 92.1% →
+**per-task working points** from one forward pass: t=0.5 for HS-ID,
+t=0.995 for vertex classification (PU200), t\*=0.98 at μ60.
 
 **Latency per event at μ=200** (A100, batch 1, shared GPU, medians;
-`chain_info.json` + `gnn_benchmark.json`):
+original: `chain_info.json` + `gnn_benchmark.json`; optimized:
+`outputs/07_14_2026_ttva_fastpaths/fast_paths_report.json`):
 
-| Stage | ms |
-|---|---|
-| PVF model inference | 4.2 |
-| Peak finding (`pv_locations_updated_res`) | **60.8** |
-| Graph construction (kNN k=20) | 2.0 |
-| **GNN forward (39.5k params, 18.3k edges)** | **3.8** |
-| MaxScore selection (Python loop) | 11.7 |
+| Stage | original ms | optimized ms |
+|---|---|---|
+| PVF model inference | 4.2 | 4.2 |
+| Peak finding | **60.8** | **0.07** (`pv_locations_updated_res_fast`, numba, bit-exact on 300 hists) |
+| Graph construction (kNN k=20) | 2.0 | 2.0 |
+| GNN forward (39.5k params, 18.3k edges) | 3.8 | 3.8 |
+| MaxScore selection | 11.7 | 0.9 (`get_top1_associations_fast`, tie-only diffs) |
 
-The GNN is 4.6% of the chain and ~16× faster than the PVF stage. The
-optimization targets are the peak finder (74% of the budget, pure-Python
-bin loop) and the selection loop — both vectorizable, neither is the
-model.
+Optimized chain ≈ 11 ms/event. The GNN forward is now the largest learned
+component but still ~a third of the total; nothing about the model needs
+optimizing. Verification tool: `gnn.evaluation.verify_fast_paths` (also
+checked at μ60: 20×, 2 tied edges differ in 1/2,550 events).
 
 ## Run 3 real data (truth-free, 2026-07-13)
 

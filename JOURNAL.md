@@ -2729,3 +2729,53 @@ Final HL-LHC verdict tables + chain summary bar + v1/v2 learning-curve
 overlay in docs/evaluation/vertex_association.md and
 outputs/07_13_2026_ttva_hllhc_v2/eval/plots/. plot_ttva_pu200 gained
 --curve2 overlay and --chain-summary options.
+
+## 2026-07-14 — Campaign 2 executed: decomposition, drop-empty, height bug, fast paths, v3 launched
+
+**Gap decomposition (P2)** (`chain_gap_decomposition`, new): finder cap
+0.810 (peak within 0.5 mm, greedy 1-1), oracle-association ceiling on the
+real peaks **0.748** (unavoidable close-pair merging = 11.9% of oracle
+vertices), junk peaks 9.4%, finder misses are low-nTrk (median 3 vs 7).
+So of the truth-to-0.62 gap: ~19 pts finder misses, ~6 pts unavoidable
+merges, ~13 pts associator headroom.
+
+**Drop-empty convention** (`chain_scan`, new): trackless vertices are not
+reconstructed vertices; dropping them before classification leaves
+clean/truth invariant and kills the bookkeeping fakes. New headline:
+**v1-e175 chain 0.647 @ 0.08% fakes (t=0.995) vs AMVF 0.573 @ 0.91%**
+(+7.4 pts at 11x lower fakes); v2's "4.5% fake floor" evaporates (0.636 @
+0.08%). Verification: all-peaks t=0.98 reproduces yesterday's 0.6188.
+
+**PV-height bug (major)**: the Gaussian-CDF height recipe added Z_MIN
+twice (inherited from Nov 2025 h5_to_graph.py) — every truth graph ever
+built had PV heights identically ZERO while inference/chain graphs carry
+real peak heights. The height input's weights were unconstrained in
+training and inject noise at deployment; likely the dominant transfer-gap
+mechanism (and why better-converged v2 transferred worse). Fixed in
+graph_construction.py; pre-fix graph files keep zero heights for repro.
+
+**Fast paths (P3)**: numba peak finder bit-exact on 300 real PU200
+histograms, 132 -> 0.07 ms (~1800x); vectorized MaxScore selection 24 ->
+0.9 ms at PU200 / 11 -> 0.6 ms at mu60, all differences exact score ties
+(knife-edge class). Chain latency 82.5 -> ~11 ms/event. Verifier:
+verify_fast_paths (report JSONs in outputs/07_14_2026_ttva_fastpaths/).
+
+**HS-ID at PU200 (P4)**: GNN chain 97.5% at t=0.5 == AMVF 97.5%; 92.1% at
+t=0.995 -> per-task working points (HS-ID t=0.5, vertices t=0.995, mu60
+t*=0.98). **Timing (P5)**: 3.95% coverage overall, 44.6% |eta|>2.3 ->
+forward-track study only.
+
+**v3 training (P0+P1)**: chain-like augmentation (graph_augmentation.py:
+measured miss-prob dropping, dz jitter, peak sigmas/heights, junk
+injection; all quantiles measured on the v4b chain) + fixed heights +
+180k all-hadronic events (9x20k shards, ShardCyclingLoader, val 5k from
+file 2, test = same SingleLep slice rebuilt with fixed heights). Cosine
+162 epochs (18 passes). Build gotcha: torch.save of a 20k shard takes
+minutes at high background CPU — first-attempt kill truncated all 8
+shards (rebuilt); wait for the "Saved" log line.
+
+**Technical note**: sections/07_gnn.tex fully rewritten (was a 27-line
+stub): task, graph/TikZ schematic, architecture, metrics + conventions,
+mu60 + Run 3, PU200 chain vs AMVF with yield-ladder figure, transfer gap,
+latency, outlook. Compiles clean. PU200 publication plots:
+plot_ttva_pu200_pub (yield ladder / chain scan / miss-vs-nTrk).

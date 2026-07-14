@@ -148,10 +148,23 @@ default in `create_training_graph`) and `hllhc` (0.179, 0.727, 0; default in
   Truth-graph ceiling clean/truth 0.9175 (v2, t=0.95). **v1-e175 is still
   the chain production checkpoint** (transfer gap: v2's fake floor on
   peak-node graphs is ~4.5%).
-- **PU200 FULL CHAIN DONE (2026-07-13)**: PVF v4b peaks + GNN beats AMVF —
-  clean/truth 0.580 @ 0.7% fakes / 0.619 @ 1.4% vs AMVF 0.573 @ 0.9%.
-  Latency: GNN forward 3.8 ms/event = 4.6% of the chain (peak finding
-  60.8 ms dominates). See evaluation doc.
+- **PU200 FULL CHAIN (updated 2026-07-14)**: PVF v4b peaks + GNN beats
+  AMVF — clean/truth **0.647 @ 0.08% fakes** (v1-e175, t=0.995,
+  drop-empty convention) vs AMVF 0.573 @ 0.91%. Bounds: oracle
+  association on peaks 0.748, finder cap 0.810, GNN-on-truth 0.918.
+  HS-ID ties AMVF (97.5%). Optimized chain latency ≈ 11 ms/event
+  (numba peak finder + vectorized selection). See evaluation doc.
+- **PV-height bug found + fixed (2026-07-14)**: the Gaussian-CDF height
+  recipe added Z_MIN twice (inherited from Nov 2025), so every
+  truth-training graph ever built had PV heights ≡ 0 while inference
+  graphs carry real peak heights — a major truth→peak transfer-gap
+  mechanism. Fixed in `graph_construction.py`; pre-fix graph files keep
+  zero heights for reproduction.
+- **Chain-like augmentation (2026-07-14)**: `gnn.data.graph_augmentation`
+  makes truth graphs statistically chain-like (measured miss-prob vertex
+  dropping, dz jitter, peak sigmas/heights, junk-node injection; all
+  empirical quantiles from `chain_gap_decomposition`). v3 training uses
+  it on 180k all-hadronic events with shard cycling.
 - **Run 3 real-data eval (truth-free)**: full PVF+GNN chain vs AMVF
   associations — see evaluation doc, section "Run 3".
 - GPU forward is nondeterministic at the ~1e-5 level (GATConv scatter

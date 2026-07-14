@@ -19,6 +19,23 @@ Plotting scripts (each reads the JSON/npz written by the matching eval):
 | `plot_ttva_pu200.py` | `evaluate_checkpoints` learning curve | PU200 learning curve, zero-shot vs retrained |
 | `plot_ttva_run3.py` | `evaluate_ttva_run3` outputs | Run 3 vs MC score overlay, multiplicity, AMVF agreement |
 
+## PU200 chain diagnostics (2026-07-14)
+
+- `gnn.diagnostics.chain_gap_decomposition` — finder-vs-associator gap
+  decomposition on the chain graphs: greedy peak↔truth matching at
+  0.3/0.5/1.0 mm, finder cap, oracle-association ceiling (both vertex
+  conventions), junk/missed statistics, and the empirical quantile
+  distributions that drive `gnn.data.graph_augmentation`
+  (`--sigma-events N` re-runs PVF on N events for peak sigmas + saves
+  histograms for `verify_fast_paths`). Outputs:
+  `outputs/07_14_2026_ttva_gap/{gap_decomposition,augmentation_params}.json`.
+- `gnn.diagnostics.plot_ttva_pu200_pub` — publication plots from the
+  measured JSONs: yield ladder (algorithms + bounds), chain threshold
+  scan (clean/truth + drop-empty fakes), finder-miss vs nTrk. Feeds the
+  technical note (`final_paper/.../figures/pu200_*.png`).
+- `gnn.diagnostics.hgtd_timing_coverage` — valid-HGTD-time fraction vs
+  η on the withTiming samples (PU200: 3.95% overall, 44.6% at |η|>2.3).
+
 ## Run3 Track Probability Distribution
 
 **Script:** `src/gnn/diagnostics/run3_track_probability.py`
