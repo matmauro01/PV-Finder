@@ -59,14 +59,22 @@ Note: `train_ttva` materializes the lazy GATConv layers with a dummy forward
 before creating the optimizer — do not reorder that block; fresh training
 breaks without it.
 
-**Completed run (2026-07-12/13, `ttva_gat_pu200_k20`):** 201 epochs in
+**Completed run v1 (2026-07-12/13, `ttva_gat_pu200_k20`):** 201 epochs in
 ~3.5 h on one A100 (21,000 train / 7,500 val graphs), final train loss
 0.2551 / val 0.2265. Checkpoints every 25 epochs in
 `model_weights/ttva_gnn_hllhc/`. Training was unstable around epochs
-50–75 (clean rate dipped to ~34%, likely lr=1e-3 too aggressive) before
-recovering; the plateau spans epochs 125–200 and **epoch 175 is the best
-checkpoint** (see docs/evaluation/vertex_association.md). A lower lr or a
-schedule is the first thing to try for a future rerun.
+50–75 (clean rate dipped to ~34%, lr=1e-3 too aggressive) before
+recovering; best checkpoint epoch 175.
+
+**Completed run v2 (2026-07-13, `ttva_gat_pu200_k20_v2_cosine`):** same
+architecture + cosine LR (1e-3→1e-5) + grad clip 1.0
+(`config_gnn_ttva_hllhc_v2.yml`; both knobs are opt-in config keys).
+Final val **0.2050** (−9.5% vs v1), fully smooth learning curve, best
+checkpoint **epoch 175** in `model_weights/ttva_gnn_hllhc_v2/`:
+clean/truth 0.816 (t=0.5) / 0.9175 (t=0.95) on truth graphs — the new
+best associator. NOTE: on full-chain (peak-node) graphs v1-e175 still
+gives the better low-fake operating points — see the evaluation doc's
+transfer-gap note before swapping checkpoints in the chain.
 
 ## Reference training run (Nov 2025 baseline)
 

@@ -160,16 +160,20 @@ truth PVs), truth-vertex graphs k=20, MaxScore t=0.5.
 | Model | Clean | Merged | Split | Fake | Clean/truth | Edge purity | Edge eff |
 |---|---|---|---|---|---|---|---|
 | μ≈60 zero-shot (e100) | 44.7% | 24.0% | 15.0% | 16.2% | 0.574 | 0.639 | 0.646 |
-| **PU200 retrained, epoch 175** | **62.1%** | 18.1% | 10.1% | 9.7% | **0.796** | 0.802 | 0.813 |
+| PU200 v1 (fixed lr), epoch 175 | 62.1% | 18.1% | 10.1% | 9.7% | 0.796 | 0.802 | 0.813 |
+| **PU200 v2 (cosine + clip), epoch 175** | **63.6%** | 17.4% | 9.3% | 9.7% | **0.816** | 0.806 | 0.817 |
 | (μ≈60 in-domain reference) | 76.7% | — | — | — | — | — | — |
 
-Retraining recovers most of the domain-shift loss but stays below the μ≈60
-in-domain level — μ=200 is intrinsically harder. The learning curve dips
-hard at epochs 50–75 before plateauing at 125–200 (see training doc).
-Zero-shot re-run reproduced the 2026-07-12 baseline exactly (T4 regression
-guard). Results + plots: `outputs/07_13_2026_ttva_hllhc_eval/`
-(learning_curve.json, plots/); zero-shot baseline also in
-`outputs/07_12_2026_ttva_hllhc/zeroshot_mu60_ckpt/`.
+**v2 stability recipe worked**: same architecture, cosine LR (1e-3→1e-5) +
+grad clip 1.0 — final val loss 0.2050 vs v1's 0.2265, smooth monotone
+learning curve (v1 dipped to 34% clean at epochs 50–75), +2 points
+clean/truth at every threshold. Threshold scans on truth graphs peak at
+**t≈0.95: v2 clean/truth 0.9175** (v1: 0.9130 at 0.98) — the PU200
+associator ceiling, from 0.796/0.816 at the naive t=0.5. Zero-shot re-run
+reproduced the 2026-07-12 baseline exactly (regression guard). Results +
+plots: `outputs/07_13_2026_ttva_hllhc_eval/` (v1) and
+`outputs/07_13_2026_ttva_hllhc_v2/eval/` (v2, incl. v1-overlay learning
+curve and chain summary bar).
 
 ## HL-LHC PU200 full chain (2026-07-13): PVF peaks → GNN vs AMVF
 
@@ -181,22 +185,32 @@ verified, Σtruth = 148,133), builds kNN k=20 inference graphs with
 `track.truth_pv`, and computes the AMVF baseline from
 `RecoVertex_assocTracks` through the identical classifier. 88.4 peaks/event.
 
-Clean/truth (148,133 truth PVs, GNN = PU200-retrained e175):
+Clean/truth (148,133 truth PVs):
 
 | Chain | clean/truth | fake rate |
 |---|---|---|
 | AMVF (own finding + association) | 0.573 | 0.9% |
-| **PVF v4b + GNN, t = 0.95** | **0.580** | 0.7% |
-| **PVF v4b + GNN, t = 0.98** | **0.619** | 1.4% |
-| PVF v4b + GNN, t = 0.99 | 0.640 | 2.7% |
-| GNN on truth vertices (ceiling, t = 0.95) | 0.913 | — |
+| **PVF v4b + GNN v1-e175, t = 0.95** | **0.580** | 0.7% |
+| **PVF v4b + GNN v1-e175, t = 0.98** | **0.619** | 1.4% |
+| PVF v4b + GNN v1-e175, t = 0.99 | 0.640 | 2.7% |
+| PVF v4b + GNN v2-e175, t = 0.98 | 0.636 | 9.0% |
+| GNN v2-e175 on truth vertices (ceiling, t = 0.95) | 0.917 | — |
 
 **PVF+GNN beats AMVF at HL-LHC pileup** — narrowly at matched fake rate,
-by +4.6 points if 1.4% fakes are acceptable. The 29-point gap to the
+by +4.6 points if 1.4% fakes are acceptable. The ~30-point gap to the
 associator ceiling is the finder leg (88.4 peaks vs ~99 truth PVs ≥2trk;
 chain merged rate 21–30% = peaks blending two truth PVs). Threshold
 tuning matters even more at PU200 than μ60: t=0.5 → 0.533 only.
-Full scan: `outputs/07_13_2026_ttva_chain/chain_tscan_e175.json`.
+Scans: `outputs/07_13_2026_ttva_chain/chain_tscan_{e175,v2e175}.json`.
+
+**Model choice on the chain (transfer gap, 2026-07-13):** v2 is the
+better associator on truth-vertex graphs, but on chain graphs its fake
+floor is ~4.5% (it leaves junk peaks with no tracks, which the taxonomy
+counts as Fake), so under a ≤1–1.5% fake budget **v1-e175 remains the
+production chain checkpoint** (0.580 @ 0.7% / 0.619 @ 1.4%). The gap
+comes from training on truth-vertex PV nodes vs inferring on PVF-peak
+nodes — closing it (train/augment on chain-like PV nodes) is a top item
+in the campaign plan.
 
 **Latency per event at μ=200** (A100, batch 1, shared GPU, medians;
 `chain_info.json` + `gnn_benchmark.json`):

@@ -141,10 +141,17 @@ default in `create_training_graph`) and `hllhc` (0.179, 0.727, 0; default in
   74.5% (from 70.0%) at fake rate 0.9%; edge-level ROC AUC 0.998. Track-level
   TTVA metrics implemented; GNN beats AMVF as a pure associator (F1 0.867 vs
   0.849).
-- **PU200 retraining DONE** (`ttva_gat_pu200_k20`, 201 epochs, ~3.5 h): best
-  checkpoint `model_weights/ttva_gnn_hllhc/ttva_gat_pu200_k20_epoch_175.pyt`
-  — clean 62.1% / edge purity 0.80 on the held-out slice, vs 44.7% / 0.64
-  zero-shot with the μ≈60 model.
+- **PU200 retraining DONE, twice** — v1 (fixed lr, unstable mid-training):
+  `model_weights/ttva_gnn_hllhc/ttva_gat_pu200_k20_epoch_175.pyt`; v2
+  (cosine + clip, smooth, val −9.5%):
+  `model_weights/ttva_gnn_hllhc_v2/ttva_gat_pu200_k20_v2_cosine_epoch_175.pyt`.
+  Truth-graph ceiling clean/truth 0.9175 (v2, t=0.95). **v1-e175 is still
+  the chain production checkpoint** (transfer gap: v2's fake floor on
+  peak-node graphs is ~4.5%).
+- **PU200 FULL CHAIN DONE (2026-07-13)**: PVF v4b peaks + GNN beats AMVF —
+  clean/truth 0.580 @ 0.7% fakes / 0.619 @ 1.4% vs AMVF 0.573 @ 0.9%.
+  Latency: GNN forward 3.8 ms/event = 4.6% of the chain (peak finding
+  60.8 ms dominates). See evaluation doc.
 - **Run 3 real-data eval (truth-free)**: full PVF+GNN chain vs AMVF
   associations — see evaluation doc, section "Run 3".
 - GPU forward is nondeterministic at the ~1e-5 level (GATConv scatter

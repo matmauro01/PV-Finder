@@ -43,7 +43,12 @@ def _epoch_entries(curve: list[dict]) -> tuple[np.ndarray, list[dict]]:
     return epochs[order], [entries[i] for i in order]
 
 
-def plot_learning_curve(curve: list[dict], out_dir: Path) -> dict:
+def plot_learning_curve(
+    curve: list[dict],
+    out_dir: Path,
+    curve2: list[dict] | None = None,
+    label2: str = "v1",
+) -> dict:
     """Vertex- and edge-level metrics vs epoch; returns the best entry."""
     epochs, entries = _epoch_entries(curve)
     zeroshot = next((e for e in curve if "zeroshot" in e["label"]), None)
@@ -53,6 +58,15 @@ def plot_learning_curve(curve: list[dict], out_dir: Path) -> dict:
 
     clean = [e["rates"]["clean"] for e in entries]
     fake = [e["rates"]["fake"] for e in entries]
+    if curve2 is not None:
+        epochs2, entries2 = _epoch_entries(curve2)
+        ax1.plot(
+            epochs2,
+            [e["rates"]["clean"] for e in entries2],
+            "o--",
+            color="#999999",
+            label=f"Clean rate ({label2})",
+        )
     ax1.plot(epochs, clean, "o-", color=CATEGORY_COLORS["Clean"], label="Clean rate")
     ax1.plot(epochs, fake, "s-", color=CATEGORY_COLORS["Fake"], label="Fake rate")
     if zeroshot:
@@ -126,10 +140,50 @@ def plot_category_comparison(curve: list[dict], best: dict, out_dir: Path) -> No
     save_figure(fig, out_dir, "pu200_zeroshot_vs_retrained")
 
 
+def plot_chain_summary(rows: list[dict], out_dir: Path) -> None:
+    """Clean-vertex efficiency bar for the full-chain comparison.
+
+    rows: [{label, clean_per_truth, fake_rate|None}, ...] — typically
+    AMVF, the chain at candidate working points, and the ceiling.
+    """
+    fig, ax = plt.subplots(figsize=(10, 6.5))
+    x = np.arange(len(rows))
+    colors = (
+        [ALGO_COLORS["amvf"]]
+        + [ALGO_COLORS["retrained"]] * (len(rows) - 2)
+        + ["#009E73"]
+    )
+    values = [r["clean_per_truth"] for r in rows]
+    ax.bar(x, values, 0.55, color=colors[: len(rows)])
+    for xi, row in zip(x, rows):
+        note = f"{100 * row['clean_per_truth']:.1f}%"
+        if row.get("fake_rate") is not None:
+            note += f"\n(fake {100 * row['fake_rate']:.1f}%)"
+        ax.text(
+            xi, row["clean_per_truth"] + 0.015, note, ha="center", fontsize="x-small"
+        )
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [r["label"].replace(" (", "\n(") for r in rows], fontsize="x-small"
+    )
+    ax.set_ylabel("Clean vertices / truth PVs")
+    ax.set_ylim(0, 1.05)
+    atlas_label(ax, desc="HL-LHC $t\\bar{t}$ MC, $\\langle\\mu\\rangle = 200$")
+    save_figure(fig, out_dir, "pu200_chain_summary")
+
+
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="PU200 TTVA learning-curve plots")
     parser.add_argument("--curve", required=True, type=str)
+    parser.add_argument(
+        "--chain-summary", default=None, type=str,
+        help="JSON list of {label, clean_per_truth, fake_rate} for the chain bar",
+    )  # fmt: skip
+    parser.add_argument(
+        "--curve2", default=None, type=str, help="Overlay curve (e.g. v1)"
+    )
+    parser.add_argument("--label2", default="v1", type=str)
     parser.add_argument("-o", "--output-dir", required=True, type=str)
     return parser.parse_args()
 
@@ -141,8 +195,15 @@ def main() -> None:
     with open(args.curve) as f:
         curve = json.load(f)
     out_dir = Path(args.output_dir)
-    best = plot_learning_curve(curve, out_dir)
+    curve2 = None
+    if args.curve2:
+        with open(args.curve2) as f:
+            curve2 = json.load(f)
+    best = plot_learning_curve(curve, out_dir, curve2=curve2, label2=args.label2)
     plot_category_comparison(curve, best, out_dir)
+    if args.chain_summary:
+        with open(args.chain_summary) as f:
+            plot_chain_summary(json.load(f), out_dir)
     print(
         f"Best checkpoint: {best['label']} "
         f"(clean {best['rates']['clean']:.4f}, "

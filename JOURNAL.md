@@ -2707,3 +2707,25 @@ To be evaluated against e175 when done; chain eval reruns if better.
 
 Campaign-2 plan rewritten with all measured findings:
 ~/.claude/plans/ttva-campaign-2-pu200-chain.md.
+
+## 2026-07-14 (early) — v2 stable retrain evaluated; final HL-LHC chain verdict
+
+v2 training (cosine LR 1e-3->1e-5 + grad clip 1.0, same architecture)
+finished cleanly: final val 0.2050 vs v1's 0.2265, perfectly smooth
+learning curve (overlay plot shows v1's epoch-50-75 collapse eliminated).
+Evaluated all 9 checkpoints + v1-e175 in one pass (evaluate_checkpoints):
+best is **v2 epoch 175 — clean/truth 0.816 at t=0.5, 0.9175 at t=0.95**
+on truth graphs (v1: 0.796 / 0.913). The stability recipe delivered.
+
+**Transfer gap discovered**: on full-chain graphs (PV nodes = PVF peaks)
+v2's fake floor is ~4.5% (junk peaks left empty count as Fake in the
+taxonomy) vs v1's 0.6%, so at a <=1-1.5% fake budget **v1-e175 stays the
+chain production checkpoint**: 0.580 @ 0.7% fakes (t=0.95) / 0.619 @ 1.4%
+(t=0.98) vs AMVF 0.573 @ 0.9%. v2's better truth-node optimum transfers
+worse to peak nodes — training/augmenting on chain-like PV nodes added as
+a top item in the campaign plan (~/.claude/plans/ttva-campaign-2-pu200-chain.md).
+
+Final HL-LHC verdict tables + chain summary bar + v1/v2 learning-curve
+overlay in docs/evaluation/vertex_association.md and
+outputs/07_13_2026_ttva_hllhc_v2/eval/plots/. plot_ttva_pu200 gained
+--curve2 overlay and --chain-summary options.
