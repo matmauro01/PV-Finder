@@ -17,7 +17,10 @@ import torch
 from torch_geometric.data import HeteroData
 from tqdm import tqdm
 
+from gnn.data.graph_augmentation import AugmentationParams, augment_event
 from gnn.data.graph_construction import (
+    compute_pv_sigma,
+    compute_truth_pv_heights,
     create_training_graph,
     load_event_indices,
 )
@@ -31,6 +34,8 @@ def build_training_graphs_from_h5(
     filepath: str,
     indices_path: str,
     nevents: int | None = None,
+    start_event: int = 0,
+    augmenter: tuple[AugmentationParams, np.random.Generator, float] | None = None,
 ) -> list[HeteroData]:
     """Build training graphs for all events in an H5 file.
 
@@ -38,6 +43,9 @@ def build_training_graphs_from_h5(
         filepath: Path to ATLAS HDF5 file (from CreatingTargetHistogram.py).
         indices_path: Path to event indices (.npy or pickled list).
         nevents: Max number of events to process (None = all valid events).
+        start_event: First position in the indices list (for sharding).
+        augmenter: Optional (params, rng, aug_prob) triple for chain-like
+            augmentation (see gnn.data.graph_augmentation).
 
     Returns:
         List of HeteroData graphs, one per valid event.
@@ -84,15 +92,16 @@ def build_training_graphs_from_h5(
             )
             print(f"First few missing: {sorted(list(missing_events))[:10]}")
 
+        valid_event_keys = valid_event_keys[start_event:]
         # Auto-detect number of events if not specified
         if nevents is None or nevents <= 0:
             nevents = len(valid_event_keys)
-            print(f"Processing {nevents} valid events.")
+            print(f"Processing {nevents} valid events from {start_event}.")
         else:
             valid_event_keys = valid_event_keys[:nevents]
             print(
-                f"Processing first {len(valid_event_keys)} valid events "
-                f"(requested: {nevents})."
+                f"Processing {len(valid_event_keys)} valid events "
+                f"from position {start_event}."
             )
 
         for event_key in tqdm(valid_event_keys):
@@ -139,7 +148,22 @@ def build_training_graphs_from_h5(
                 "pv_type": pv_type_event,
             }
 
-            graph = create_training_graph(current_event_data)
+            pv_res_all = None
+            pv_heights = None
+            if augmenter is not None:
+                params, rng, aug_prob = augmenter
+                if rng.random() < aug_prob:
+                    pv_res_all = compute_pv_sigma(pv_ntracks_event)
+                    recipe_h = compute_truth_pv_heights(pv_loc_z_event, pv_res_all)
+                    current_event_data, pv_res_all, pv_heights, _ = augment_event(
+                        current_event_data, recipe_h, params, rng
+                    )
+
+            graph = create_training_graph(
+                current_event_data,
+                pv_res_all=pv_res_all,
+                pv_heights_override=pv_heights,
+            )
 
             if graph is not None:
                 event_data_list.append(graph)
@@ -187,14 +211,39 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         required=True,
     )
+    parser.add_argument(
+        "--start-event",
+        default=0,
+        type=int,
+        help="First position in the indices list (default: 0)",
+    )
+    parser.add_argument(
+        "--augment-params",
+        default=None,
+        type=str,
+        help="Directory with augmentation_params.json + gap_decomposition.json",
+    )
+    parser.add_argument("--aug-prob", default=0.7, type=float)
+    parser.add_argument("--seed", default=42, type=int)
     return parser.parse_args()
 
 
 def main() -> None:
     """CLI entry point."""
     args = _parse_args()
+    augmenter = None
+    if args.augment_params is not None:
+        augmenter = (
+            AugmentationParams(args.augment_params),
+            np.random.default_rng(args.seed),
+            args.aug_prob,
+        )
     event_data_list = build_training_graphs_from_h5(
-        args.filepath, args.indices, args.nevents
+        args.filepath,
+        args.indices,
+        args.nevents,
+        start_event=args.start_event,
+        augmenter=augmenter,
     )
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

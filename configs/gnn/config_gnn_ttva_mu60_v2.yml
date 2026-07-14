@@ -1,0 +1,44 @@
+# GNN TTVA mu~60 retrain v2 — fixed PV heights + chain-like augmentation.
+# Same architecture and event ordering as the Nov 2025 baseline
+# (training_indices_no_test.p: first 35,700 = train, next 12,750 = val;
+# the shuffled 2,550-event test set is excluded by construction).
+# Augmentation parameters measured on the mu60 PVF-e400 chain
+# (gnn.diagnostics.mu60_aug_params). Cosine + clip recipe as PU200 v3.
+#
+# Usage (inside tmux):
+#   python -u -m gnn.training.train_ttva -c configs/gnn/config_gnn_ttva_mu60_v2.yml
+
+# --- Data (sharded) ---
+data_files:
+  - "/data/home/matmauro/codice/PV-Finder/data/mu60/ttva_graphs/mu60v2_train_shard_0.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/mu60/ttva_graphs/mu60v2_train_shard_1.pt"
+val_file: "/data/home/matmauro/codice/PV-Finder/data/mu60/ttva_graphs/mu60v2_val_shard.pt"
+batch_size: 32
+num_workers: 2
+
+# --- Model architecture (unchanged from the baseline) ---
+model_config:
+  track_input_size: 8
+  pv_input_size: 2
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3
+  dropout: 0.25
+
+# --- Training ---
+n_epochs: 120           # 60 passes over the 35.7k training events
+learning_rate: 0.001
+lr_schedule:
+  type: cosine
+  eta_min: 0.00001
+grad_clip: 1.0
+device_id: 3
+
+# --- Checkpointing ---
+save_weights: true
+save_frequency: 5
+save_folder: "/data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_mu60_v2/"
+
+# --- MLflow ---
+experimentname: "TTVA_GNN"
+runname: "ttva_gat_mu60_v2_aug"
