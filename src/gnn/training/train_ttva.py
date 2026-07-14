@@ -41,11 +41,12 @@ def main(
 
     from torch_geometric.loader import DataLoader
 
+    num_workers = configs.get("num_workers", 2)
     loader_kw = dict(
         batch_size=configs["batch_size"],
         shuffle=False,
-        num_workers=configs.get("num_workers", 2),
-        prefetch_factor=2,
+        num_workers=num_workers,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
 
     if "data_files" in configs:
