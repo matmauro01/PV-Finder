@@ -33,7 +33,11 @@ import uproot
 from torch_geometric.data import HeteroData
 from tqdm import tqdm
 
-from gnn.data.graph_construction import create_training_graph
+from gnn.data.graph_augmentation import AugmentationParams, augment_event
+from gnn.data.graph_construction import (
+    compute_truth_pv_heights,
+    create_training_graph,
+)
 from pv_finder.data.resolution_presets import (
     DEFAULT_RESOLUTION_PRESET,
     RESOLUTION_PRESETS,
@@ -72,8 +76,15 @@ def build_graph_from_event(
     event: dict,
     knn: int | None,
     res_params: tuple[float, float, float],
+    augmenter: tuple[AugmentationParams, np.random.Generator, float] | None = None,
 ) -> HeteroData:
-    """Build one truth-training graph from uproot event arrays."""
+    """Build one truth-training graph from uproot event arrays.
+
+    Args:
+        augmenter: Optional (params, rng, aug_prob) triple. With probability
+            aug_prob the event is made chain-like (see graph_augmentation);
+            otherwise (and when None) the pristine truth graph is built.
+    """
     d0 = ak.to_numpy(event["RecoTrack_d0"]).astype(np.float64)
     z0 = ak.to_numpy(event["RecoTrack_z0"]).astype(np.float64)
     err_d0 = ak.to_numpy(event["RecoTrack_ErrD0"]).astype(np.float64)
@@ -108,13 +119,28 @@ def build_graph_from_event(
     }
 
     pv_res_all = compute_pv_sigma_preset(pv_ntracks, *res_params)
-    graph = create_training_graph(event_data, knn=knn, pv_res_all=pv_res_all)
+    pv_heights = None
+    if augmenter is not None:
+        params, rng, aug_prob = augmenter
+        if rng.random() < aug_prob:
+            recipe_heights = compute_truth_pv_heights(pv_z, pv_res_all)
+            event_data, pv_res_all, pv_heights, _ = augment_event(
+                event_data, recipe_heights, params, rng
+            )
+
+    graph = create_training_graph(
+        event_data, knn=knn, pv_res_all=pv_res_all, pv_heights_override=pv_heights
+    )
 
     # Per-track true PV index (-1 = no truth association). Exact even when
-    # kNN selection drops the true edge from the graph.
+    # kNN selection drops the true edge from the graph. Uses the possibly
+    # augmented arrays so indices match the graph's PV nodes (tracks of
+    # dropped vertices correctly fall back to -1).
+    final_ntracks = event_data["pv_ntracks"]
+    final_assoc = event_data["pv_assoctracks"]
     track_truth_pv = np.full(len(z0), -1, dtype=np.int64)
-    truth_pv_idx = np.repeat(np.arange(len(pv_ntracks)), pv_ntracks.astype(int))
-    track_truth_pv[pv_assoctracks] = truth_pv_idx
+    truth_pv_idx = np.repeat(np.arange(len(final_ntracks)), final_ntracks.astype(int))
+    track_truth_pv[final_assoc] = truth_pv_idx
     graph["track"].truth_pv = torch.from_numpy(track_truth_pv)
 
     return graph
@@ -128,6 +154,7 @@ def build_graphs_from_root(
     max_events: int | None = None,
     start_event: int = 0,
     chunk_size: int = 500,
+    augmenter: tuple[AugmentationParams, np.random.Generator, float] | None = None,
 ) -> list[HeteroData]:
     """Build graphs for all (or max_events) events of a ROOT ntuple."""
     graphs: list[HeteroData] = []
@@ -145,7 +172,7 @@ def build_graphs_from_root(
         step_size=chunk_size,
     ):
         for event in chunk:
-            graphs.append(build_graph_from_event(event, knn, res_params))
+            graphs.append(build_graph_from_event(event, knn, res_params, augmenter))
             pbar.update(1)
     pbar.close()
 
@@ -188,6 +215,20 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start-event", default=0, type=int, help="First event index (default: 0)"
     )
+    parser.add_argument(
+        "--augment-params",
+        default=None,
+        type=str,
+        help="Directory with augmentation_params.json + gap_decomposition.json; "
+        "enables chain-like augmentation (default: off)",
+    )
+    parser.add_argument(
+        "--aug-prob",
+        default=0.7,
+        type=float,
+        help="Per-event probability of augmentation (default: %(default)s)",
+    )
+    parser.add_argument("--seed", default=42, type=int, help="Augmentation RNG seed")
     return parser.parse_args()
 
 
@@ -197,9 +238,18 @@ def main() -> None:
     res_params = RESOLUTION_PRESETS[args.resolution_preset]
     knn = args.knn if args.knn > 0 else None
 
+    augmenter = None
+    if args.augment_params is not None:
+        augmenter = (
+            AugmentationParams(args.augment_params),
+            np.random.default_rng(args.seed),
+            args.aug_prob,
+        )
+
     print(
         f"Building graphs: knn={knn}, resolution preset "
-        f"'{args.resolution_preset}' (A, B, C) = {res_params}"
+        f"'{args.resolution_preset}' (A, B, C) = {res_params}, "
+        f"augment={'off' if augmenter is None else f'p={args.aug_prob}'}"
     )
     graphs = build_graphs_from_root(
         args.input,
@@ -208,6 +258,7 @@ def main() -> None:
         res_params,
         max_events=args.max_events,
         start_event=args.start_event,
+        augmenter=augmenter,
     )
 
     out = Path(args.output)
