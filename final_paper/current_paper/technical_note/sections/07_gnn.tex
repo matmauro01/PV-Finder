@@ -1,0 +1,410 @@
+\section{Track-to-vertex association with graph networks}
+\label{sec:gnn}
+
+\subsection{Motivation and task}
+\label{sec:gnn:task}
+
+Vertex finding answers \emph{where} the primary vertices are but not \emph{which
+tracks belong to which vertex}. Physics analyses need the second answer: the
+hard-scatter vertex is chosen as the vertex with the largest
+$\sum p_{\mathrm{T}}^{2}$ of its associated tracks, pile-up jet rejection cuts on
+track-to-vertex association, and any per-vertex quantity (multiplicity, mass,
+displaced-object pointing) requires a track list. AMVF produces these lists as a
+by-product of its fit; \pvf{} does not, so a dedicated Track-to-Vertex
+Association (TTVA) step completes the chain,
+\begin{center}
+tracks $\;\to\;$ \pvf{} histogram $\;\to\;$ peak finding $\;\to\;$
+candidate vertices $\;\to\;$ \textbf{TTVA} $\;\to\;$ per-vertex track lists.
+\end{center}
+Assigning tracks also lets \pvf{} vertices be judged by the same track-based
+purity criteria applied to AMVF, giving an apples-to-apples comparison of the two
+chains end to end (Section~\ref{sec:gnn:metrics}).
+
+TTVA is formulated as \emph{binary edge classification} on a per-event graph: a
+score for every (track, vertex) pair, one selection rule on top. A graph neural
+network is a natural fit because the decision for one track depends on the other
+tracks and vertices in its neighbourhood (a vertex that already attracts many
+compatible tracks should attract this one more strongly), which fixed per-pair
+classifiers cannot express. The key design decision, following the November 2025
+prototype, is to \textbf{train on Monte-Carlo truth vertices} (where edge labels
+exist) and \textbf{deploy on \pvf{} peaks}. The gap this opens between training
+and deployment conditions, and how it was closed, is the subject of
+Section~\ref{sec:gnn:transfer}.
+
+\subsection{Graphs, features and labels}
+\label{sec:gnn:graphs}
+
+Each event is a heterogeneous bipartite graph (Figure~\ref{fig:gnn_graph}).
+\emph{Track nodes} carry eight features: \dzero{}, \zzero{}, their
+uncertainties and covariance, the polar and azimuthal angles, and
+$p_{\mathrm{T}}/50\,\mathrm{GeV}$. \emph{Vertex nodes} carry two: the $z$
+position and the histogram peak height (for truth graphs, a height synthesized
+by the same Gaussian-CDF recipe that builds the \pvf{} targets of
+Section~\ref{sec:method:targets}). Each track--vertex edge carries three
+physics attributes: the longitudinal significance
+$(\zzero-z_{\mathrm{PV}})/\sqrt{\sigma_{z_0}^{2}+\sigma_{\mathrm{PV}}^{2}}$, the
+transverse significance $\dzero/\sigma_{d_0}$, and $|\zzero-z_{\mathrm{PV}}|$.
+Training labels mark an edge as true iff MC truth associates the track with that
+vertex.
+
+At \muavg{}$\approx$60 the graphs are fully connected (every track paired with
+every vertex). At PU200 a fully connected event has $\sim$118\,000 edges
+($\sim$930 tracks $\times$ 128 vertices), so each track is connected only to its
+$k=20$ nearest vertices in $|\Delta z|$; this retains $99.5\%$ of true edges
+(measured on 200 events; the lost $0.5\%$ are tracks whose \zzero{} lies tens of
+millimetres from their true vertex, unlearnable for any $z$-based method) and
+keeps the edge count at $\sim$18\,500.
+
+\begin{figure}[t]
+  \centering
+  \resizebox{0.9\linewidth}{!}{%
+  \begin{tikzpicture}[x=1cm,y=1cm,>=Latex,font=\small]
+    % track nodes
+    \foreach \y/\n in {4.4/1, 3.3/2, 2.2/3, 1.1/4} {
+      \filldraw[fill=mydarkblue!14, draw=mydarkblue!70, thick] (0,\y) circle (10pt)
+        node[font=\scriptsize, text=mydarkblue!90!black] {$t_\n$};
+    }
+    \node[align=center, font=\scriptsize, text=black!60] at (0,5.4)
+      {track nodes\\$(\dzero,\zzero,\sigma_{d_0},\sigma_{z_0},\mathrm{cov},\theta,\phi,p_{\mathrm{T}})$};
+    % pv nodes
+    \foreach \y/\n in {3.85/1, 2.2/2, 0.55/3} {
+      \filldraw[fill=myorange!18, draw=myorange!80!black, thick] (6,\y) circle (10pt)
+        node[font=\scriptsize, text=myorange!60!black] {$v_\n$};
+    }
+    \node[align=center, font=\scriptsize, text=black!60] at (6,5.4)
+      {vertex nodes\\$(z,\ \text{peak height})$};
+    % edges
+    \foreach \s/\t in {4.4/3.85, 4.4/2.2, 3.3/3.85, 3.3/2.2, 2.2/3.85, 2.2/2.2, 2.2/0.55, 1.1/2.2, 1.1/0.55} {
+      \draw[black!45, thick] (0.37,\s) -- (5.63,\t);
+    }
+    \draw[accent, very thick] (0.37,3.3) -- (5.63,2.2);
+    \node[align=center, font=\scriptsize, text=accent] at (3.0,3.6)
+      {edge attributes:\\
+       $\dfrac{\zzero-z_{\mathrm{PV}}}{\sqrt{\sigma_{z_0}^{2}+\sigma_{\mathrm{PV}}^{2}}},\quad
+        \dfrac{\dzero}{\sigma_{d_0}},\quad |\zzero-z_{\mathrm{PV}}|$};
+    % model
+    \node[draw=mydarkblue!60, rounded corners=8pt, minimum width=2.6cm, minimum height=1.15cm,
+          align=center, fill=mydarkblue!12, line width=0.9pt] (gat) at (9.6,3.4)
+      {$2\times$ hetero GAT\\ \scriptsize (4 heads, edge-aware)};
+    \node[draw=mydarkblue!60, rounded corners=8pt, minimum width=2.6cm, minimum height=1.15cm,
+          align=center, fill=mydarkblue!12, line width=0.9pt] (mlp) at (9.6,1.4)
+      {edge MLP\\ \scriptsize $[64{\to}32{\to}32{\to}1]$};
+    \node[draw=myorange!70!black, rounded corners=6pt, minimum width=2.6cm, minimum height=1.0cm,
+          align=center, fill=myorange!16, line width=0.9pt] (score) at (9.6,-0.4)
+      {edge score\\ \scriptsize $\in[0,1]$ per (track, vertex)};
+    \draw[->, thick, draw=black!60] (7.2,3.4) -- (gat);
+    \draw[->, thick, draw=black!60] (gat) -- node[right, font=\tiny, text=black!55]{node embeddings} (mlp);
+    \draw[->, thick, draw=black!60] (mlp) -- (score);
+  \end{tikzpicture}}
+  \caption{TTVA graph and model. Tracks and candidate vertices are the two node
+  types of a bipartite graph whose edges carry impact-parameter significances
+  and $|\Delta z|$; two heterogeneous graph-attention layers refine the node
+  embeddings, and a small MLP scores each edge. At PU200 each track connects to
+  its 20 nearest vertices in $|\Delta z|$.}
+  \label{fig:gnn_graph}
+\end{figure}
+
+\subsection{Architecture and training}
+\label{sec:gnn:arch}
+
+Track and vertex features are first embedded into 32 dimensions by separate
+linear layers. Two rounds of heterogeneous message passing follow, each a pair
+of graph-attention convolutions~\cite{velivckovic2017graph} (one per edge
+direction, four heads, max aggregation, residual connections) whose attention
+consumes the three edge attributes, so the significances bias the messages
+directly. A three-layer MLP on the concatenated (track, vertex) embeddings
+yields one logit per edge. The model has $39\,521$ parameters --- $90\times$
+smaller than the \pvf{} finder itself --- and is trained with
+binary cross-entropy whose positive-class weight is recomputed per batch
+(most pairs are not associated), Adam at $10^{-3}$, batches of 32 event graphs.
+The final training recipe adds cosine learning-rate annealing to $10^{-5}$ and
+gradient-norm clipping at $1.0$: at fixed learning rate the PU200 training loss
+collapsed and recovered between epochs 50 and 75, while the annealed run is
+smooth throughout and ends $9.5\%$ lower in validation loss.
+
+Three trainings enter this note: the November 2025 baseline (51k
+\muavg{}$\approx$60 $t\bar{t}$ events; reproduced bit-exactly by the current
+package), a 30k-event PU200 training on the single-lepton ITk sample, and the
+final PU200 training on 180\,000 all-hadronic events
+(Section~\ref{sec:gnn:transfer}) with chain-like augmentation, drawn from the
+$2.5\times10^{6}$-event sample of Section~\ref{sec:data:hllhc} and cycled
+through memory in 20k-graph shards.
+
+\subsection{Selection, metrics and vertex conventions}
+\label{sec:gnn:metrics}
+
+At inference each track is assigned to at most one vertex: the vertex with the
+highest edge score, kept only if that score exceeds a threshold $t$
+(\emph{MaxScore} selection); otherwise the track stays unassigned. The model is
+run once and $t$ is a free post-hoc knob. Scores saturate near 1 for
+unambiguous tracks, so useful operating points live at $t\geq0.9$ and the scan
+must extend to $t=0.999$: at PU200 moving from the naive $t=0.5$ to the working
+point is worth $+11$ points of the headline metric with no retraining.
+
+Reconstructed vertices are then classified by the truth composition of their
+assigned tracks: \emph{Clean} if $\geq50\%$ of assigned tracks come from one
+truth vertex, \emph{Merged} otherwise, \emph{Split} if another reconstructed
+vertex already claimed the same dominant truth vertex with larger
+$\sum p_{\mathrm{T}}^{2}$, and \emph{Fake} if no assigned track has a truth
+vertex. The headline metric is the \textbf{clean-vertex yield}
+$N_{\text{clean}}/N_{\text{truth}}$ with $N_{\text{truth}}$ the truth vertices
+with $\ntrk\geq2$. Two remarks keep this comparable and honest. First, this
+\emph{track-based} taxonomy is stricter than, and not numerically comparable
+to, the position-based matching of Section~\ref{sec:method:metrics} used for
+the finder-only results; AMVF is always evaluated through the identical
+classifier, reading its track lists from the same ntuples. Second, a vertex
+with \emph{no} assigned tracks is not a reconstructed vertex in any deployable
+sense --- no fit could be performed --- so trackless candidates are dropped
+before classification. The historical convention instead booked each one as
+Fake; under that bookkeeping a model that correctly abstains on a junk peak is
+punished exactly like one that hallucinates a vertex. The drop-empty convention
+leaves the clean-vertex yield untouched (an empty vertex is never Clean) and
+moves only the fake accounting; both conventions are reported in the
+repository outputs.
+
+\subsection{Low-pileup performance and real-data validation}
+\label{sec:gnn:mu60}
+
+On the 2\,550-event \muavg{}$\approx$60 test sample the edge classifier is
+essentially solved: ROC AUC $0.998$ over $45.3$ million labelled edges, with
+the score distributions of true and false edges separated by three orders of
+magnitude at the extremes (Figure~\ref{fig:gnn_mu60}, top left). The
+threshold scan (top right) sets the working point $t^{*}=0.98$, where the
+clean-vertex yield of the full \pvf{}+GNN chain reaches $\mathbf{74.5\%}$ at a
+$0.9\%$ fake rate, against $\mathbf{60.9\%}$ for AMVF judged identically
+(Table~\ref{tab:gnn_mu60}). The efficiency-vs-multiplicity curve (bottom left)
+shows the chain above AMVF in every \ntrk{} bin, with the largest gains for
+low-multiplicity vertices, which AMVF tends to absorb into merged fits (its
+merged rate is $20\%$ against $11.8\%$ for the chain). As a pure associator the
+GNN also edges AMVF at track level: efficiency$\times$purity $F_1 = 0.866$ vs
+$0.849$. Hard-scatter identification is statistically tied ($98.1\%$ vs
+$98.9\%$).
+
+\begin{table}[h]
+  \centering
+  \caption{Track-based vertex classification at \muavg{}$\approx$60
+  (2\,550 test events, 72\,189 truth PVs with $\ntrk\geq2$), MaxScore
+  $t^{*}=0.98$. All rows judged by the identical classifier. The last row uses
+  ground-truth vertex positions as graph nodes and bounds the associator alone.}
+  \label{tab:gnn_mu60}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Chain & Reco PVs & Clean & Merged & Split & Fake & Clean/truth \\
+    \midrule
+    \pvf{} peaks + GNN & 66\,472 & $80.9\%$ & $11.8\%$ & $6.3\%$ & $0.9\%$ & $\mathbf{74.5\%}$ \\
+    AMVF               & 57\,329 & $76.7\%$ & $20.0\%$ & $2.5\%$ & $0.7\%$ & $60.9\%$ \\
+    truth vertices + GNN (bound) & 80\,498 & $79.9\%$ & $7.6\%$ & $3.9\%$ & $8.6\%$ & $89.1\%$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[p]
+  \centering
+  \begin{subfigure}{0.49\linewidth}
+    \includegraphics[width=\linewidth]{gnn_edge_scores.png}
+    \caption{Edge scores by truth label.}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.49\linewidth}
+    \includegraphics[width=\linewidth]{gnn_mu60_scan.png}
+    \caption{Working-point scan.}
+  \end{subfigure}
+  \par\medskip
+  \begin{subfigure}{0.49\linewidth}
+    \includegraphics[width=\linewidth]{gnn_mu60_eff_ntrk.png}
+    \caption{Clean-vertex efficiency vs \ntrk.}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.49\linewidth}
+    \includegraphics[width=\linewidth]{gnn_mu60_categories.png}
+    \caption{Category rates at $t^{*}$.}
+  \end{subfigure}
+  \caption{TTVA at \muavg{}$\approx$60. The edge classifier is near-saturated
+  (a); the clean-vertex yield rises monotonically up to $t^{*}=0.98$ before
+  fake vertices take over (b); the \pvf{}+GNN chain beats AMVF in every truth
+  multiplicity bin (c), and trades AMVF's merges for a higher clean fraction
+  (d).}
+  \label{fig:gnn_mu60}
+\end{figure}
+
+The same chain runs unchanged on Run~3 collision data, where no truth exists
+and AMVF is used as a reference instead: $84.6\%$ of AMVF-assigned tracks land
+on the GNN vertex matched to their AMVF vertex ($92.6\%$ among tracks both
+methods assign), the leading-$\sum p_{\mathrm{T}}^{2}$ vertex agrees in
+$84.8\%$ of events, and an AMVF-vs-AMVF closure through the same machinery
+gives exactly $1.0$. The edge-score distributions on data closely track the
+simulation, with a $\sim3\times$ larger population of ambiguous tracks at
+intermediate scores --- a mild, visible domain shift consistent with the larger
+unassigned fraction on data.
+
+\subsection{HL-LHC: the full chain against AMVF}
+\label{sec:gnn:pu200}
+
+The PU200 evaluation runs the production v4b finder (Section~\ref{sec:hllhc})
+at its production operating point (amplitude $10^{-2}$, integral $0.40$,
+minimum width 3, height floor $0.03$) on 1\,500 held-out single-lepton events,
+builds $k=20$ graphs on the found peaks ($88.4$ per event), and scores them
+with the GNN; AMVF track lists from the same ntuple go through the identical
+classifier (148\,133 truth PVs with $\ntrk\geq2$).
+
+Decomposing the achievable yield locates every loss
+(Table~\ref{tab:gnn_pu200}, Figure~\ref{fig:gnn_pu200}). The finder places a
+peak within $0.5$~mm of $81.0\%$ of truth vertices; the missed ones are
+low-multiplicity (median $\ntrk=3$ against $7$ for found vertices).
+Re-assigning every track to the peak nearest its \emph{true} vertex --- a
+perfect-information oracle --- yields $74.8\%$: the $6$-point drop from the
+finder cap is close vertex pairs sharing a single nearest peak, unrecoverable
+by any associator on these peaks ($11.9\%$ of oracle vertices are Merged).
+The GNN reaches $64.7\%$ of truth at its working point $t=0.995$ with a fake
+rate of $0.08\%$ --- $86\%$ of the oracle --- while AMVF, whose own finder and
+fitter face the same pile-up density, delivers $57.3\%$ at an $0.91\%$ fake
+rate. The \pvf{}+GNN chain therefore outperforms AMVF by $7.4$ points of
+clean-vertex yield at an eleven-fold lower fake rate. Hard-scatter
+identification through the chain ties AMVF at $97.5\%$ (both at $t=0.5$;
+HS-ID and vertex classification use different thresholds on the same forward
+pass, $92.1\%$ if the clean-vertex threshold is reused). %% V3: add final v3 row + sentence after evaluation
+
+\begin{table}[h]
+  \centering
+  \caption{PU200 full chain against AMVF (1\,500 events, 148\,133 truth PVs,
+  drop-empty convention). ``Finder cap'' counts truth PVs with a peak within
+  $0.5$~mm (greedy one-to-one); the oracle assigns every track to the peak
+  nearest its true vertex and bounds any associator on these peaks. GNN rows
+  use the 30k-event PU200 training (v1).}
+  \label{tab:gnn_pu200}
+  \begin{tabular}{llcc}
+    \toprule
+    & Configuration & Clean/truth & Fake rate \\
+    \midrule
+    reference & AMVF & $57.3\%$ & $0.91\%$ \\
+    chain & \pvf{} v4b + GNN, $t=0.95$ & $58.0\%$ & $0.08\%$ \\
+    chain & \pvf{} v4b + GNN, $t=0.995$ & $\mathbf{64.7\%}$ & $0.08\%$ \\
+    %% V3 row here after evaluation
+    bound & oracle association on v4b peaks & $74.8\%$ & $0.00\%$ \\
+    bound & finder cap ($0.5$~mm) & $81.0\%$ & --- \\
+    bound & truth vertices + GNN & $91.8\%$ & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[p]
+  \centering
+  \begin{subfigure}{0.9\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{pu200_yield_ladder.png}
+    \caption{Clean-vertex yield with the three bounds.}
+  \end{subfigure}
+  \par\medskip
+  \begin{subfigure}{0.55\linewidth}
+    \includegraphics[width=\linewidth]{pu200_chain_scan.png}
+    \caption{Threshold scan (drop-empty).}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.43\linewidth}
+    \includegraphics[width=\linewidth]{pu200_miss_ntrk.png}
+    \caption{Finder miss probability vs \ntrk.}
+  \end{subfigure}
+  \caption{PU200 full chain. (a) The \pvf{}+GNN chain exceeds AMVF by
+  $7.4$ points of clean-vertex yield; the dashed bounds separate what the
+  associator can still recover (up to the oracle) from what belongs to the
+  finder (oracle to cap) and to pile-up density itself. (b) The yield rises
+  monotonically to $t\approx0.995$ while the drop-empty fake rate stays an
+  order of magnitude below AMVF's at every threshold. (c) The finder misses
+  are concentrated at low track multiplicity.}
+  \label{fig:gnn_pu200}
+\end{figure}
+
+\subsection{The truth-to-peak transfer gap}
+\label{sec:gnn:transfer}
+
+Training on truth vertices and deploying on peaks opens a distribution gap on
+the vertex side of the graph, and three concrete mechanisms were identified.
+First, a bookkeeping artefact: under the all-peaks convention the
+better-converged cosine-annealed model appeared to have a $4.5\%$ chain fake
+floor against $0.6\%$ for the earlier fixed-rate model --- but the excess was
+entirely junk peaks the model correctly left \emph{empty}, booked as Fake; the
+gap vanishes under the drop-empty convention
+(Section~\ref{sec:gnn:metrics}). Second, a genuine bug inherited from the
+original prototype: the Gaussian-CDF height recipe evaluated the CDF $240$~mm
+away from every vertex (a beamline offset applied twice), so \emph{every
+truth-training graph ever built carried vertex heights identically zero} while
+deployment graphs carry real peak heights up to $\sim4$. The weights
+multiplying the height input were unconstrained at training time and injected
+uncontrolled contributions at inference --- and better-optimized checkpoints
+can be \emph{more} sensitive to the dead input, explaining why the improved
+training transferred worse. Third, distribution shift in the remaining vertex
+quantities, measured directly on the chain: peak positions differ from truth
+$z$ by the finder residuals, peak widths (which enter the edge significances)
+are $2$--$5\times$ the preset resolution model, $9.4\%$ of peaks are junk with
+a characteristic low-height spectrum, and $19\%$ of truth vertices have no
+peak at all --- their tracks must be abstained on, a situation truth graphs
+never show.
+
+The final training closes the gap at the source: the height recipe is fixed,
+and truth graphs are made \emph{chain-like} at build time with probability
+$0.7$ per event --- vertices are dropped with the measured miss probability
+versus \ntrk{}, surviving positions are jittered by the measured
+peak--truth residuals, preset widths and recipe heights are replaced by
+samples of the measured peak-width and height-ratio distributions, and junk
+vertex nodes are injected at the measured rate with the measured height
+spectrum and all-false edges. Every distribution is an empirical quantile grid
+measured on the v4b chain itself, so the augmentation has no free parameters.
+Trained on 180k augmented all-hadronic events, this is the v3 model of
+Table~\ref{tab:gnn_pu200}. %% V3: replace placeholder sentence with results
+
+\subsection{Computational cost}
+\label{sec:gnn:latency}
+
+Per-event wall times at \muavg{}=200 (single A100, batch 1, medians over
+1\,500 events) are listed in Table~\ref{tab:gnn_latency}. In the first
+implementation the chain spent $74\%$ of its time in the pure-Python peak
+scan; JIT-compiling the identical algorithm (verified bit-identical on 300
+real histograms) removes it from the budget, and replacing the per-track
+selection loop with a vectorized group-maximum (verified to differ only at
+exact score ties) removes most of the rest. The optimized chain runs in
+$\sim$11~ms per event, of which the GNN forward pass is $3.8$~ms --- the
+association step adds a third to the finder's cost and is never the
+bottleneck. Both learned components are pile-up-independent in depth; only
+the graph size grows with occupancy.
+
+\begin{table}[h]
+  \centering
+  \caption{Full-chain latency per event at PU200 (medians, single A100,
+  batch 1). The optimized peak finder and selection are verified bit-identical
+  (peaks) and tie-only-differing (selection) against the originals.}
+  \label{tab:gnn_latency}
+  \begin{tabular}{lcc}
+    \toprule
+    Stage & original [ms] & optimized [ms] \\
+    \midrule
+    \pvf{} forward (12 intervals) & $4.2$ & $4.2$ \\
+    peak finding                  & $60.8$ & $0.07$ \\
+    graph construction            & $2.0$ & $2.0$ \\
+    GNN forward                   & $3.8$ & $3.8$ \\
+    MaxScore selection            & $11.7$ & $0.9$ \\
+    \midrule
+    total                         & $82.5$ & $\sim11$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Outlook}
+\label{sec:gnn:outlook}
+
+The decomposition of Table~\ref{tab:gnn_pu200} prescribes the next steps in
+order of leverage. The $19\%$ of truth vertices the finder misses (low
+multiplicity) and the $6\%$ lost to peaks shared by close pairs belong to the
+finder, reinforcing the conclusions of Section~\ref{sec:hllhc:failure}; an
+associator-aware finder objective (emitting separate peaks when the
+downstream track assignment could distinguish them) is the natural joint
+target. On the associator side the remaining headroom to the oracle is
+$\sim$10 points. The all-hadronic PU200 sample offers $2.5\times10^{6}$
+training events of which $180$k are used here. HGTD timing remains a
+forward-track feature: $4.0\%$ of PU200 tracks carry a valid time overall,
+but $44.6\%$ of tracks with $|\eta|>2.3$ do ($8.9\%$ of all tracks), so a
+time-augmented edge significance is expected to pay off specifically where
+$z$-ambiguities are worst --- a targeted forward study rather than a global
+gain (Section~\ref{sec:negative:timing}). Finally, the track-based
+classification used throughout this section is the deployment-faithful
+metric for the combined system and is the recommended headline for any
+future \pvf{}-vs-AMVF comparison: per-task working points ($t=0.5$ for
+hard-scatter identification, $t=0.995$ for vertex classification at PU200,
+$t^{*}=0.98$ at \muavg{}$\approx$60) come for free from a single forward
+pass.
