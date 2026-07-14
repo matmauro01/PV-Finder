@@ -30,6 +30,7 @@ from gnn.diagnostics.plot_style import atlas_label, save_figure, use_atlas_style
 
 OKABE = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9"]
 LUMI_DESC = r"HL-LHC $t\bar{t}$, $\langle\mu\rangle=200$, ITk layout"
+REF_LABELS = {"v1_e175": "legacy", "v2_e175": None}  # None = omit
 
 
 def _best_point(scan: dict, max_fake: float = 0.01) -> dict:
@@ -45,7 +46,7 @@ def plot_ladder(gap: dict, scans: dict[str, dict], truth_bound: float, out: Path
     for label, scan in scans.items():
         best = _best_point(scan)
         rows.append((
-            f"PVF + GNN {label} (t={best['t']})",
+            f"PVF + GNN ({label}, t={best['t']})",
             best["drop_empty"]["clean_per_truth"],
             OKABE[0],
         ))  # fmt: skip
@@ -64,7 +65,8 @@ def plot_ladder(gap: dict, scans: dict[str, dict], truth_bound: float, out: Path
     y = np.arange(len(rows))
     ax.barh(y, [r[1] for r in rows], color=[r[2] for r in rows], height=0.62)
     for yi, (_label, v, _c) in zip(y, rows):
-        ax.text(v + 0.008, yi, f"{v * 100:.1f}%", va="center", fontsize=13)
+        ax.text(v - 0.01, yi, f"{v * 100:.1f}%", va="center", ha="right",
+                color="white", fontsize=13, fontweight="bold")  # fmt: skip
     for (label, v), ls in zip(bounds, (":", "--", "-.")):
         ax.axvline(v, color="0.35", ls=ls, lw=1.6)
         ax.text(v - 0.008, len(rows) + 0.75, f"{label}  ({v * 100:.1f}%)",
@@ -90,7 +92,7 @@ def plot_scan(scans: dict[str, dict], gap: dict, out: Path):
         t = [r["t"] for r in scan["results"]]
         cpt = [r["drop_empty"]["clean_per_truth"] for r in scan["results"]]
         fr = [r["drop_empty"]["fake_rate"] for r in scan["results"]]
-        ax1.plot(t, cpt, "o-", color=color, label=f"PVF + GNN {label}", ms=5)
+        ax1.plot(t, cpt, "o-", color=color, label=f"PVF + GNN ({label})", ms=5)
         ax2.plot(t, fr, "o-", color=color, ms=5)
     ax1.axhline(amvf, color="0.3", ls="--", lw=1.6)
     ax1.text(0.31, amvf + 0.004, f"AMVF  {amvf * 100:.1f}%", fontsize=11, color="0.3")
@@ -138,11 +140,11 @@ def plot_learning_curve(curve_path: str, out: Path):
         rows = json.load(f)
     epochs, values, refs = [], [], {}
     for row in rows:
-        label = row.get("label", "")
-        if label.startswith("v1"):
-            refs["v1-e175"] = row["clean_per_truth"]
-        elif label.startswith("v2"):
-            refs["v2-e175"] = row["clean_per_truth"]
+        label = row.get("label") or ""
+        if label and not label.startswith("epoch_"):
+            mapped = REF_LABELS.get(label, label)
+            if mapped is not None:
+                refs[mapped] = row["clean_per_truth"]
         else:
             epochs.append(int(row["weights"].split("epoch_")[-1].split(".")[0]))
             values.append(row["clean_per_truth"])
@@ -150,7 +152,7 @@ def plot_learning_curve(curve_path: str, out: Path):
 
     fig, ax = plt.subplots(figsize=(8, 5.4))
     ax.plot(np.array(epochs)[order], np.array(values)[order], "o-",
-            color=OKABE[0], ms=5, label="v3 (aug. 180k)")  # fmt: skip
+            color=OKABE[0], ms=5, label="current training")  # fmt: skip
     for (label, v), ls in zip(refs.items(), ("--", ":")):
         ax.axhline(v, color="0.35", ls=ls, lw=1.6)
         ax.text(2, v + 0.004, f"{label}  {v:.3f}", fontsize=11, color="0.3")
@@ -166,6 +168,9 @@ def plot_learning_curve(curve_path: str, out: Path):
 def main() -> None:
     """CLI entry point."""
     args = _parse_args()
+    global LUMI_DESC
+    if args.desc:
+        LUMI_DESC = args.desc
     use_atlas_style()
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -198,7 +203,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--scan", action="append", default=[], metavar="LABEL=PATH")
     p.add_argument("--truth-bound", default=0.9175, type=float)
     p.add_argument("--learning-curve", default=None, type=str,
-                   help="learning_curve.json for the v3 panel")  # fmt: skip
+                   help="learning_curve.json for the training panel")  # fmt: skip
+    p.add_argument("--desc", default=None, type=str,
+                   help="dataset description for the ATLAS label")  # fmt: skip
     p.add_argument("-o", "--output-dir", required=True, type=str)
     return p.parse_args()
 
