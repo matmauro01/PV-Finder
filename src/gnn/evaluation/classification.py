@@ -77,6 +77,52 @@ def get_top_k_associations(
     return output
 
 
+def get_top1_associations_fast(
+    pred_scores: np.ndarray,
+    edge_index_track_pv: np.ndarray,
+    threshold: float = GNN_SCORE_THRESHOLD,
+) -> np.ndarray:
+    """Vectorized k=1 MaxScore selection (no per-track Python loop).
+
+    Semantics match get_top_k_associations(k=1) except for exact score
+    ties within a track, where this picks the first edge in stable
+    track-sorted order while argpartition's introselect pick is
+    unspecified. Ties only occur where the top-2 gap is zero, i.e. inside
+    the regression guard's knife-edge tolerance;
+    gnn.evaluation.verify_fast_paths quantifies the agreement on real
+    events before this is used anywhere.
+    """
+    track_indices = np.asarray(edge_index_track_pv[0])
+    if isinstance(pred_scores, torch.Tensor):
+        pred_scores = pred_scores.cpu().numpy()
+
+    output = np.zeros(len(pred_scores), dtype=bool)
+    if len(pred_scores) == 0:
+        return output
+
+    order = np.argsort(track_indices, kind="stable")
+    sorted_tracks = track_indices[order]
+    sorted_scores = pred_scores[order]
+
+    starts = np.flatnonzero(
+        np.concatenate(([True], sorted_tracks[1:] != sorted_tracks[:-1]))
+    )
+    group_sizes = np.diff(np.concatenate((starts, [len(sorted_tracks)])))
+    group_of = np.repeat(np.arange(len(starts)), group_sizes)
+
+    group_max = np.maximum.reduceat(sorted_scores, starts)
+    is_max = sorted_scores == group_max[group_of]
+    candidates = np.flatnonzero(is_max)
+    # candidates ascend and group_of[candidates] is non-decreasing, so the
+    # first candidate of each group is found by searchsorted.
+    first_of_group = candidates[
+        np.searchsorted(group_of[candidates], np.arange(len(starts)))
+    ]
+    selected = first_of_group[group_max >= threshold]
+    output[order[selected]] = True
+    return output
+
+
 def categorize_event(
     model: TTVAGATModel,
     reco_graph_event: HeteroData,
