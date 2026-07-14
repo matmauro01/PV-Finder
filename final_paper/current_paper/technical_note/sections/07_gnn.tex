@@ -178,7 +178,12 @@ low-multiplicity vertices, which AMVF tends to absorb into merged fits (its
 merged rate is $20\%$ against $11.8\%$ for the chain). As a pure associator the
 GNN also edges AMVF at track level: efficiency$\times$purity $F_1 = 0.866$ vs
 $0.849$. Hard-scatter identification is statistically tied ($98.1\%$ vs
-$98.9\%$).
+$98.9\%$). The historical $t^{*}=0.98$ point was itself capped by the
+all-peaks fake bookkeeping: under the drop-empty convention the fake rate
+collapses to $\sim$$0.01\%$ at every threshold, unlocking $t=0.995$ with a
+clean-vertex yield of $\mathbf{77.0\%}$ --- $+16.1$ points over AMVF at
+\muavg{}$\approx$60 with no retraining (Table~\ref{tab:gnn_mu60}, second
+row).
 
 \begin{table}[h]
   \centering
@@ -191,7 +196,8 @@ $98.9\%$).
     \toprule
     Chain & Reco PVs & Clean & Merged & Split & Fake & Clean/truth \\
     \midrule
-    \pvf{} peaks + GNN & 66\,472 & $80.9\%$ & $11.8\%$ & $6.3\%$ & $0.9\%$ & $\mathbf{74.5\%}$ \\
+    \pvf{} peaks + GNN, $t^{*}=0.98$ & 66\,472 & $80.9\%$ & $11.8\%$ & $6.3\%$ & $0.9\%$ & $74.5\%$ \\
+    \quad drop-empty, $t=0.995$ & 64\,008 & $86.8\%$ & $8.2\%$ & $5.0\%$ & $0.01\%$ & $\mathbf{77.0\%}$ \\
     AMVF               & 57\,329 & $76.7\%$ & $20.0\%$ & $2.5\%$ & $0.7\%$ & $60.9\%$ \\
     truth vertices + GNN (bound) & 80\,498 & $79.9\%$ & $7.6\%$ & $3.9\%$ & $8.6\%$ & $89.1\%$ \\
     \bottomrule
@@ -435,5 +441,5 @@ classification used throughout this section is the deployment-faithful
 metric for the combined system and is the recommended headline for any
 future \pvf{}-vs-AMVF comparison: per-task working points ($t=0.5$ for
 hard-scatter identification, $t=0.98$ for vertex classification at PU200,
-$t^{*}=0.98$ at \muavg{}$\approx$60) come for free from a single forward
+$t=0.995$ at \muavg{}$\approx$60) come for free from a single forward
 pass.

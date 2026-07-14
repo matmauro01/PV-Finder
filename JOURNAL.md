@@ -2805,3 +2805,20 @@ technical-note GNN section + conclusions updated with the final numbers
 the finder's (misses 19%, unavoidable merges 6%): next lever is an
 associator-aware finder objective / objectness head, plus the 2.5M-event
 sample for further scaling.
+
+## 2026-07-14 (evening) — drop-empty measured at mu60 (+2.5 free points); TTVA slides added
+
+Enriched the mu60 PVF-e400 graphs with track.truth_pv (from the truth h5)
+so chain_scan runs on them directly. Result: the all-peaks fake budget was
+capping the working point — under drop-empty the mu60 fake rate is ~0.01%
+at every threshold, unlocking **t=0.995: clean/truth 77.0% @ 0.01%**
+(was 74.5% @ 0.9% at t*=0.98; AMVF 60.9%). Guard: t=0.98 all-peaks
+reproduces 74.52%/0.90% exactly. Note table + docs updated; mu60 WP is now
+t=0.995 (drop-empty).
+
+Added an 11-frame "TTVA from scratch" section (+1 backup) to the weekly
+deck (presentations/mattia/04_16_2026/slides.tex): task, graph
+formulation with TikZ sketch, GAT model, selection/categories/conventions,
+mu60 + Run 3 + PU200 chain results with the new publication plots,
+transfer-gap story, final verdict. Compiles with the deck's TL2017
+toolchain (PDF 6.7 MB stays local, over the repo size hook).

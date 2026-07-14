@@ -71,6 +71,16 @@ The GNN is a better pure associator than AMVF at every threshold below the
 extreme tail. Scan data + plots: `outputs/07_13_2026_ttva_metrics/`
 (scan_results.json, plots/, edge_level/).
 
+**Drop-empty update (2026-07-14,
+`outputs/07_14_2026_ttva_gap/mu60_scan_dropempty/`)**: t\*=0.98 was capped
+by the all-peaks fake bookkeeping. Under drop-empty (see the PU200 section)
+the μ60 fake rate collapses to ~0.01% at every threshold, unlocking
+**t=0.995: clean/truth 77.0% @ 0.01% fakes** (clean 86.8% / merged 8.2% /
+split 5.0% of 64,008 vertices) — +2.5 points over t\* with no retraining,
++16.1 over AMVF. Guard: t=0.98 all-peaks reproduces 74.52% / 0.90% exactly.
+(Graphs enriched with `track.truth_pv` from the h5 so `chain_scan` runs
+directly on the μ60 PVF-e400 graph file.)
+
 **Reproducibility note:** the GPU forward is nondeterministic at ~1e-5
 (GATConv scatter atomics), so an event whose top-2 scores for a track are
 closer than that can flip between runs (1 event in 2,550 observed). The
