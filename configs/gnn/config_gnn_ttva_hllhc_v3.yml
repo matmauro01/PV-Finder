@@ -1,0 +1,55 @@
+# GNN TTVA training on HL-LHC PU200 — v3 (big data + chain-like augmentation)
+# Changes vs v2 (cosine + clip kept):
+#   - 180k training graphs (9 shards x 20k, all-hadronic 601237 r16633) via
+#     shard cycling: each epoch trains on one shard, round-robin. 162 epochs
+#     = 18 full passes over the dataset.
+#   - Chain-like augmentation (p=0.7 at build time): finder-miss vertex
+#     dropping, peak-residual z jitter, measured peak sigmas/heights, junk
+#     PV-node injection. Parameters measured from the v4b chain
+#     (outputs/07_14_2026_ttva_gap/).
+#   - PV-height recipe fixed (was identically 0 in all earlier training).
+#
+# Usage (inside tmux):
+#   python -u -m gnn.training.train_ttva -c configs/gnn/config_gnn_ttva_hllhc_v3.yml
+
+# --- Data (sharded) ---
+data_files:
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_0.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_1.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_2.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_3.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_4.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_5.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_6.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_7.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/train_shard_8.pt"
+val_file: "/data/home/matmauro/codice/PV-Finder/data/run4/ttva_graphs/v3_shards/val_shard.pt"
+batch_size: 32
+num_workers: 2
+
+# --- Model architecture (unchanged from v1/v2) ---
+model_config:
+  track_input_size: 8   # d0, z0, d0_err, z0_err, cov, theta, phi, pt_scaled
+  pv_input_size: 2      # z_position, peak_height
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3      # long_sig, horiz_sig, |dz|
+  dropout: 0.25
+
+# --- Training ---
+n_epochs: 162           # 18 cycles x 9 shards (one epoch = one 20k shard)
+learning_rate: 0.001
+lr_schedule:
+  type: cosine
+  eta_min: 0.00001
+grad_clip: 1.0
+device_id: 3
+
+# --- Checkpointing ---
+save_weights: true
+save_frequency: 6
+save_folder: "/data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_hllhc_v3/"
+
+# --- MLflow ---
+experimentname: "TTVA_GNN"
+runname: "ttva_gat_pu200_k20_v3_aug180k"

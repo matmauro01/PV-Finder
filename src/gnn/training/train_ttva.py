@@ -39,15 +39,6 @@ def main(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Load pre-built graph data (list of HeteroData objects)
-    event_data_list = torch.load(configs["data_file"], weights_only=False)
-
-    # Train / val split
-    idx_train = int(len(event_data_list) * configs["train_split"][0])
-    idx_val = idx_train + int(len(event_data_list) * configs["train_split"][1])
-    train_data = event_data_list[:idx_train]
-    val_data = event_data_list[idx_train:idx_val]
-
     from torch_geometric.loader import DataLoader
 
     loader_kw = dict(
@@ -56,9 +47,35 @@ def main(
         num_workers=configs.get("num_workers", 2),
         prefetch_factor=2,
     )
-    train_loader = DataLoader(train_data, **loader_kw)
-    val_loader = DataLoader(val_data, **loader_kw)
-    print(f"{len(train_data)} training graphs, {len(val_data)} validation graphs")
+
+    if "data_files" in configs:
+        # Sharded dataset: one shard resident at a time, cycled per epoch;
+        # validation is a dedicated (whole) file.
+        from gnn.training.shard_loader import ShardCyclingLoader
+
+        train_loader = ShardCyclingLoader(
+            configs["data_files"],
+            batch_size=configs["batch_size"],
+            num_workers=configs.get("num_workers", 2),
+        )
+        val_data = torch.load(configs["val_file"], weights_only=False)
+        val_loader = DataLoader(val_data, **loader_kw)
+        first_graph = train_loader.first_graph
+        print(
+            f"{len(configs['data_files'])} train shards, "
+            f"{len(val_data)} validation graphs"
+        )
+    else:
+        # Single file with fractional train/val split
+        event_data_list = torch.load(configs["data_file"], weights_only=False)
+        idx_train = int(len(event_data_list) * configs["train_split"][0])
+        idx_val = idx_train + int(len(event_data_list) * configs["train_split"][1])
+        train_data = event_data_list[:idx_train]
+        val_data = event_data_list[idx_train:idx_val]
+        train_loader = DataLoader(train_data, **loader_kw)
+        val_loader = DataLoader(val_data, **loader_kw)
+        first_graph = train_data[0]
+        print(f"{len(train_data)} training graphs, {len(val_data)} validation graphs")
 
     # MLflow
     mlflow.set_tracking_uri("file:/data/home/matmauro/codice/PV-Finder/mlruns")
@@ -80,7 +97,7 @@ def main(
     # forward pass — required before the optimizer sees model.parameters().
     model.eval()
     with torch.no_grad():
-        model(train_data[0].clone().to(device))
+        model(first_graph.clone().to(device))
     print(f"GNN model:\n{model}")
 
     optimizer = torch.optim.Adam(
