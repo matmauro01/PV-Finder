@@ -109,10 +109,10 @@ def plot_scan(scans: dict[str, dict], gap: dict, out: Path):
 
 
 def plot_miss_ntrk(gap: dict, out: Path):
-    """Finder-miss probability vs truth nTracks."""
-    edges = np.asarray(gap["ntrk_bin_edges"], dtype=float)
-    missed = np.asarray(gap["missed_ntrk_hist"], dtype=float)
-    matched = np.asarray(gap["matched_ntrk_hist"], dtype=float)
+    """Finder-miss probability vs truth nTracks (last, sparse bin omitted)."""
+    edges = np.asarray(gap["ntrk_bin_edges"], dtype=float)[:-1]
+    missed = np.asarray(gap["missed_ntrk_hist"], dtype=float)[:-1]
+    matched = np.asarray(gap["matched_ntrk_hist"], dtype=float)[:-1]
     total = missed + matched
     prob = np.divide(missed, total, out=np.zeros_like(missed), where=total > 0)
 
@@ -127,8 +127,9 @@ def plot_miss_ntrk(gap: dict, out: Path):
     ax.errorbar(centers, prob, yerr=err, fmt="none", ecolor="0.2", capsize=2)
     ax.set_xscale("log")
     ax.set_xlabel("Truth-vertex $n_{\\mathrm{trk}}$")
-    ax.set_ylabel("Finder miss probability (no peak within 0.5 mm)")
-    ax.set_ylim(0, 1.0)
+    ax.set_ylabel("Finder miss probability")
+    ax.set_xlim(1.8, 115)
+    ax.set_ylim(0, 0.55)
     atlas_label(ax, desc=LUMI_DESC, desc_xy=(0.35, 0.97))
     save_figure(fig, out, "pu200_miss_ntrk")
     plt.close(fig)
