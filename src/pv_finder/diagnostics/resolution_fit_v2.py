@@ -141,6 +141,8 @@ def main() -> None:
         yerr=se,
         fmt="o",
         ms=5,
+        capsize=2.5,
+        elinewidth=1.2,
         color="#0072B2",
         label="AMVF$-$truth residual width (bkg-corrected)",
     )
@@ -162,8 +164,8 @@ def main() -> None:
     )
     ax.set_xlabel(r"Truth-vertex $n_\mathrm{trk}$")
     ax.set_ylabel(r"Vertex $z$ resolution [mm]")
-    ax.set_xscale("log")
-    ax.set_yscale("log")
+    ax.set_xlim(0, 1.05 * c.max())
+    ax.set_ylim(0, 1.45 * sg.max())
     ax.legend(loc="upper right", fontsize="small")
     atlas_label(ax, desc=r"HL-LHC $t\bar{t}$, $\langle\mu\rangle=200$, ITk layout")
     fig.tight_layout()
