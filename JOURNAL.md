@@ -2873,3 +2873,31 @@ Ported the TTVA work into it (commit 1ccaf82 on main):
 The professors' repo is the working copy for the note from now on; the local
 fork in final_paper/current_paper/technical_note is superseded (kept for
 history). Their comment macros: \lat (Lauren), \mm (Mattia), \rbg.
+
+## 2026-07-15 — LT review comments addressed in the note (Method + sec 4.2)
+
+Addressed Lauren's \lat comments in the GitLab note (commit b2e012c on main):
+1. Track Selection section written from measured ntuple cuts: pT > 500 MeV
+   (spectrum starts at exactly 500 in PU200 + Run 3 files), |eta| < 2.5,
+   |z0| < 200 mm; no d0 cut (max |d0| ~37 mm). Left an \mm note to confirm
+   whether the Athena dumper applies a named quality WP (ask Rocky).
+2. Stitching detail: 12 disjoint 1000-bin tiles concatenated, no blending;
+   the +-3 sigma input extension keeps seams continuous; targets split the
+   same way; peak finder runs on the stitched 12k histogram.
+3. Fig 2.2 was showing placeholder images (a flow diagram + a 3-panel
+   diagnostic with mojibake minus signs). New generator
+   src/pv_finder/diagnostics/method_example_figures.py builds (a) mu60
+   KDE-A + truth PVs, (b) PU200 v4b e2e histogram (cached gap-decomposition
+   hists, events 28500+) + peak finder at production settings + truth.
+4. Resolution-model fit errors from the saved full-file fit
+   (outputs/06_01_2026_output/amvf_resolution_residuals/fit_params.json):
+   A=0.179+-0.008 mm, B=0.727+-0.014, C=0.00+-0.08 um. NOT large.
+5. Sec 4.2: AMVF pairwise Delta-z sigmoid fit at PU200 computed fresh
+   (99,800 evts r16438, 449M pairs, ntrk>=2): sigma = 0.283 +- 0.011 mm —
+   same width as PVF (0.29); the discriminators are dip depth (0.6% vs 4.1%
+   residual) and the 6x smaller bump. Low-pileup fits (0.42 vs 0.76 mm)
+   quoted for reference. GBT cross-ref added, integral-threshold explanation
+   now includes narrower-targets argument, failure-modes caption expanded
+   with per-row legend description.
+Bonus: appendix \section -> \chapter so "Appendix .3" refs now render
+"Appendix C". Note builds clean (46 pp, 0 undefined refs).
