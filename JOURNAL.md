@@ -2849,3 +2849,27 @@ pass; legacy/current nomenclature; drop-empty convention throughout;
 final tables and regenerated figures for both pile-ups incl. drop-empty
 category bars), weekly deck TTVA slides, docs, plots. Working points:
 t=0.99 (mu60 vertices), t=0.98 (PU200 vertices), t=0.5 (HS-ID).
+
+## 2026-07-15 — TTVA chapter ported to the professors' GitLab note (the canonical version from now on)
+
+Connected sneezy to the official note repo
+gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1
+(HTTPS + personal access token in ~/.git-credentials; SSH to CERN GitLab is
+firewalled from outside CERN). Cloned to ~/codice/ANA-IDTR-2026-01-INT1;
+live branch is `main` (Lauren mirrors her Overleaf project into it manually —
+"Update on Overleaf." commits; GitLab->Overleaf is NOT automatic).
+
+Ported the TTVA work into it (commit 1ccaf82 on main):
+- sections/07_gnn.tex: 27-line stub replaced with the full chapter from
+  final_paper/current_paper/technical_note (headings promoted section->chapter
+  for their REPORT class); renders as Chapter 8, pp. 29–36.
+- sections/08_conclusions.tex: TTVA results paragraph + joint
+  finder–associator priorities ending.
+- sections/01_introduction.tex: one-sentence update ("preliminary study" ->
+  full chain evaluated against AMVF at both pile-ups).
+- 8 figures copied. Build verified with TL2022 (PATH=/data/apps/texlive/bin/
+  x86_64-linux, `make`): 45 pages, zero errors, no overfull boxes from ch. 8.
+
+The professors' repo is the working copy for the note from now on; the local
+fork in final_paper/current_paper/technical_note is superseded (kept for
+history). Their comment macros: \lat (Lauren), \mm (Mattia), \rbg.
