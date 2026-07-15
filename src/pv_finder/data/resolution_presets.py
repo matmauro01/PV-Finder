@@ -15,6 +15,7 @@ from __future__ import annotations
 RESOLUTION_PRESETS: dict[str, tuple[float, float, float]] = {
     # name: (A_mm, B, C_mm)
     "hllhc": (0.17898, 0.7274, 0.0),
+    "hllhc_corrected": (0.1239, 0.4583, -0.0073),
     "run3": (0.23817443, 0.49491396, -0.000787436),
 }
 
@@ -22,7 +23,15 @@ RESOLUTION_PRESET_SOURCES: dict[str, str] = {
     "hllhc": (
         "AMVF<->truth fit on HL-LHC PU200 ttbar (ITk), 99 800 events, "
         "produced 2026-06-01 by amvf_resolution_vs_ntracks.py "
-        "(see outputs/06_01_2026_output/amvf_resolution_residuals/fit_params.json)"
+        "(see outputs/06_01_2026_output/amvf_resolution_residuals/fit_params.json). "
+        "SUPERSEDED 2026-07-15: per-bin widths were inflated by wrong-match "
+        "background inside the 2 mm matching window; see 'hllhc_corrected'."
+    ),
+    "hllhc_corrected": (
+        "Background-corrected refit of the same residuals (Gaussian core + flat "
+        "background per bin), produced 2026-07-15 by resolution_fit_v2.py "
+        "(outputs/07_15_2026_note_figs/resolution_fit_v2.json). Statistical "
+        "1/sqrt(n) scaling at half the Run 3 amplitude."
     ),
     "run3": (
         "Run-3 fit from ResolutionFit_ATLAS.ipynb / "

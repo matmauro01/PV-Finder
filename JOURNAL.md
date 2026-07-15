@@ -2925,3 +2925,26 @@ primary results, AMVF agreement as secondary with the no-truth caveat);
 appendix C lineage intro + editing pass. NOT addressed: 03_data Athena
 integration (needs Rocky). GNN chapter confirmed to carry both current
 models (mu60 e115, PU200 v3-e156).
+
+## 2026-07-15 (midday) — v5 PVF retrain launched with corrected target widths
+
+Launched the corrected-widths campaign (tmux pvf_v5, GPU 0):
+- New preset 'hllhc_corrected' (0.1239, 0.4583, -0.0073) in
+  resolution_presets.py; old 'hllhc' marked SUPERSEDED. 2 um sigma floor
+  added in root_to_h5 (no-op for existing presets).
+- All 8 v4b-pool files reconverted with the new preset ->
+  data/run4/PU200_corrected_h5/ (69 GB, 8/8, ~30 min at 4 concurrent).
+  Smoke-tested first (attrs + target diff sanity: high-n peaks now
+  wider/lower, low-n narrower/taller, exactly per the fit correction).
+- Training: exact v4b recipe (3+3 epochs, per-step warmup, config
+  config_hllhc_pu200_e2e_v5_corrected.yml, run
+  hllhc_pu200_e2e_v5_correctedwidths_3ep). ~18 it/s in Phase 1 ->
+  ETA ~30 h total. Clean A/B vs v4b: only the target widths differ.
+
+Also measured (for the note figures): PU200 r16438 ActualNumOfInt is
+discrete blocks 190-210 (mean 200.0, sigma 6.1) and the chain-eval slice
+28500-30000 is BIMODAL ({190-192} + {208-210} only, mean 200.1); the mu60
+GNN h5 has no mu branch and its truth-PV count per event is broad/flat
+(mean 31.8, sigma 18.9, q5-q95 = 4-63) — the inherited "mu~60" label
+likely overstates typical pileup; confirm production config with Qibin
+before relabelling figures.

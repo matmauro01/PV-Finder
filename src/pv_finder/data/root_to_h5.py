@@ -81,7 +81,8 @@ def _build_truth_histogram(pv_z: np.ndarray, pv_ntrks: np.ndarray) -> np.ndarray
     sigma = np.where(
         pv_ntrks_arr < NTRK_THRESHOLD,
         BIN_WIDTH,
-        A_RES * np.power(ntrks_safe, -B_RES) + C_RES,
+        # 2 um floor: no-op for existing presets, keeps C<0 presets safe
+        np.maximum(A_RES * np.power(ntrks_safe, -B_RES) + C_RES, 0.002),
     )
     nbin = np.floor((pv_z_arr - Z_MIN) * BINS_PER_MM).astype(np.int64)
     bin_center_z = nbin / BINS_PER_MM + Z_MIN
