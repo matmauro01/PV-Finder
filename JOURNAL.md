@@ -2901,3 +2901,27 @@ Addressed Lauren's \lat comments in the GitLab note (commit b2e012c on main):
    with per-row legend description.
 Bonus: appendix \section -> \chapter so "Appendix .3" refs now render
 "Appendix C". Note builds clean (46 pp, 0 undefined refs).
+
+## 2026-07-15 (afternoon) — Fig 2.3 resolution-fit bug found + LT comment round 2
+
+MM's suspicion about fig:resmodel confirmed: the published HL-LHC resolution
+fit (A=0.179 mm, B=0.727) does not describe the residuals. Cause: greedy
+matching within 2 mm at PU200 density leaves a flat wrong-match background
+under the residual peak (17% of pairs at ntrk=2, <1% above ntrk~30); the
+original per-bin Gaussian fits absorbed it, inflating low-multiplicity widths
+and steepening the power law. Background-corrected per-bin fits (Gaussian +
+flat, new src/pv_finder/diagnostics/resolution_fit_v2.py) give A=0.124 mm,
+B=0.458, C ~ -7 um — i.e. the ITk follows the statistical 1/sqrt(n) scaling
+(Run 3 B=0.495) at HALF the Run 3 amplitude. Estimator spread moves A,B by
+~0.01. Exponential form ruled out (chi2 30x worse than power law). The note
+keeps the preset as the definition of the targets (results unaffected) and
+now shows the corrected fit + preset overlay in a regenerated log-log figure.
+
+Also addressed (note commit 7fd57d8): Method chapter overview; AMVF
+processing time via the Run 3 tracking-software paper citation (CPU-vs-mu,
+ACTS 1.5x; absolute PU200 number needs Athena — MM note for Rocky);
+collision-data validation section reframed per LT (svtx + yield vs mu as
+primary results, AMVF agreement as secondary with the no-truth caveat);
+appendix C lineage intro + editing pass. NOT addressed: 03_data Athena
+integration (needs Rocky). GNN chapter confirmed to carry both current
+models (mu60 e115, PU200 v3-e156).
