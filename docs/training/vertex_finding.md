@@ -195,3 +195,19 @@ experiment **"HLLHC PU200 — E2E v4b (per-step warmup)"** with run name
 | `train_mlp_hist_then_e2e.py` | Strategy B: KDE-free end-to-end with MLP warmup |
 | `train_hllhc_e2e.py` | Strategy B (HLLHC): adds Phase 2 LR warmup + cosine decay + grad clipping |
 | `training.py` | `trainNet()` loop, GPU selection |
+
+### Strategy B (HLLHC PU200): v5 — corrected target widths (2026-07-17)
+
+Identical to v4b except the training data: all 8 pool files rebuilt with the
+`hllhc_corrected` resolution preset (A=0.1239, B=0.4583, C=-0.0073 — the
+original `hllhc` preset's fit was inflated by wrong-match background; see
+`resolution_fit_v2.py`). Data in `data/run4/PU200_corrected_h5/`, config
+`config_hllhc_pu200_e2e_v5_corrected.yml`, driver `scripts/train_v5_corrected.sh`.
+
+Result (A/B at the documented eval protocol): a genuine Pareto shift —
++0.25–0.3 pts efficiency at any matched fake rate, sigma 0.290→0.288 mm.
+At the retuned floor 0.05: clean 70.96/evt @ 13.2 fakes (v4b: 70.15 @ 12.8).
+**v4b remains the production checkpoint** (the TTVA chain is calibrated on
+its peaks); v5 = `hllhc_pu200_e2e_v5_correctedwidths_3ep_phase2_epoch_3`.
+Note: the corrected widths change the peak-height scale, so any operating
+point (height floor, integral threshold) must be retuned for v5-family models.

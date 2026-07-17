@@ -2948,3 +2948,27 @@ GNN h5 has no mu branch and its truth-PV count per event is broad/flat
 (mean 31.8, sigma 18.9, q5-q95 = 4-63) — the inherited "mu~60" label
 likely overstates typical pileup; confirm production config with Qibin
 before relabelling figures.
+
+## 2026-07-17 — v5 corrected-widths A/B: real but modest Pareto gain
+
+v5 training completed (3+3 epochs, 34 h total, smooth). A/B vs v4b with the
+identical documented protocol (2500 evts r16438, mu 185-215, integral 0.2):
+
+- v4b recheck (floor 0.03): clean 70.15/evt, fakes 12.82, eff 93.27%,
+  sigma 0.290 mm — reproduces the published table exactly.
+- v5 at the same floor: clean 72.01 (+1.9), fakes 17.97 (+5.1!) — corrected
+  widths make ALL peaks taller (0.15/sigma area scaling), so the v4b floor
+  no longer cuts the same junk.
+- Height-floor sweep (1000 evts, both models, same events): the v5 curve is
+  ABOVE v4b at every matched fake rate — +0.25-0.3 pts efficiency at equal
+  fakes, or ~10% fewer fakes at equal efficiency. A genuine Pareto shift.
+- v5 full eval at retuned floor 0.05: clean 70.96/evt, fakes 13.21,
+  eff 93.57%, sigma 0.288 mm, missed 6.4% (vs 6.7%).
+
+Verdict: corrected target widths are a real improvement (+0.8 clean/evt at
+~matched fakes, better resolution) but not transformative. NOT adopted as
+production: the TTVA chain (GNN v3, augmentation quantiles, working points)
+is calibrated on v4b peaks; swapping finders requires re-deriving the chain.
+Checkpoint: hllhc_pu200_e2e_v5_correctedwidths_3ep_phase2_epoch_3(.pyt/.pth).
+Outputs: outputs/07_16_2026_output/{eval_hllhc_v5_ep3,eval_hllhc_v4b_ep3_recheck,
+opscan_v5,opscan_v4b,eval_hllhc_v5_ep3_floor050}.
