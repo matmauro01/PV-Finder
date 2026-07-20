@@ -2972,3 +2972,42 @@ is calibrated on v4b peaks; swapping finders requires re-deriving the chain.
 Checkpoint: hllhc_pu200_e2e_v5_correctedwidths_3ep_phase2_epoch_3(.pyt/.pth).
 Outputs: outputs/07_16_2026_output/{eval_hllhc_v5_ep3,eval_hllhc_v4b_ep3_recheck,
 opscan_v5,opscan_v4b,eval_hllhc_v5_ep3_floor050}.
+
+## 2026-07-20 — σ_vtx-vtx was a coarse-binning artifact; efficiency re-derived; Run 2 μ mislabel
+
+Chasing an LT note comment ("PVF resolution comparable to AMVF is surprising")
+and MM's hunch that a fit had not converged, found the pairwise-Δz sigmoid fit
+is binning-sensitive. The production eval bins the ±6 mm pairwise-Δz over 60
+bins (0.2 mm/bin); the PVF dip is box-shaped with near-vertical walls, so at 60
+bins only ~2 points sit inside the dip and the fit lands at 0.29 mm — and the
+next refinement (120 bins) does NOT converge (err ±151 mm). Refining to 240/480/
+960 bins the PVF fit is stable at **0.223 mm**; AMVF's dip is broad/rounded and
+binning-independent at **0.284 mm**. So PVF is ~20% finer than AMVF, consistent
+with its Run2/3 advantage; the apparent parity was purely the under-binned PVF
+fit. (Scripts: scratchpad pairwise_binning.py / pairwise_plot.py.)
+
+Per user decision, re-derived every chapter-4 efficiency/category number at the
+tightened 0.223 mm matching window (offline from saved eval positions +
+compare_res_reco; validated bit-exact vs the eval at 0.29 mm first). Re-ran the
+baseline (no-floor, SingleLep) and GBT (r16633) configs to get their positions
+(outputs/07_20_2026_output/{eval_v4b_baseline_nofloor,eval_v4b_gbt_r16633}).
+At 0.223 mm: PVF baseline clean 70.4 / fake 15.8 / **eff 91.6%**; +floor 70.1 /
+14.5 / 91.3%; +GBT 69.4 / 12.8 / 91.0%; AMVF 68.1 / 16.8 / **89.4%**. Tighter
+window drops both effs ~2 pts and widens PVF's lead (+1.6→+2.2 pts). Blast
+radius is chapter 4 only — the GNN finder cap uses a fixed 0.5 mm window.
+
+Run 2 μ investigation (LT: "doesn't look like ⟨μ⟩ 25–30"): the 2018 ZeroBias
+file (run 364076, ActualNumOfInt) has full-sample mean μ=32.5 (mode ~27), but is
+**pileup-ordered** — its leading events (which a default eval reads from entry 0)
+average μ≈47–49. The validation plot (run2_stats.png) shows a μ distribution
+peaking at ~44, i.e. the high-μ leading slice, NOT 25–30. So the label is wrong
+AND the plotted sample is unrepresentative of Run 2 (a selection artifact, not a
+data/scaling error — no μ correction is applied anywhere; training is unaffected,
+this is validation-only). Fix pending user decision (re-run on a representative
+random sample → μ~32, vs relabel to ~45); chapter 5 left untouched, LT comment
+retained as the open marker.
+
+Note repo commits (gitlab ANA-IDTR main): 6dfe73d (resolution + efficiency +
+AMVF-only Fig 4.4b + corrected-only Fig 2.3), 10f769e (GNN Table 8.1 bound
+explanation, 3.0.1 comment removed, caption typo). Group-A LT comments were
+ccd2ea1. See [[ana-idtr-note-repo]].

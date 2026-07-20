@@ -154,14 +154,6 @@ def main() -> None:
         lw=2,
         label=(rf"Fit: $A\,n^{{-B}}+C$, $A={popt[0]:.3f}$ mm, $B={popt[1]:.3f}$"),
     )
-    ax.plot(
-        xs,
-        power_law(xs, *PRESET),
-        color="#009E73",
-        lw=2,
-        ls="--",
-        label=rf"Target preset: $A={PRESET[0]:.3f}$ mm, $B={PRESET[1]:.3f}$",
-    )
     ax.set_xlabel(r"Truth-vertex $n_\mathrm{trk}$")
     ax.set_ylabel(r"Vertex $z$ resolution [mm]")
     ax.set_xlim(0, 1.05 * c.max())

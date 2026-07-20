@@ -116,6 +116,8 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 
 `pv_locations_updated_res` returns PVs sorted ascending in z, so all pairwise differences `pvs[i]-pvs[j]` for `i<j` are negative. Both `+dz` and `-dz` are added to make the distribution symmetric before fitting the sigmoid.
 
+> **Binning caveat (2026-07-20):** the default 60-bin fit over ±6 mm (0.2 mm/bin) under-samples the *PVF* dip, whose walls are near-vertical, biasing σ_vtx_vtx high (0.29 mm at PU200) — the fit does not even converge at 120 bins. Refining to ≥240 bins gives a stable PVF σ ≈ **0.22 mm** (AMVF's rounded dip is binning-independent at 0.28 mm). Quoted PU200 resolutions of ~0.28–0.29 mm from coarse-binned fits are artifacts; PVF is ~20% finer than AMVF. See JOURNAL 2026-07-20.
+
 ## Outputs
 
 | File | Contents |
