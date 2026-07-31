@@ -25,6 +25,7 @@ from tqdm import tqdm
 from pv_finder.data.collectdata_poca_KDE import (
     collect_data_poca_ATLAS as collect_data_poca,
 )
+from pv_finder.models.losses import build_loss
 from pv_finder.training.hllhc_helpers import (
     build_model,
     build_phase2_scheduler,
@@ -88,19 +89,15 @@ def run_phase1(
     optimizer = torch.optim.Adam(
         mlp_params, lr=configs["phase1_learning_rate"], betas=(0.9, 0.999)
     )
-    loss_fn = nn.MSELoss()
+    loss_fn = build_loss(configs)
     max_norm = configs.get("max_grad_norm")
     n_epochs = configs["phase1_epochs"]
     save_freq = configs["save_frequency"]
     runname = configs["runname"]
 
     LOGGER.info(SEPARATOR)
-    LOGGER.info(
-        "PHASE 1 — MLP warmup | %d epochs | lr=%g | grad_clip=%s",
-        n_epochs,
-        configs["phase1_learning_rate"],
-        max_norm,
-    )
+    LOGGER.info("PHASE 1 — MLP warmup | %d epochs | lr=%g | grad_clip=%s | loss=%s",
+                n_epochs, configs["phase1_learning_rate"], max_norm, loss_fn)  # fmt: skip
     LOGGER.info(SEPARATOR)
 
     log_every = int(configs.get("log_every_n_steps", 500))
@@ -261,7 +258,7 @@ def run_phase2(
         )
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=base_lr, betas=(0.9, 0.999))
-    loss_fn = nn.MSELoss()
+    loss_fn = build_loss(configs)
     step_sched = bool(configs.get("phase2_step_scheduler", False))
     warmup_steps = int(configs.get("phase2_warmup_steps", 0))
     steps_per_epoch = len(train_loader) if step_sched else 0
@@ -283,15 +280,9 @@ def run_phase2(
     else:
         sched = f"per-epoch warmup={warmup}+cos"
     LOGGER.info(SEPARATOR)
-    LOGGER.info(
-        "PHASE 2 — full E2E | %d epochs | lr=%g | opt=%s | sched=%s | clip=%s | tv=%g",
-        n_epochs,
-        base_lr,
-        opt_name,
-        sched,
-        max_norm,
-        tv_lambda,
-    )
+    LOGGER.info("PHASE 2 — full E2E | %d epochs | lr=%g | opt=%s | sched=%s "
+                "| clip=%s | tv=%g | loss=%s",
+                n_epochs, base_lr, opt_name, sched, max_norm, tv_lambda, loss_fn)  # fmt: skip
     LOGGER.info(SEPARATOR)
 
     log_every = int(configs.get("log_every_n_steps", 500))
