@@ -48,26 +48,24 @@ def plot_resolution(
     mode_label: str,
     output_dir: Path,
     title: str = "",
+    n_bins: int = 240,
 ) -> None:
-    """Pairwise Δz distribution (points + Poisson errors) with sigmoid fit."""
-    bins_res = np.linspace(-6.0, 6.0, 61)
+    """Pairwise Δz distribution (points + Poisson errors) with sigmoid fit.
+
+    ``n_bins`` MUST match the binning ``popt`` was fitted to: the sigmoid is
+    fitted to bin *counts*, so a mismatch offsets the curve by the ratio of
+    the two bin counts (factor 4 for a 240-bin fit drawn over 60 bins).
+    """
+    bins_res = np.linspace(-6.0, 6.0, n_bins + 1)
     bin_ctrs = 0.5 * (bins_res[:-1] + bins_res[1:])
     counts, _ = np.histogram(dz_arr, bins=bins_res)
     errors = np.sqrt(counts.astype(float))
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.errorbar(
-        bin_ctrs,
-        counts,
-        yerr=errors,
-        fmt="ko",
-        ms=4,
-        capsize=2,
-        elinewidth=1,
-        label="Reconstructed PV pairs",
-    )
+    ax.errorbar(bin_ctrs, counts, yerr=errors, fmt="ko", ms=3, capsize=1.5,
+                elinewidth=0.8, label="Reconstructed PV pairs")  # fmt: skip
     if popt is not None:
-        xf = np.linspace(-6, 6, 400)
+        xf = np.linspace(-6, 6, 2000)
         ax.plot(
             xf,
             sigmoid_fit(xf, *popt),
@@ -91,7 +89,7 @@ def plot_resolution(
     ax.set_ylim(bottom=0)
     ax.tick_params(labelsize=11)
     plt.tight_layout()
-    plt.savefig(output_dir / "resolution_plot.png", dpi=150)
+    plt.savefig(output_dir / "resolution_plot.png", dpi=220)
     plt.close()
 
 

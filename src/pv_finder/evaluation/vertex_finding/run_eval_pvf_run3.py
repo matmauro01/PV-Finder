@@ -70,6 +70,60 @@ def mm_to_bins(z: np.ndarray) -> np.ndarray:
     return (z - Z_MIN) / BIN_WIDTH
 
 
+def _hist_features(pz, ph, hist, all_pz, all_ph):
+    """8 histogram-only features for the GBT peak filter.
+
+    Order matches peak_classifier_v2 features 15-22 exactly (the set the saved
+    ``gbt_hist_model`` was trained on):
+        [peak_height, local_integral, hist_skewness, fwhm_mm,
+         curvature, rel_height, nearest_peak_dz, nearest_peak_ratio]
+    """
+    bi = max(0, min(int((pz - Z_MIN) / BIN_WIDTH), N_BINS_FULL - 1))
+    hw = 13
+    lo, hi = max(0, bi - hw), min(N_BINS_FULL, bi + hw + 1)
+    local_int = float(np.sum(hist[lo:hi]))
+    left_int = float(np.sum(hist[lo:bi]))
+    right_int = float(np.sum(hist[bi + 1 : hi]))
+    skewness = (right_int - left_int) / max(right_int + left_int, 1e-6)
+    hm, fw = ph / 2.0, 0
+    for d in [-1, 1]:
+        j = bi
+        while 0 <= j < N_BINS_FULL and hist[j] >= hm:
+            fw += 1
+            j += d
+    fwhm = fw * BIN_WIDTH
+    curv = (
+        float(hist[bi - 1] + hist[bi + 1] - 2 * hist[bi])
+        if 1 <= bi <= N_BINS_FULL - 2
+        else 0.0
+    )
+    bg = max(float(np.median(hist[max(0, bi - 50) : min(N_BINS_FULL, bi + 50)])), 1e-6)
+    om = np.abs(all_pz - pz) > 0.01
+    oth = all_pz[om]
+    if len(oth) > 0:
+        ni = np.argmin(np.abs(oth - pz))
+        ndz, nrat = (
+            float(np.min(np.abs(oth - pz))),
+            ph / max(float(all_ph[om][ni]), 1e-6),
+        )
+    else:
+        ndz, nrat = 999.0, 1.0
+    return np.array(
+        [ph, local_int, skewness, fwhm, curv, ph / bg, ndz, nrat], dtype=np.float32
+    )
+
+
+def _apply_gbt(pvs, hts, hist, gbt, thr):
+    """Filter peaks using hist-only GBT classifier."""
+    if len(pvs) == 0:
+        return pvs, hts
+    X = np.stack(
+        [_hist_features(pvs[j], hts[j], hist, pvs, hts) for j in range(len(pvs))]
+    )
+    keep = gbt.predict_proba(X)[:, 1] >= thr
+    return pvs[keep], hts[keep]
+
+
 def sigmoid_fit(x: np.ndarray, a: float, b: float, c: float, rcc: float) -> np.ndarray:
     """Sigmoid function for resolution fit."""
     return a / (1.0 + np.exp(b * (rcc - np.abs(x)))) + c
@@ -180,14 +234,27 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     )
     if not has_pipeline and not has_e2e:
         raise ValueError("Provide --e2e-model OR both --t2kde-model and --k2h-model.")
+    gbt_model = None
+    if getattr(args, "gbt_filter_model", None):
+        with open(args.gbt_filter_model, "rb") as f:
+            gbt_model = pickle.load(f).get("gbt_hist_model")
+        if gbt_model is None:
+            raise ValueError("pkl missing 'gbt_hist_model'. Re-run peak_classifier.py.")
+        print(f"  GBT filter loaded (thr={args.gbt_threshold})")
     print("\n--- Loading Models ---")
     t2kde = k2h = e2e = None
     if has_e2e:
         e2e_type = getattr(args, "e2e_type", "v1")
-        if e2e_type == "v2":
+        if e2e_type in ("v2", "v3"):
+            n_ch = getattr(args, "e2e_unet_channels", 64)
+            n_lat = getattr(args, "e2e_latent_channels", 1)
+            hidden = list(getattr(args, "e2e_hidden", [100] * 5))
+            t2kde_cfg = dict(
+                T2KDE_CONFIG, hidden_nodes=hidden, output_size=1000 * n_lat
+            )
             e2e = TracksToHist_v2(
-                MaskedDNN(**T2KDE_CONFIG),
-                UNet_1000_v2(n=64, n_features=1, dropout_p=0.0),
+                MaskedDNN(**t2kde_cfg),
+                UNet_1000_v2(n=n_ch, n_features=n_lat, dropout_p=0.0),
             )
         else:
             cfg = dict(E2E_CONFIG)
@@ -233,6 +300,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         print("  MC truth detected — TruthVertex as truth, AMVF evaluated separately")
     else:
         print("  No MC truth — using AMVF (RecoVertex) as truth reference")
+    print(f"  Peak height floor (min_height): {args.min_height}")
     if args.smooth_sigma > 0:
         print(f"\n  Peak-finding smoothing: sigma={args.smooth_sigma} bins "
               f"({args.smooth_sigma * BIN_WIDTH:.3f} mm)")  # fmt: skip
@@ -255,10 +323,18 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             else ph
         )
         p_pvs, p_hts, *_ = pv_locations_updated_res(
-            ph_peaks, args.peak_threshold, args.integral_threshold, MIN_WIDTH
+            ph_peaks,
+            args.peak_threshold,
+            args.integral_threshold,
+            MIN_WIDTH,
+            args.min_height,
         )
         p_pvs_r, p_hts_r, *_ = pv_locations_updated_res(
-            ph_peaks, args.peak_threshold, args.integral_threshold_res, MIN_WIDTH
+            ph_peaks,
+            args.peak_threshold,
+            args.integral_threshold_res,
+            MIN_WIDTH,
+            args.min_height,
         )
         if args.nms_min_sep > 0:
             keep = suppress_neighbor_peaks(
@@ -269,6 +345,11 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
                 p_pvs_r, p_hts_r, args.nms_min_sep, args.nms_max_ratio
             )
             p_pvs_r, p_hts_r = p_pvs_r[keep_r], p_hts_r[keep_r]
+        if gbt_model is not None:
+            p_pvs, p_hts = _apply_gbt(p_pvs, p_hts, ph, gbt_model, args.gbt_threshold)
+            p_pvs_r, p_hts_r = _apply_gbt(
+                p_pvs_r, p_hts_r, ph, gbt_model, args.gbt_threshold
+            )
         p_pvs_r_sh = p_pvs_r.copy()
         np.random.shuffle(p_pvs_r_sh)
         for ii in range(len(p_pvs_r_sh)):
@@ -299,7 +380,12 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     # --- Resolution (sigma_vtx_vtx) ---
     print("\n--- Resolution (sigma_vtx_vtx) ---")
     dz_arr = np.array(pairwise_dz, dtype=np.float64)
-    bins_r = np.linspace(-6.0, 6.0, 61)
+    # 240 bins (0.05 mm), not the historical 60. The PVF dip is box-shaped with
+    # near-vertical walls, so at 60 bins only ~2 points sit inside it and the fit
+    # lands at 0.29 mm; 120 does not converge; 240/480/960 are stable at 0.223 mm
+    # (JOURNAL 2026-07-20). Not cosmetic: sigma is fed back as the matching window,
+    # so the coarse fit inflated efficiency by ~2 pts.
+    bins_r = np.linspace(-6.0, 6.0, args.pairwise_bins + 1)
     ctrs = 0.5 * (bins_r[:-1] + bins_r[1:])
     cnts, _ = np.histogram(dz_arr, bins=bins_r)
     sigma, popt = 0.5, None
@@ -318,6 +404,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     outdir.mkdir(parents=True, exist_ok=True)
     ds = args.dataset_name or "Real Data"
     plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
+                    n_bins=args.pairwise_bins,
         title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
 
     # --- Performance metrics ---
@@ -479,7 +566,18 @@ def _cli() -> argparse.Namespace:
     g.add_argument("--npz")
     g.add_argument("--root")
     a.add_argument("--e2e-model", default=None, dest="e2e_model")
-    a.add_argument("--e2e-type", default="v1", choices=["v1", "v2"], dest="e2e_type")
+    a.add_argument(
+        "--e2e-type", default="v1", choices=["v1", "v2", "v3"], dest="e2e_type"
+    )
+    a.add_argument(
+        "--e2e-unet-channels", type=int, default=64, dest="e2e_unet_channels"
+    )
+    a.add_argument(
+        "--e2e-latent-channels", type=int, default=1, dest="e2e_latent_channels"
+    )
+    a.add_argument(
+        "--e2e-hidden", type=int, nargs="+", default=[100] * 5, dest="e2e_hidden"
+    )
     a.add_argument("--t2kde-model", default=None, dest="t2kde_model")
     a.add_argument("--k2h-model", default=None, dest="k2h_model")
     a.add_argument("--k2h-type", default="v1", choices=["v1", "v2"], dest="k2h_type")
@@ -499,8 +597,21 @@ def _cli() -> argparse.Namespace:
     a.add_argument("--peak-threshold", type=float, default=THRESHOLD)
     a.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
     a.add_argument("--integral-threshold-res", type=float, default=0.5)
+    a.add_argument("--pairwise-bins", type=int, default=240,
+                   help="bins across the +-6 mm pairwise-dz range for the "
+                        "sigma_vtx_vtx sigmoid fit; 60 (pre-2026-07-31) biases "
+                        "sigma high, 240+ is stable")  # fmt: skip
+    a.add_argument("--min-height", type=float, default=0.03, dest="min_height",
+                   help="minimum peak amplitude to keep (operating point; "
+                        "0.0 disables). Default 0.03 drops the lowest fakes.")  # fmt: skip
     a.add_argument("--e2e-wide", action="store_true")
     a.add_argument("--save-histograms", action="store_true")
+    a.add_argument(
+        "--gbt-filter-model",
+        default=None,
+        help="peak_classifier_results.pkl for GBT peak filter",
+    )
+    a.add_argument("--gbt-threshold", type=float, default=0.7)
     a.add_argument("--title", default="")
     a.add_argument("--dataset-name", default="", dest="dataset_name")
     return a.parse_args()
