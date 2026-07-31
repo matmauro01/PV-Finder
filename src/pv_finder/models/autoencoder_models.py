@@ -1,6 +1,8 @@
 #### adapted from Will's autoencoder_models file (https://github.com/Haxxardoux/pv-finder/blob/master/model/autoencoder_models.py)
 
 
+from typing import Tuple
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -57,7 +59,9 @@ class ResConvBNrelu(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size=3, p=0):
         super().__init__()
-        assert kernel_size % 1 == 0, "even number kernel sizes will cause shape mismatch"
+        assert kernel_size % 1 == 0, (
+            "even number kernel sizes will cause shape mismatch"
+        )
         self.resblock = nn.Sequential(
             nn.Conv1d(
                 in_channels,
@@ -168,6 +172,44 @@ upsample_options = {
 # ======================================================================
 # DNN Models
 # ======================================================================
+def _crop_and_zero_padding(
+    x: torch.Tensor, mask: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Trim the all-padding tail of a tracks batch and zero the sentinel.
+
+    Args:
+        x: ``(batch, n_features, n_tracks)`` tracks tensor, padded along the
+            last axis with a large negative sentinel.
+        mask: ``(batch, n_tracks)`` boolean, True for real tracks.
+
+    Returns:
+        ``(x_cropped, mask_cropped)`` where the last axis is truncated just
+        past the rightmost column holding a real track in *any* row of the
+        batch, and every padded element of ``x`` is set to 0.
+
+    Both operations are exactly loss-free for :class:`MaskedDNN`, which
+    multiplies every per-track contribution by ``mask`` before summing:
+    dropped columns are all-padding, and a padded column contributes
+    ``0 * anything == 0`` either way. Verified bit-exact against the v4b
+    checkpoint on real data (``tests/test_masked_dnn_crop.py``).
+
+    Makes no assumption that real tracks are left-packed: the crop point is
+    the rightmost True in the batch, not the per-row count.
+    """
+    any_valid = mask.any(dim=0)
+    if bool(any_valid.any()):
+        # +1 converts a 0-based column index into a length.
+        n_keep = int(torch.nonzero(any_valid)[-1].item()) + 1
+    else:
+        # Every sub-event in the batch is empty. Keep one column so the shapes
+        # stay well-formed; it is masked out anyway.
+        n_keep = 1
+    if n_keep < x.shape[2]:
+        x = x[:, :, :n_keep]
+        mask = mask[:, :n_keep]
+    return x * mask.unsqueeze(1).to(x.dtype), mask
+
+
 # Used for tracks to KDE
 class MaskedDNN(nn.Module):
     def __init__(
@@ -209,6 +251,21 @@ class MaskedDNN(nn.Module):
         ## Construct masking from the input tracks data to allow
         ## filtering only entries with tracks
         mask = x[:, 1, :] > (self.maskVal)
+
+        ## --------------------------------------------------------
+        ## Drop the all-padding tail of the batch, and neutralise the padding
+        ## sentinel that survives inside it. Both are exactly loss-free: a
+        ## padded slot is multiplied by filt == 0 below, so it contributes
+        ## exactly 0.0 to the per-track sum whatever the MLP does with it.
+        ##
+        ## Motivation: the tracks tensor is padded to a fixed width (1024 in
+        ## the current HL-LHC pool) while mean occupancy is ~114, so ~90 % of
+        ## the MLP's work is on padding. Cropping to the widest sub-event in
+        ## the batch recovers most of it. Zeroing matters for a different
+        ## reason: the sentinel is -999999, which grows to O(1e6) activations
+        ## through six linear layers -- finite in fp32, but +inf under fp16
+        ## autocast, and 0 * inf is NaN. Zeroing makes AMP safe.
+        x, mask = _crop_and_zero_padding(x, mask)
 
         ## --------------------------------------------------------
         ## Construct filter
