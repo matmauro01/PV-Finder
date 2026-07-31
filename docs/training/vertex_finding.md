@@ -211,3 +211,94 @@ At the retuned floor 0.05: clean 70.96/evt @ 13.2 fakes (v4b: 70.15 @ 12.8).
 its peaks); v5 = `hllhc_pu200_e2e_v5_correctedwidths_3ep_phase2_epoch_3`.
 Note: the corrected widths change the peak-height scale, so any operating
 point (height floor, integral threshold) must be retuned for v5-family models.
+
+## Loss functions
+
+Source: `src/pv_finder/models/losses.py`. Selected from config:
+
+```yaml
+loss_type: mse          # default — unchanged historical behaviour
+# loss_type: weighted_mse
+# loss_y0: 0.3
+```
+
+`build_loss(configs)` is used by both phases of `train_hllhc_e2e.py`. Before
+2026-07-31 that script **hardcoded `nn.MSELoss()` and silently ignored the
+`use_mse_loss` / `asymmetry_param` keys** that were present in every HL-LHC
+config — reading the YAML gave the wrong impression that the loss was
+configurable. The keys are now honoured through `loss_type`; the two legacy keys
+remain unread and should be deleted from configs.
+
+### Why a weighted MSE
+
+Target peak amplitude is `max(1, 0.15/sigma)` with `sigma = A*n^-B + C`, so peak
+height rises steeply with vertex track multiplicity. Measured on
+`PU200_corrected_h5` (6000 sub-events, 46 662 peaks): p5 height 0.34, p50 1.04,
+p99 6.99 — a 20.5x spread. Under plain MSE the loss for **missing a peak
+entirely** scales with the square of its amplitude, so the optimiser is pulled
+toward peaks it already finds:
+
+| peak-height quintile | mean height | miss-loss, MSE | miss-loss, weighted (`y0=0.3`) |
+|---|---|---|---|
+| 0.05–0.51 | 0.38 | 1.0x | 1.0x |
+| 0.51–0.86 | 0.68 | 2.5x | 1.9x |
+| 0.86–1.54 | 1.18 | 6.2x | 3.1x |
+| 1.54–2.68 | 2.04 | 14.8x | 4.8x |
+| 2.68–16.5 | 4.20 | **50.5x** | **8.0x** |
+
+This is a plausible mechanism for the v4b plateau: over Phase 2, MLflow shows
+`p2_val_loss` falling 0.0330 → 0.0261 (−21 %) while `p2_eff_step` stays at
+0.766 → 0.761 and `p2_fpr_step` at 1.144 → 1.161. MSE kept improving on the
+tall peaks; the physics metric, which is dominated by the short ones, did not.
+
+### The design constraint
+
+92.4 % of target bins are exactly zero, and the penalty for putting amplitude in
+an empty bin is what sets the fake rate. A naive `1/(y+y0)` weight gives empty
+bins weight `1/y0` (3.33 at `y0=0.3`) — it triples the false-positive penalty at
+the same time as it rebalances the peaks, changing two things at once.
+
+`WeightedMSELoss` therefore uses `w(y) = y0/(y + y0)`, so `w(0) = 1` **exactly**:
+empty bins are treated bit-identically to plain MSE and only the peak-height
+tilt changes. `w <= 1` everywhere, so the loss can never exceed the MSE it
+replaces and cannot destabilise an LR tuned for MSE. `y0 -> inf` recovers MSE.
+
+### Status: A/B candidate, not the default
+
+Re-weighting the peaks changes the amplitude scale the network converges to, so
+**every downstream operating point — height floor, integral thresholds, the GBT
+fake gate, the TTVA augmentation quantiles — must be re-tuned** for a model
+trained this way (same lesson as the v5 corrected-widths run, where the v4b
+floor of 0.03 let fakes go 12.8 → 18.0 until it was retuned to 0.05). Whether it
+improves the efficiency/fake Pareto is unmeasured. Run it as a clean A/B against
+an otherwise identical `loss_type: mse` arm.
+
+Tests: `tests/test_losses.py` (20 tests), including the guarantee that the
+empty-bin gradient is bit-identical to `nn.MSELoss`.
+
+## Padding crop in MaskedDNN
+
+`_crop_and_zero_padding` (`src/pv_finder/models/autoencoder_models.py`) trims the
+all-padding tail of each tracks batch and zeroes the `-999999` sentinel before
+the MLP. The tracks tensor is padded to a fixed width (1024 for the current
+pool, 1536 for the extended-|eta| rebuild) while mean occupancy is ~114, so most
+of the MLP's work was on padding.
+
+Both operations are **exactly loss-free**: `MaskedDNN` multiplies every per-track
+contribution by the mask before summing, so a padded slot contributes 0.0
+whatever the MLP does with it. The crop point is the rightmost real track in the
+batch, so it does not assume tracks are left-packed.
+
+Measured on an idle A100 with the real v4b model at `batch_size=128`:
+**105.6 → 77.1 ms/step, 1.37x**. The gain grows with the padding width, so it is
+worth more on the extended-|eta| pool.
+
+Zeroing the sentinel also removes the O(1e6) activations it used to produce
+through six linear layers — finite in fp32, but `+inf` under fp16 autocast,
+where `0 * inf` is NaN. That makes AMP safe to try; **AMP is not enabled**, since
+it is not bit-exact and would need a full run to validate.
+
+Tests: `tests/test_masked_dnn_crop.py` (13 tests) assert bit-exact forward *and*
+backward against a reference copy of the pre-crop forward pass, on synthetic
+batches (left-packed and scattered, including all-empty) and on the real v4b
+checkpoint with real HDF5 batches.

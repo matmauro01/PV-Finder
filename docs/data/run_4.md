@@ -1,5 +1,11 @@
 # Run 4 Data (HLLHC PU200)
 
+> **Superseded for training.** The ntuples described here cut tracks at
+> `|eta| < 2.5`. The July-2026 re-production keeps the full ITk acceptance and
+> applies a uniform track selection — see
+> [run_4_all_etas](run_4_all_etas.md). This page remains the reference for the
+> converter, the resolution presets and the v4b/v5 training recipe.
+
 Simulated HLLHC ttbar + single lepton dataset at μ ≈ 200, used for training the
 next-generation PV-Finder model.
 

@@ -3011,3 +3011,111 @@ Note repo commits (gitlab ANA-IDTR main): 6dfe73d (resolution + efficiency +
 AMVF-only Fig 4.4b + corrected-only Fig 2.3), 10f769e (GNN Table 8.1 bound
 explanation, 3.0.1 comment removed, caption typo). Group-A LT comments were
 ccd2ea1. See [[ana-idtr-note-repo]].
+
+## 2026-07-31 — all-eta re-production QA; sftp rescue; loss + crop landed
+
+### Data: extended-|eta| PU200 arrives (`data/run4_all_etas/`)
+
+New QA script `src/pv_finder/diagnostics/all_etas_data_qa.py`; outputs +
+written findings in `outputs/07_31_2026_output/all_etas_qa/`. Compared
+like-for-like (601229 r16633, same 99 800 events) against the |eta|<2.5 file.
+Branch list identical; beam spot, pileup and the AMVF vertex-z distribution
+unchanged. Everything else moved:
+
+- tracks/event 921 -> 1361 (x1.48), |eta| out to 4.02, 35.3 % of tracks beyond 2.5.
+- HGTD timing coverage **3.9 % -> 28.8 %** (70-79 % flat over 2.5<|eta|<3.9, and
+  the 34.7 ps single-hit population is largely replaced by 20-25 ps). The
+  "timing not usable for the finder" negative result (note sec. 06) was reached
+  at 3.9 % coverage confined to the 2.4-2.5 sliver and no longer describes the
+  data.
+- truth vtx with nTrk>=2: 98.4 -> 115.7/evt (+17.6 %); mean truth nTrk 7.20 -> 9.66.
+- **AMVF vertices/event unchanged (101.17 -> 101.27)** but mean AMVF-vertex
+  nTracks 8.80 -> 13.40 (+52 %). AMVF attaches the forward tracks to existing
+  vertices; it gains no new seeds from them.
+
+**The old sample was contaminated, not merely eta-cut.** It carries 65.8
+tracks/event confined to exactly 2.0 <= |eta| <= 2.5 with pT down to 0.5 GeV
+(0.9 GeV everywhere else), plus |d0| out to 49 mm and sigma(d0) to 4.4 mm, incl.
+16 tracks/evt with |d0|>1 mm inside |eta|<2. The new files apply a uniform
+selection (pT>=0.9 GeV, |d0|<=1 mm, sigma(d0)<=0.35 mm, |z0|<=200 mm). The
+remote README confirms it: cuts from the ITk paper arXiv:2412.15090 table 5,
+applied at CKF reco level, giving table-6 content.
+
+**Converter limits, measured.** Full z0 scan over the 6 complete new ROOTs
+(6.43 M sub-events): global max tracks/sub-event **1066**, p99.999 = 870, and
+that is only ~12 % of the eventual pool. `--max-tracks-per-sub` defaults to 1024
+and truncation is z0-ordered (drops the highest-z0 tracks while the target keeps
+their PVs) -> **use 1536**. `--max-pv 300` is safe: max truth PV/event is 208
+over the 4.42 M events on disk.
+
+**What the forward tracks buy.** Fisher bound
+`sigma_vtx = 1/sqrt(sum 1/sigma_z0^2)` per truth vertex, central-only vs all
+tracks on the *same* vertices: gain is **0.1-0.2 % at every multiplicity** —
+sigma(z0) runs 65 um at eta=0 to ~2.8 mm at |eta|=3.7, so forward tracks carry
+~1/2000 the weight. What they add is reach: **19.2 truth vertices/evt (17.3 % of
+the nTrk>=2 denominator) have fewer than 2 central tracks** and only clear the
+threshold because of them. Their median achievable sigma is 257 um (vs 36 um for
+regular vertices) and only 46 % are localisable to better than PVF's own
+223 um vertex-vertex resolution.
+
+Consequences: (a) the efficiency denominator grows 17.6 % with the *hardest*
+vertices, so absolute efficiency will fall for PVF **and** AMVF and is not
+comparable to the published |eta|<2.5 numbers — quote both denominators;
+(b) at fixed truth nTrk the achievable resolution is now worse (x1.18 at
+nTrk 20-50 up to x1.74 at 2-3) because nTrk counts low-information forward
+tracks, so `sigma(n) = A n^-B + C` **must be refit on this sample** — neither
+`hllhc` nor `hllhc_corrected` applies, and the refit moves sigma *up* at fixed n.
+
+### sftp rescue
+
+A second recursive `sftp get -r` was overwriting already-complete files (sftp
+overwrites, it does not skip): 601229 r16633 was eaten from 6363 MB back to
+441 MB, and the three 95-101 GB 601237 files were next. Interrupted it; the live
+ControlMaster socket (`~/.ssh/config`, ControlPersist 1h) allowed a proper
+remote listing without re-auth. Remote has **4** part files, not 6 as in the old
+production; 295 GB total, of which only 31.5 GB was actually missing.
+New `scripts/fetch_run4_all_etas.sh`: rsync `--size-only --inplace --partial`,
+20 retries, then opens every ROOT with uproot and prints event counts.
+**Never use `sftp get -r` on this directory again.**
+
+### Code: loss selection + padding crop
+
+- `src/pv_finder/models/losses.py` (new): `WeightedMSELoss(y0)` with
+  `w(y) = y0/(y+y0)` and a `build_loss(configs)` factory. `train_hllhc_e2e.py`
+  now uses it in both phases and logs the loss; **default `loss_type: mse` is
+  byte-identical to previous behaviour**. Fixes a real bug: the script hardcoded
+  `nn.MSELoss()` while every HL-LHC config carried unread `use_mse_loss` /
+  `asymmetry_param` keys.
+  Motivation, measured on `PU200_corrected_h5`: peak height spans 20.5x (p5 0.34,
+  p99 6.99), so the MSE cost of missing a peak spans **50.5x** across height
+  quintiles; `y0=0.3` compresses that to 8.0x. `w(0)=1` exactly, so the
+  empty-bin gradient — and hence the fake-rate penalty — is untouched.
+  Corroborating evidence for the plateau: over v4b Phase 2, `p2_val_loss`
+  0.0330 -> 0.0261 (-21 %) while `p2_eff_step` 0.766 -> 0.761 and `p2_fpr_step`
+  1.144 -> 1.161.
+  **Not adopted as default**: it shifts the amplitude scale, so all operating
+  points need re-tuning. Run as a clean A/B.
+- `_crop_and_zero_padding` in `autoencoder_models.py`: trims the all-padding
+  tail and zeroes the -999999 sentinel before the MLP. Exactly loss-free (padded
+  slots are multiplied by mask==0 before the per-track sum) and packing-agnostic.
+  Measured **105.6 -> 77.1 ms/step (1.37x)** on an idle A100 with the real v4b
+  model at bs=128; the weighted loss costs a further +0.6 %. Zeroing the sentinel
+  also removes the O(1e6) activations that would become inf (then NaN) under
+  fp16 autocast. AMP itself is **not** enabled — not bit-exact, needs a full run
+  to validate.
+- First tests in the repo: `tests/test_losses.py` (20) and
+  `tests/test_masked_dnn_crop.py` (13, asserting bit-exact forward *and*
+  backward vs a reference copy of the pre-crop pass, including on the real v4b
+  checkpoint with real HDF5 batches). All 33 pass.
+
+### Still open before launch
+
+1. `sigma_vtx-vtx` sigmoid fit is **still** hardcoded at 60 bins
+   (`plots_pvf.py:53`, `run_eval_pvf.py:372`, `run_eval_pvf_run3.py:362`)
+   despite the 2026-07-20 diagnosis; sigma is fed back as the matching window,
+   so efficiency is ~2 pts optimistic. Fix before generating any A/B number.
+2. `DEFAULT_RESOLUTION_PRESET` is still the superseded `hllhc`
+   (`resolution_presets.py:42`).
+3. Note sec. 02_method still publishes A=0.179, B=0.727 as the fit, with the
+   open "check the residual features" NB at line 156.
+4. Refit (A,B,C) on the new sample and register a new preset before converting.
