@@ -38,7 +38,7 @@ from efficiency_res_optimized_atlas import (  # noqa: E402
     suppress_neighbor_peaks,
 )
 from plots_pvf import (  # noqa: E402
-    plot_category_counts,
+    plot_category_counts_both,
     plot_performance,
     plot_reco_vs_mu,
     plot_resolution,
@@ -530,12 +530,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     if has_mu:
         plot_reco_vs_mu(per_event, mode_label, outdir, title=t)
     ckpt = Path(args.e2e_model or args.k2h_model or "").stem
-    truth_avg = ant if has_truth else None
-    plot_category_counts(per_event, mode_label, outdir, title="",
-        eval_label=f"ckpt: {ckpt}\nintegral_threshold = {args.integral_threshold}",
-        mu_min=args.mu_min, mu_max=args.mu_max,
-        all_events=args.mu_min >= 100,
-        truth_pvs_per_evt=truth_avg)  # fmt: skip
+    plot_category_counts_both(per_event, mode_label, outdir,
+        mu_min=args.mu_min, mu_max=args.mu_max, title="",
+        eval_label=f"ckpt: {ckpt}\nintegral_threshold = {args.integral_threshold}")  # fmt: skip
     print(f"  Saved plots to: {outdir}")
 
     # fmt: off
