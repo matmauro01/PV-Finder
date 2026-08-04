@@ -339,13 +339,27 @@ it with a centroid over a window around the region maximum:
 | local centroid ±3 bins (0.12 mm) | **+5.11 %** | 106.83 |
 | local centroid ±5 bins (0.20 mm) | +6.72 % | 106.83 |
 
-**Cost: none.** The peak *list* is identical; only the positions move, so
-efficiency, fake rate and every category count are untouched. At the ±3 bin
-half-width now landing in `peak_finding.py` this removes **59 %** of the band
-excess; ±2 would remove 69 %. This is by far the best lever available and it is
+**Cost: no peaks are gained or lost.** The peak *list* is identical; only the
+positions move. Matching is position-dependent, so the categories do shift a
+little: the companion page measures **−0.34 efficiency points** at a fixed
+matching window, against **−13 % on σ_vtx-vtx**. At the ±3 bin half-width now
+landing in `peak_finding.py` this removes **59 %** of the band excess; ±2 would
+remove 69 %. This is by far the best lever available and it is
 already approved. The estimator change itself is written up in
-[peak_position_estimator](peak_position_estimator.md); the numbers here are the
-same measurement seen from the bump side.
+[peak_position_estimator](peak_position_estimator.md), which also shows it buys
+13 % on sigma_vtx-vtx and costs 0.34 efficiency points at a fixed matching
+window.
+
+> **Open discrepancy, flagged rather than papered over.** That page quotes the
+> same band as an *absolute* count and reports +1.76 → +0.01 pairs/event for the
+> same estimator change, i.e. essentially complete removal, where this page
+> measures +12.48 % → +5.11 % of the plateau, i.e. 59 %. Converted to the same
+> units with the plateau measured here (5764.5 pairs per 0.05 mm bin, 8 bins,
+> 1920 events) this page's numbers are **+3.00 → +1.23 pairs/event**. The two
+> disagree on both the starting value and the size of the reduction, so the
+> baseline conventions differ (this page subtracts the median count for
+> \|Δz\| > 3 mm). The direction and the choice of half-width are unaffected.
+> Reconcile before either number goes into the note.
 
 Caveat: this fixes the *observable*, not the underlying peak list. The surplus
 peaks are still there and still counted as fakes; they simply stop being

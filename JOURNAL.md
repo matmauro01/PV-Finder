@@ -3469,6 +3469,11 @@ remove the surplus peaks; it stops them being mis-placed into the band.
   comparison argues for it but it is untested.
 - Combined effect of the local-centroid estimator with a prominence gate is not
   measured; they act on the same peaks and will not simply add.
+- **Open discrepancy with `docs/research/peak_position_estimator.md`**, flagged
+  in both pages. It quotes the same 0.3-0.7 mm band as +1.76 -> +0.01
+  pairs/event for the estimator change (complete removal); converted to the same
+  units this analysis gives +3.00 -> +1.23 pairs/event (59%). The baseline
+  conventions differ. Reconcile before either number goes into the note.
 - Slide decks still carry "sidelobes" and "fakes are not sidelobes" language;
   listed in the doc under Downstream claims that still need revisiting.
 - `outputs/08_01_2026_output/bump_study/` still has no code and is now
