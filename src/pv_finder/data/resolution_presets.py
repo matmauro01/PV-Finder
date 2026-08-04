@@ -53,4 +53,9 @@ RESOLUTION_PRESET_SOURCES: dict[str, str] = {
     ),
 }
 
-DEFAULT_RESOLUTION_PRESET = "hllhc"
+# There is deliberately NO default preset. The right (A, B, C) depends on the
+# sample: "hllhc_corrected" for |eta|<2.5, "hllhc_alleta" for the extended-|eta|
+# re-production, "run3" for Run 3. Until 2026-08-04 the default was "hllhc",
+# which has been superseded since 2026-07-15, so any build that forgot the flag
+# silently got widths inflated by wrong-match background. Both CLIs that consume
+# these presets now require the flag explicitly.

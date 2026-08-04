@@ -39,16 +39,18 @@ MASK_VAL = -999999.0
 N_CATS = 2  # channel 0: nTracks>=2, channel 1: nTracks<2
 NTRK_THRESHOLD = 2
 
-# Resolution fit parameters live in resolution_presets.py — see that module
-# to add a new preset. CLI exposes --resolution-preset (and --a/b/c-res for
-# one-off overrides). The chosen (A, B, C) are also written to h5.attrs.
+# Resolution fit parameters live in resolution_presets.py — add new presets
+# there. CLI exposes --resolution-preset (required) and --a/b/c-res overrides;
+# the chosen (A, B, C) are written to h5.attrs. The module-level values below
+# are NaN placeholders, always overwritten by set_resolution(), so an entry
+# point that forgets produces NaN targets and fails loudly rather than
+# histograms built from the wrong resolution model.
 from pv_finder.data.resolution_presets import (  # noqa: E402
-    DEFAULT_RESOLUTION_PRESET,
     RESOLUTION_PRESET_SOURCES,
     RESOLUTION_PRESETS,
 )
 
-A_RES, B_RES, C_RES = RESOLUTION_PRESETS[DEFAULT_RESOLUTION_PRESET]
+A_RES, B_RES, C_RES = float("nan"), float("nan"), float("nan")
 
 
 def set_resolution(a_res: float, b_res: float, c_res: float) -> None:
@@ -447,8 +449,9 @@ def main() -> None:
     parser.add_argument(
         "--resolution-preset",
         choices=sorted(RESOLUTION_PRESETS),
-        default=DEFAULT_RESOLUTION_PRESET,
-        help="Named (A, B, C) preset; see resolution_presets.py.",
+        required=True,
+        help="Named (A, B, C) preset; see resolution_presets.py. Required "
+        "because a wrong one silently mis-scales the target histograms.",
     )
     parser.add_argument("--a-res", type=float, default=None,
                         help="Override A (mm).")  # fmt: skip
@@ -470,13 +473,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    a, b, c = RESOLUTION_PRESETS[args.resolution_preset]
-    if args.a_res is not None:
-        a = args.a_res
-    if args.b_res is not None:
-        b = args.b_res
-    if args.c_res is not None:
-        c = args.c_res
+    preset = RESOLUTION_PRESETS[args.resolution_preset]
+    overrides = (args.a_res, args.b_res, args.c_res)
+    a, b, c = (p if o is None else o for p, o in zip(preset, overrides))
     set_resolution(a, b, c)
     print(
         f"[root_to_h5] resolution: preset={args.resolution_preset!r} -> "

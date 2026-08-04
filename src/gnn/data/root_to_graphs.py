@@ -38,10 +38,7 @@ from gnn.data.graph_construction import (
     compute_truth_pv_heights,
     create_training_graph,
 )
-from pv_finder.data.resolution_presets import (
-    DEFAULT_RESOLUTION_PRESET,
-    RESOLUTION_PRESETS,
-)
+from pv_finder.data.resolution_presets import RESOLUTION_PRESETS
 from pv_finder.utils.constants import BIN_WIDTH_MM, PT_SCALE, PV_MIN_TRACKS
 
 TRACK_BRANCHES = [
@@ -204,10 +201,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--resolution-preset",
-        default=DEFAULT_RESOLUTION_PRESET,
+        required=True,
         choices=sorted(RESOLUTION_PRESETS),
-        help="sigma_z(n) fit constants for PV heights/significances "
-        "(default: %(default)s)",
+        help="sigma_z(n) fit constants for PV heights/significances. Required: "
+        "use 'hllhc_alleta' for the extended-|eta| re-production, "
+        "'hllhc_corrected' for |eta|<2.5, 'run3' for Run 3.",
     )
     parser.add_argument(
         "--max-events", default=None, type=int, help="Events to process (default: all)"
