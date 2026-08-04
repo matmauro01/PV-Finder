@@ -30,6 +30,7 @@ def pv_locations_updated_res(
     threshold: float = 0.01,
     integral_threshold: float = 0.5,
     min_width: int = 3,
+    min_height: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Extract PV z-positions from a 12000-bin histogram.
 
@@ -52,6 +53,10 @@ def pv_locations_updated_res(
         Minimum sum of bin values in a contiguous region to record a PV.
     min_width:
         Minimum number of consecutive above-threshold bins.
+    min_height:
+        Minimum peak amplitude (max bin value in the region) to record a PV.
+        Default 0.0 keeps all peaks; the production eval sets this to the
+        operating point (~0.03) to drop the lowest-amplitude fakes.
 
     Returns
     -------
@@ -105,7 +110,11 @@ def pv_locations_updated_res(
         if (
             targets[i] < threshold or i == len(targets) - 1 or conjoined_split
         ) and state > 0:
-            if state >= min_width and integral >= integral_threshold:
+            if (
+                state >= min_width
+                and integral >= integral_threshold
+                and targets[currentmax] >= min_height
+            ):
                 # Resize if capacity exceeded
                 if n >= cap:
                     cap += 1

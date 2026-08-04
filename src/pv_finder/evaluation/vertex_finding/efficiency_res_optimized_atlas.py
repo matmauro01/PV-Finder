@@ -9,7 +9,9 @@ PerformanceInfo = namedtuple(
 )
 
 
-def pv_locations_updated_res(targets, threshold, integral_threshold, min_width):
+def pv_locations_updated_res(
+    targets, threshold, integral_threshold, min_width, min_height=0.0
+):
     """
     Compute the z positions from the input KDE using the parsed criteria.
 
@@ -25,6 +27,10 @@ def pv_locations_updated_res(targets, threshold, integral_threshold, min_width):
 
       * min_width:
           The minimum width (in bins) of a feature - such as 2
+
+      * min_height:
+          Minimum peak amplitude (max bin value in region) to record a PV.
+          Default 0.0 keeps all peaks; production eval sets ~0.03.
 
     Returns:
       * array of float32 values corresponding to the PV z positions
@@ -83,7 +89,11 @@ def pv_locations_updated_res(targets, threshold, integral_threshold, min_width):
             # if (targets[i] < threshold or i == len(targets) - 1) and state > 0:
 
             # Record a PV only if
-            if state >= min_width and integral >= integral_threshold:
+            if (
+                state >= min_width
+                and integral >= integral_threshold
+                and targets[currentmax] >= min_height
+            ):
                 if nitems >= len(items):
                     # Dynamically resize arrays
                     items = np.resize(items, len(items) + 1)

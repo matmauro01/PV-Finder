@@ -27,6 +27,7 @@ def find_histogram_peaks(
     threshold: float = 0.01,
     integral_threshold: float = 0.5,
     min_width: int = 3,
+    min_height: float = 0.0,
 ) -> list[tuple[float, float]]:
     """Find peaks in a 12000-bin histogram using the standard PV-Finder algorithm.
 
@@ -45,6 +46,7 @@ def find_histogram_peaks(
         threshold=threshold,
         integral_threshold=integral_threshold,
         min_width=min_width,
+        min_height=min_height,
     )
 
     peaks = [(float(z), float(h)) for z, h in zip(z_pos, heights)]
