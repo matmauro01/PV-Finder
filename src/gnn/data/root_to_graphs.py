@@ -6,19 +6,25 @@ HeteroData graphs via create_training_graph.
 
 High-pileup defaults: kNN edge construction (each track connects to its
 --knn nearest truth PVs in |dz|; fully-connected mu=200 events would have
-~117k edges) and the 'hllhc' vertex-resolution preset for PV-node heights
-and edge significances. Coverage measured on this sample (2026-07-12,
-200 events): k=20 retains 99.50% of true track-PV edges.
+~117k edges). Coverage measured on the |eta|<2.5 sample (2026-07-12, 200
+events): k=20 retains 99.50% of true track-PV edges. --resolution-preset
+is REQUIRED and sets sigma_z(n) for PV-node heights and edge
+significances: use 'hllhc_alleta' for the extended-|eta| re-production
+(data/run4_all_etas), 'hllhc_corrected' for |eta|<2.5.
 
 Each graph additionally stores data['track'].truth_pv — the per-track true
 PV index (-1 if none) — so downstream evaluation stays exact even for
 tracks whose true edge was dropped by kNN selection.
 
+On flat-mu files (the held-out 601229 r16443/r16638) pass --mu-min/--mu-max
+to keep only the PU200 window; the selected entries are non-contiguous and
+are written alongside the graphs as <output>.entry_indices.npy.
+
 Usage:
     python -m gnn.data.root_to_graphs \\
-        --input data/run4/Run4_MC21_ITk/ATLAS_PVFinderData_HLLHC_mc21_14TeV_ttbar_SingleLep_PU200.root \\
-        --output data/run4/ttva_graphs/pu200_truth_k20_30k.pt \\
-        --max-events 30000
+        --input data/run4_all_etas/Run4_MC21_ITk_LatestJuly2026/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_1.root \\
+        --output data/run4_all_etas/ttva_graphs/train_shard_0.pt \\
+        --resolution-preset hllhc_alleta --max-events 20000
 """
 
 from __future__ import annotations
@@ -33,6 +39,11 @@ import uproot
 from torch_geometric.data import HeteroData
 from tqdm import tqdm
 
+from gnn.data.event_selection import (
+    iterate_entries,
+    save_entry_indices,
+    select_entries,
+)
 from gnn.data.graph_augmentation import AugmentationParams, augment_event
 from gnn.data.graph_construction import (
     compute_truth_pv_heights,
@@ -152,29 +163,54 @@ def build_graphs_from_root(
     start_event: int = 0,
     chunk_size: int = 500,
     augmenter: tuple[AugmentationParams, np.random.Generator, float] | None = None,
-) -> list[HeteroData]:
-    """Build graphs for all (or max_events) events of a ROOT ntuple."""
+    entry_stop: int | None = None,
+    mu_min: float | None = None,
+    mu_max: float | None = None,
+) -> tuple[list[HeteroData], np.ndarray]:
+    """Build graphs for the selected events of a ROOT ntuple.
+
+    Without a mu cut this scans ``[start_event, start_event + max_events)``
+    as before. With one, ``max_events`` caps the number of *selected*
+    events and ``entry_stop`` bounds the scan.
+
+    Returns:
+        (graphs, entry_indices) — the absolute ROOT entry of each graph.
+    """
     graphs: list[HeteroData] = []
     tree = uproot.open(input_path)[tree_name]
-    n_total = tree.num_entries
-    entry_stop = (
-        n_total if max_events is None else min(n_total, start_event + max_events)
-    )
+    n_total = int(tree.num_entries)
+    has_mu_cut = mu_min is not None or mu_max is not None
+    if entry_stop is None:
+        entry_stop = (
+            n_total
+            if (max_events is None or has_mu_cut)
+            else min(n_total, start_event + max_events)
+        )
 
-    pbar = tqdm(total=entry_stop - start_event)
-    for chunk in tree.iterate(
-        TRACK_BRANCHES + TRUTH_BRANCHES,
+    entries = select_entries(
+        tree,
         entry_start=start_event,
         entry_stop=entry_stop,
-        step_size=chunk_size,
+        mu_min=mu_min,
+        mu_max=mu_max,
+        max_events=max_events,
+    )
+    print(
+        f"Scanned entries [{start_event}, {min(entry_stop, n_total)}); "
+        f"{len(entries)} events selected"
+        + ("" if not has_mu_cut else f" (mu in [{mu_min}, {mu_max}])")
+    )
+
+    pbar = tqdm(total=len(entries))
+    for event in iterate_entries(
+        tree, TRACK_BRANCHES + TRUTH_BRANCHES, entries, step_size=chunk_size
     ):
-        for event in chunk:
-            graphs.append(build_graph_from_event(event, knn, res_params, augmenter))
-            pbar.update(1)
+        graphs.append(build_graph_from_event(event, knn, res_params, augmenter))
+        pbar.update(1)
     pbar.close()
 
     print(f"Built {len(graphs)} graphs.")
-    return graphs
+    return graphs, entries
 
 
 def _parse_args() -> argparse.Namespace:
@@ -227,6 +263,19 @@ def _parse_args() -> argparse.Namespace:
         help="Per-event probability of augmentation (default: %(default)s)",
     )
     parser.add_argument("--seed", default=42, type=int, help="Augmentation RNG seed")
+    parser.add_argument(
+        "--entry-stop",
+        default=None,
+        type=int,
+        help="One past the last entry to SCAN (default: end of file)",
+    )
+    parser.add_argument(
+        "--mu-min",
+        default=None,
+        type=float,
+        help="Lower ActualNumOfInt bound; required on the flat-mu held-out files",
+    )
+    parser.add_argument("--mu-max", default=None, type=float, help="Upper mu bound")
     return parser.parse_args()
 
 
@@ -249,7 +298,7 @@ def main() -> None:
         f"'{args.resolution_preset}' (A, B, C) = {res_params}, "
         f"augment={'off' if augmenter is None else f'p={args.aug_prob}'}"
     )
-    graphs = build_graphs_from_root(
+    graphs, entries = build_graphs_from_root(
         args.input,
         args.tree,
         knn,
@@ -257,12 +306,20 @@ def main() -> None:
         max_events=args.max_events,
         start_event=args.start_event,
         augmenter=augmenter,
+        entry_stop=args.entry_stop,
+        mu_min=args.mu_min,
+        mu_max=args.mu_max,
     )
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(graphs, out)
+    # Record which ROOT entries these are: with a mu cut the selection is
+    # non-contiguous, so nothing downstream may assume start_event + i.
+    idx_path = out.with_suffix(".entry_indices.npy")
+    save_entry_indices(idx_path, entries)
     print(f"Saved {len(graphs)} graphs to {out}")
+    print(f"Saved entry indices to {idx_path}")
 
 
 if __name__ == "__main__":

@@ -35,6 +35,7 @@ import torch
 import uproot
 from tqdm import tqdm
 
+from gnn.data.event_selection import iterate_entries, resolve_entry_indices
 from pv_finder.data.resolution_presets import RESOLUTION_PRESETS
 
 QUANTILES = np.linspace(0.0, 1.0, 101)
@@ -212,8 +213,14 @@ def oracle_rows(graphs, root_events, window: float = 1.0) -> dict:
     return {"all_peaks": _summary(totals), "drop_empty": _summary(totals_drop)}
 
 
-def part_b(args, device: torch.device, out_dir: Path, aug: dict) -> None:
-    """Re-run PVF+peaks on a subset: per-peak sigmas + saved histograms."""
+def part_b(
+    args, device: torch.device, out_dir: Path, aug: dict, entries: np.ndarray
+) -> None:
+    """Re-run PVF+peaks on a subset: per-peak sigmas + saved histograms.
+
+    *entries* are the ROOT entries the chain graphs were built from; the
+    first ``--sigma-events`` of them are re-processed.
+    """
     from gnn.data.pu200_chain_graphs import build_pvf_model
     from pv_finder.data.run3_io import Run3Event
     from pv_finder.evaluation.vertex_finding.run_eval_pvf_run3 import (
@@ -227,38 +234,38 @@ def part_b(args, device: torch.device, out_dir: Path, aug: dict) -> None:
         [args.hidden_nodes] * 5,
     )  # fmt: skip
     tree = uproot.open(args.root)["PVFinderData"]
-    stop = args.entry_start + args.sigma_events
+    subset = entries[: args.sigma_events]
 
     hists, sig_matched, sig_junk = [], [], []
     branches = ["RecoTrack_z0", "RecoTrack_d0", "RecoTrack_ErrD0", "RecoTrack_ErrZ0",
                 "RecoTrack_ErrD0Z0", "TruthVertex_z", "TruthVertex_nTracks"]  # fmt: skip
-    for chunk in tree.iterate(
-        branches, step_size=100, entry_start=args.entry_start, entry_stop=stop
-    ):
-        for event in tqdm(chunk, desc="Part B", leave=False):
-            z0 = ak.to_numpy(event["RecoTrack_z0"]).astype(np.float32)
-            ev = Run3Event(
-                z0=z0,
-                d0=ak.to_numpy(event["RecoTrack_d0"]).astype(np.float32),
-                d0_err=ak.to_numpy(event["RecoTrack_ErrD0"]).astype(np.float32),
-                z0_err=ak.to_numpy(event["RecoTrack_ErrZ0"]).astype(np.float32),
-                d0_z0_cov=ak.to_numpy(event["RecoTrack_ErrD0Z0"]).astype(np.float32),
-                amvf_z=np.array([]), amvf_ntrks=np.array([]), beam_z=0.0,
-                mu=None, event_idx=0, n_tracks=len(z0),
-            )  # fmt: skip
-            hist = run_inference(build_subevent_inputs(ev), device, e2e=pvf)
-            hists.append(np.asarray(hist, dtype=np.float32))
-            pz, _, _, ps = pv_locations_updated_res(
-                hist, args.peak_threshold, args.integral_threshold,
-                args.min_width, args.min_height,
-            )  # fmt: skip
-            tz = ak.to_numpy(event["TruthVertex_z"]).astype(np.float64)
-            tn = ak.to_numpy(event["TruthVertex_nTracks"]).astype(np.int64)
-            tz = tz[tn >= 2]
-            p_idx, _ = greedy_match(pz.astype(np.float64), tz, 0.5)
-            junk = np.setdiff1d(np.arange(len(pz)), p_idx)
-            sig_matched.append(ps[p_idx])
-            sig_junk.append(ps[junk])
+    for event in tqdm(
+        iterate_entries(tree, branches, subset, step_size=100),
+        total=len(subset), desc="Part B", leave=False,
+    ):  # fmt: skip
+        z0 = ak.to_numpy(event["RecoTrack_z0"]).astype(np.float32)
+        ev = Run3Event(
+            z0=z0,
+            d0=ak.to_numpy(event["RecoTrack_d0"]).astype(np.float32),
+            d0_err=ak.to_numpy(event["RecoTrack_ErrD0"]).astype(np.float32),
+            z0_err=ak.to_numpy(event["RecoTrack_ErrZ0"]).astype(np.float32),
+            d0_z0_cov=ak.to_numpy(event["RecoTrack_ErrD0Z0"]).astype(np.float32),
+            amvf_z=np.array([]), amvf_ntrks=np.array([]), beam_z=0.0,
+            mu=None, event_idx=0, n_tracks=len(z0),
+        )  # fmt: skip
+        hist = run_inference(build_subevent_inputs(ev), device, e2e=pvf)
+        hists.append(np.asarray(hist, dtype=np.float32))
+        pz, _, _, ps = pv_locations_updated_res(
+            hist, args.peak_threshold, args.integral_threshold,
+            args.min_width, args.min_height,
+        )  # fmt: skip
+        tz = ak.to_numpy(event["TruthVertex_z"]).astype(np.float64)
+        tn = ak.to_numpy(event["TruthVertex_nTracks"]).astype(np.int64)
+        tz = tz[tn >= 2]
+        p_idx, _ = greedy_match(pz.astype(np.float64), tz, 0.5)
+        junk = np.setdiff1d(np.arange(len(pz)), p_idx)
+        sig_matched.append(ps[p_idx])
+        sig_junk.append(ps[junk])
 
     sig_matched = np.concatenate(sig_matched)
     sig_junk = np.concatenate(sig_junk)
@@ -278,18 +285,23 @@ def main() -> None:
 
     graphs = torch.load(args.graphs, weights_only=False)
     tree = uproot.open(args.root)["PVFinderData"]
-    stop = args.entry_start + len(graphs)
+    # The chain builder may have applied a mu cut, making its entry set
+    # non-contiguous; pairing graph i with entry_start + i would then align
+    # peaks against the wrong truth event without raising anything.
+    entries = resolve_entry_indices(
+        tree, args.entry_indices, args.entry_start, len(graphs)
+    )
     root_events = []
-    for chunk in tree.iterate(
-        ["TruthVertex_z", "TruthVertex_nTracks"],
-        step_size=500, entry_start=args.entry_start, entry_stop=stop,
-    ):  # fmt: skip
-        for event in chunk:
-            root_events.append((
-                ak.to_numpy(event["TruthVertex_z"]).astype(np.float64),
-                ak.to_numpy(event["TruthVertex_nTracks"]).astype(np.int64),
-            ))  # fmt: skip
-    assert len(root_events) == len(graphs)
+    for event in iterate_entries(
+        tree, ["TruthVertex_z", "TruthVertex_nTracks"], entries, step_size=500
+    ):
+        root_events.append((
+            ak.to_numpy(event["TruthVertex_z"]).astype(np.float64),
+            ak.to_numpy(event["TruthVertex_nTracks"]).astype(np.int64),
+        ))  # fmt: skip
+    if len(root_events) != len(graphs):
+        msg = f"read {len(root_events)} ROOT events for {len(graphs)} graphs"
+        raise RuntimeError(msg)
 
     out: dict = {"config": vars(args)}
     res_params = RESOLUTION_PRESETS[args.resolution_preset]
@@ -300,7 +312,7 @@ def main() -> None:
         device = torch.device(
             f"cuda:{args.device_id}" if torch.cuda.is_available() else "cpu"
         )
-        part_b(args, device, out_dir, aug)
+        part_b(args, device, out_dir, aug, entries)
 
     with open(out_dir / "gap_decomposition.json", "w") as f:
         json.dump(out, f, indent=2)
@@ -328,9 +340,29 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--graphs", required=True, type=str)
     p.add_argument("--root", required=True, type=str)
-    p.add_argument("--entry-start", default=28500, type=int)
+    p.add_argument(
+        "--entry-start",
+        default=0,
+        type=int,
+        help="Legacy contiguous fallback; ignored when --entry-indices is given",
+    )
+    p.add_argument(
+        "--entry-indices",
+        default=None,
+        type=str,
+        help="entry_indices.npy written by the chain builder. REQUIRED whenever "
+        "the graphs were built with a mu cut, otherwise truth is read from the "
+        "wrong ROOT entries.",
+    )
     p.add_argument("-o", "--output-dir", required=True, type=str)
-    p.add_argument("--resolution-preset", default="hllhc", type=str)
+    p.add_argument(
+        "--resolution-preset",
+        required=True,
+        choices=sorted(RESOLUTION_PRESETS),
+        help="Must match the preset the truth graphs are built with "
+        "('hllhc_alleta' for the extended-|eta| re-production): it sets the "
+        "recipe heights the measured height ratios are taken against.",
+    )
     # Part B (sigma measurement) options
     p.add_argument("--sigma-events", default=0, type=int)
     p.add_argument("--pvf-weights", default=None, type=str)

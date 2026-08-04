@@ -32,6 +32,7 @@ import torch
 import uproot
 from tqdm import tqdm
 
+from gnn.data.event_selection import iterate_entries, resolve_entry_indices
 from gnn.evaluation.classification import get_top_k_associations
 from gnn.models.ttva_gat import TTVAGATModel
 
@@ -75,61 +76,68 @@ def main() -> None:  # noqa: PLR0912
 
     graphs = torch.load(args.graphs, weights_only=False)
     tree = uproot.open(args.root)["PVFinderData"]
-    stop = args.entry_start + len(graphs)
+    # A mu-filtered chain build has a non-contiguous entry set, so graph i is
+    # not entry_start + i; read the builder's index file when there is one.
+    entries = resolve_entry_indices(
+        tree, args.entry_indices, args.entry_start, len(graphs)
+    )
 
     n_events = 0
     gnn_correct = {t: 0 for t in THRESHOLDS}
     amvf_correct = 0
     idx = 0
-    for chunk in tree.iterate(
-        ["TruthVertex_type", "RecoVertex_assocTracks", "RecoTrack_pT"],
-        step_size=500, entry_start=args.entry_start, entry_stop=stop,
+    for event in tqdm(
+        iterate_entries(
+            tree,
+            ["TruthVertex_type", "RecoVertex_assocTracks", "RecoTrack_pT"],
+            entries, step_size=500,
+        ),
+        total=len(entries), leave=False,
     ):  # fmt: skip
-        for event in tqdm(chunk, leave=False):
-            graph = graphs[idx]
-            idx += 1
-            pv_type = ak.to_numpy(event["TruthVertex_type"])
-            hs_candidates = np.nonzero(pv_type == 1)[0]
-            if len(hs_candidates) != 1:
-                continue
-            hs_idx = int(hs_candidates[0])
-            n_events += 1
+        graph = graphs[idx]
+        idx += 1
+        pv_type = ak.to_numpy(event["TruthVertex_type"])
+        hs_candidates = np.nonzero(pv_type == 1)[0]
+        if len(hs_candidates) != 1:
+            continue
+        hs_idx = int(hs_candidates[0])
+        n_events += 1
 
-            track_truth = graph["track"].truth_pv.numpy()
-            pt = graph["track"].x[:, 7].numpy()
-            n_tracks = len(pt)
+        track_truth = graph["track"].truth_pv.numpy()
+        pt = graph["track"].x[:, 7].numpy()
+        n_tracks = len(pt)
 
-            # --- GNN chain ---
-            with torch.no_grad():
-                logits = model(graph.to(device))
-            scores = torch.sigmoid(logits).cpu().numpy()
-            edge_index = graph[("track", "to", "pv")].edge_index.cpu().numpy()
-            for t in THRESHOLDS:
-                sel = get_top_k_associations(scores, edge_index, k=1, threshold=t)
-                matched: list[np.ndarray] = [
-                    np.empty(0, np.int64) for _ in range(graph["pv"].num_nodes)
-                ]
-                sel_tracks = edge_index[0][sel]
-                sel_pvs = edge_index[1][sel]
-                order = np.argsort(sel_pvs, kind="stable")
-                bounds = np.searchsorted(
-                    sel_pvs[order], np.arange(graph["pv"].num_nodes + 1)
-                )
-                for p in range(graph["pv"].num_nodes):
-                    matched[p] = np.unique(sel_tracks[order[bounds[p] : bounds[p + 1]]])
-                lead = leading_vertex(matched, pt)
-                if lead >= 0 and dominant_truth(matched[lead], track_truth) == hs_idx:
-                    gnn_correct[t] += 1
+        # --- GNN chain ---
+        with torch.no_grad():
+            logits = model(graph.to(device))
+        scores = torch.sigmoid(logits).cpu().numpy()
+        edge_index = graph[("track", "to", "pv")].edge_index.cpu().numpy()
+        for t in THRESHOLDS:
+            sel = get_top_k_associations(scores, edge_index, k=1, threshold=t)
+            matched: list[np.ndarray] = [
+                np.empty(0, np.int64) for _ in range(graph["pv"].num_nodes)
+            ]
+            sel_tracks = edge_index[0][sel]
+            sel_pvs = edge_index[1][sel]
+            order = np.argsort(sel_pvs, kind="stable")
+            bounds = np.searchsorted(
+                sel_pvs[order], np.arange(graph["pv"].num_nodes + 1)
+            )
+            for p in range(graph["pv"].num_nodes):
+                matched[p] = np.unique(sel_tracks[order[bounds[p] : bounds[p + 1]]])
+            lead = leading_vertex(matched, pt)
+            if lead >= 0 and dominant_truth(matched[lead], track_truth) == hs_idx:
+                gnn_correct[t] += 1
 
-            # --- AMVF ---
-            pt_full = ak.to_numpy(event["RecoTrack_pT"]).astype(np.float64)
-            amvf_matched = []
-            for vertex_tracks in event["RecoVertex_assocTracks"]:
-                tr = ak.to_numpy(vertex_tracks).astype(np.int64)
-                amvf_matched.append(np.unique(tr[(tr >= 0) & (tr < n_tracks)]))
-            lead = leading_vertex(amvf_matched, pt_full)
-            if lead >= 0 and dominant_truth(amvf_matched[lead], track_truth) == hs_idx:
-                amvf_correct += 1
+        # --- AMVF ---
+        pt_full = ak.to_numpy(event["RecoTrack_pT"]).astype(np.float64)
+        amvf_matched = []
+        for vertex_tracks in event["RecoVertex_assocTracks"]:
+            tr = ak.to_numpy(vertex_tracks).astype(np.int64)
+            amvf_matched.append(np.unique(tr[(tr >= 0) & (tr < n_tracks)]))
+        lead = leading_vertex(amvf_matched, pt_full)
+        if lead >= 0 and dominant_truth(amvf_matched[lead], track_truth) == hs_idx:
+            amvf_correct += 1
 
     out = {
         "n_events": n_events,
@@ -149,7 +157,19 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--graphs", required=True, type=str)
     p.add_argument("--root", required=True, type=str)
-    p.add_argument("--entry-start", default=28500, type=int)
+    p.add_argument(
+        "--entry-start",
+        default=0,
+        type=int,
+        help="Legacy contiguous fallback; ignored when --entry-indices is given",
+    )
+    p.add_argument(
+        "--entry-indices",
+        default=None,
+        type=str,
+        help="entry_indices.npy written by the chain builder. REQUIRED whenever "
+        "the graphs were built with a mu cut.",
+    )
     p.add_argument("-w", "--model-weights", required=True, type=str)
     p.add_argument("-d", "--device-id", required=True, type=int)
     p.add_argument("-o", "--output-dir", required=True, type=str)
