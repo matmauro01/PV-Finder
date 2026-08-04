@@ -3478,3 +3478,71 @@ remove the surplus peaks; it stops them being mis-placed into the band.
   listed in the doc under Downstream claims that still need revisiting.
 - `outputs/08_01_2026_output/bump_study/` still has no code and is now
   contradicted on the height-floor claim. Retired.
+
+---
+
+## 2026-08-04 — local-centroid position estimator + peak-finder operating point
+
+Two things: the approved position-estimator change (commits `346d910`,
+`6845415`), and the operating-point scan that follows it. Numbers in
+`outputs/08_04_2026_output/peakfinder_operating_point/`, write-up in
+`docs/research/peak_position_estimator.md`.
+
+**Method.** Dumped 7680 held-out µ-window events per file from r16443/r16638 by
+pre-reading `ActualNumOfInt` and running inference only on selected entries
+(~13x cheaper than a linear scan, 6 ms/evt). Verified the dump reproduces the
+production eval bit-for-bit, and the region scanner + matcher used for the
+sweeps against `pv_locations_updated_res` / `compare_res_reco` before taking any
+result from them. Selection on half A, reporting on half B; the two agree to
+0.07 efficiency points at the chosen point, so nothing was overfitted.
+
+**Established, not assumed:** the v6 held-out eval ran with
+`integral_threshold = 0.2`, not the 0.5 CLI default. Recovered by matching its
+stored per-event peak lists exactly (30/30 events). Every earlier number on this
+sample should be read with that in mind.
+
+**Estimator.** Local centroid over max ± 3 bins, clipped to the region.
+Core residual IQR sigma 46.19 -> 44.41 um (-3.85 +- 0.05 %, paired bootstrap,
+36 sigma), sigma_vtx-vtx 0.2403 -> 0.2091 mm, position bias +2.9 -> +0.5 um.
+Costs 0.34 efficiency points at a fixed window, **all of it merge-credit** —
+cleanly reconstructed truth is unchanged at -0.013/evt. Unclipped windows were
+measured and rejected: best band numbers, but sigma_vtx-vtx degrades to 0.2629,
+worse than baseline. Argmax buys nothing on the core width (bin quantisation
+cancels the gain).
+
+**Operating point.** Recommended `--integral-threshold 0.30 --min-height 0.03`
+with the local centroid. On the reporting half: Eff 0.8699, 16.16 fake/evt,
+sigma 0.2140 mm, core 42.98 um, against production 0.8805 / 21.55 / 0.2405 /
+46.21. The fake reduction costs 0.151 efficiency points per fake/event removed,
+inside the stated 0.2 budget; the next step out (integral 0.5, height 0.05)
+costs 0.257 and is not worth taking.
+
+**The GBT gate does not transfer.** Judged with the label it was trained on
+(within 0.5 mm of any truth vertex), the saved v4b `gbt_hist_model` still ranks
+well on v6 — AUC 0.9494 vs the 0.9593 quoted — but its *calibration* has moved:
+at the documented thr 0.3 it removes **7.4 %** of fakes on v6, not 38 %.
+Retraining the identical model on v6 buys AUC 0.9535, i.e. +0.0035, so the model
+is fine and the threshold is what moved. At matched real-kept it is only
+marginally better than a one-parameter height floor. Recommendation: do not
+deploy it as-is and do not retrain blind; the deterministic levers reach the
+same trade without the model dependency.
+
+**Two eval conventions worth flagging.**
+1. The eval feeds its own fitted sigma_vtx-vtx back in as the matching window.
+   A 13 % better sigma therefore buys a 13 % tighter window and the printed
+   efficiency drops 0.8845 -> 0.8652 — 1.9 of those 1.93 points are the window,
+   not the estimator. Any estimator A/B must fix the window.
+2. The band-excess discrepancy between this page and the bump page was
+   reconciled by measurement: both are all-pairs, neither is conditioned, and
+   the entire gap is the plateau convention. The |dz| density is not flat
+   (slope -0.65 pairs/evt/mm over 1.2-6 mm), so a far-plateau median taken at
+   |dz| > 3 mm sits 4.5 % below the local baseline at 0.5 mm — exactly the
+   11.85 - 7.01 = 4.84 point offset. Also found: the median-plateau convention
+   is not robust to quantised positions (argmax reports +25.29 %, an artefact of
+   the 0.04/0.05 mm beat).
+
+**Deliberately not done.** The library default stays `centroid_halfwidth=0`, so
+the GNN graph builders and all diagnostics are untouched — the deployed TTVA
+checkpoints were trained on these positions and `pv_sigmas`, and moving them
+needs its own A/B. `run_eval_pvf.py` was not wired up either; it carried
+unrelated uncommitted GBT work at the time.

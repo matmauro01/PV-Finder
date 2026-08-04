@@ -350,16 +350,29 @@ already approved. The estimator change itself is written up in
 13 % on sigma_vtx-vtx and costs 0.34 efficiency points at a fixed matching
 window.
 
-> **Open discrepancy, flagged rather than papered over.** That page quotes the
-> same band as an *absolute* count and reports +1.76 → +0.01 pairs/event for the
-> same estimator change, i.e. essentially complete removal, where this page
-> measures +12.48 % → +5.11 % of the plateau, i.e. 59 %. Converted to the same
-> units with the plateau measured here (5764.5 pairs per 0.05 mm bin, 8 bins,
-> 1920 events) this page's numbers are **+3.00 → +1.23 pairs/event**. The two
-> disagree on both the starting value and the size of the reduction, so the
-> baseline conventions differ (this page subtracts the median count for
-> \|Δz\| > 3 mm). The direction and the choice of half-width are unaffected.
-> Reconcile before either number goes into the note.
+> **Discrepancy resolved 2026-08-04 — it is the baseline convention, not a bug.**
+> Both definitions were re-run on the same 7680 held-out events and the same peak
+> sets. Both are **all-pairs**; neither is conditioned on matched peaks. This
+> page's convention reproduces as **+11.85 % → +4.48 %** there, against the
+> +12.48 % → +5.11 % published here on 1920 events — agreement within the sample
+> difference. The companion page's smaller starting value (+7.01 %, +1.76
+> pairs/evt) comes entirely from its baseline: it fits a straight line to the
+> |Δz| density over 1.2–6 mm and extrapolates into the band, where this page
+> takes the median count for |Δz| > 3 mm.
+>
+> The density is not flat. Measured: 61.65 pairs/evt/mm at 1.0–1.5 mm falling to
+> 59.77 at 4.5–6.0; the fitted line predicts **62.67** at 0.5 mm against the
+> **59.95** far-plateau median. That 4.5 % is exactly the 11.85 − 7.01 = 4.84
+> points between the two. **Quote this page's number in the note** — it is the
+> plateau the resolution plot shows — but record that it is biased high by ~4.5 %
+> by the residual slope, and do not mix the two conventions in one table.
+>
+> One caveat found while reconciling: the median-plateau convention is **not
+> robust to quantised positions**. For the argmax variant (positions on the
+> 0.04 mm grid, histogram bins 0.05 mm) the 0.2 mm beat makes the median land on
+> an arbitrary phase and returns +25.29 %, an artefact; the fitted baseline gives
+> −1.25 %. Use the fitted baseline for estimator comparisons.
+> Details: [peak_position_estimator](peak_position_estimator.md#two-band-excess-conventions-reconciled).
 
 Caveat: this fixes the *observable*, not the underlying peak list. The surplus
 peaks are still there and still counted as fakes; they simply stop being

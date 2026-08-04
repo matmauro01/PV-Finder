@@ -41,7 +41,16 @@ production σ_vtx-vtx). Letting the window float with each variant's own fitted 
 would let a variant buy efficiency by degrading its resolution — see
 [the window coupling](#the-window-coupling-caveat).
 
-| | core σ (µm) | IQR σ (µm) | mean bias (µm) | efficiency | Δeff (pts) | surplus/evt | σ_vtx-vtx (mm) | band excess (pairs/evt) | satellite ratio |
+> **Read the band-excess column with its convention.** It is the *local-baseline*
+> band excess defined [below](#two-band-excess-conventions-reconciled) — a
+> straight line fitted to the |Δz| density over 1.2–6 mm and extrapolated into
+> the band. It is **not** the number
+> [pairwise_dz_bump](pairwise_dz_bump.md) quotes, which subtracts a flat plateau
+> taken at |Δz| > 3 mm. Both are all-pairs; they differ by a fixed +4.8
+> percentage points because the density is not flat. **Quote the bump page's
+> number in the note**; this column exists to rank variants within this table.
+
+| | core σ (µm) | IQR σ (µm) | mean bias (µm) | efficiency | Δeff (pts) | surplus/evt | σ_vtx-vtx (mm) | band excess, local baseline (pairs/evt) | satellite ratio |
 |---|---|---|---|---|---|---|---|---|---|
 | **(a) full-region weighted mean** (baseline) | 42.7 | 46.19 | **+2.9** | 0.8811 | — | 22.21 | 0.2403 | +1.76 | 1.357 |
 | (b) local centroid ±2, clipped | 40.7 | 44.43 | +0.0 | 0.8772 | −0.39 | 22.22 | 0.2103 | −0.33 | 1.220 |
@@ -55,6 +64,53 @@ would let a variant buy efficiency by degrading its resolution — see
 | (c) local centroid ±5, **unclipped** | 42.7 | 46.5 | −0.6 | 0.8750 | −0.61 | 22.25 | 0.3312 | −1.95 | 1.116 |
 | (d) 3-point parabolic about the max | **40.3** | **44.28** | −0.4 | 0.8765 | −0.46 | 22.23 | 0.2338 | −0.80 | 1.185 |
 | (e) pure argmax bin | 42.7 | 47.05 | −0.4 | 0.8762 | −0.49 | 22.25 | 0.2307 | −0.31 | 1.185 |
+
+## Two band-excess conventions, reconciled
+
+This page and [pairwise_dz_bump](pairwise_dz_bump.md) reported different band
+numbers for the same estimator change. Both were run again on the *same* 7680
+events and the *same* peak sets:
+
+| | far-plateau (bump page) | | local baseline (this page) | |
+|---|---|---|---|---|
+| | % of plateau | pairs/evt | % of baseline | pairs/evt |
+| full-region weighted mean | **+11.85** | +2.842 | **+7.01** | +1.758 |
+| local centroid ±2, clipped | +3.14 | +0.755 | −1.32 | −0.331 |
+| **local centroid ±3, clipped** | **+4.48** | +1.079 | **+0.03** | +0.008 |
+| local centroid ±4, clipped | +5.58 | +1.341 | +0.97 | +0.245 |
+| local centroid ±5, clipped | +6.47 | +1.551 | +1.58 | +0.396 |
+| local centroid ±3, unclipped | +0.76 | +0.182 | −3.67 | −0.922 |
+| 3-point parabolic | +1.48 | +0.354 | −3.16 | −0.795 |
+| pure argmax bin | +25.29 † | +4.918 † | −1.25 | −0.308 |
+
+**There is no bug and no conditioning difference.** Both metrics run over *all*
+reco–reco pairs; neither is conditioned on matched peaks (the conditional
+surplus-around-matched observable on this page is the separate *satellite ratio*
+column). Reproducing the bump page's convention here gives +11.85 % → +4.48 %,
+against its published +12.48 % → +5.11 % on 1920 events — agreement within the
+sample difference.
+
+The whole gap is the baseline. The |Δz| density is **not flat**, contrary to what
+a "plateau" implies:
+
+| \|Δz\| (mm) | 0.3–0.7 | 1.0–1.5 | 2.0–3.0 | 3.0–4.5 | 4.5–6.0 |
+|---|---|---|---|---|---|
+| pairs/evt/mm | 67.06 | 61.65 | 61.12 | 60.14 | 59.77 |
+
+A straight line fitted over 1.2–6 mm has slope −0.651 pairs/evt/mm and predicts
+**62.67** at 0.5 mm, where the median over |Δz| > 3 mm gives **59.95** — 4.5 %
+lower. That offset is the 11.85 − 7.01 = 4.84 points between the two columns.
+Neither convention is wrong; they must not be mixed, and the note should carry
+one. Use the bump page's, because it is the plateau the resolution plot actually
+shows — while recording that it is biased high by ~4.5 % from the residual slope.
+
+† **The far-plateau convention is not robust to quantised positions.** Argmax
+emits positions on the 0.04 mm bin grid, so |Δz| lands only on multiples of
+0.04 mm while the histogram bins are 0.05 mm — a 0.2 mm beat that modulates the
+counts. A *median* plateau lands on an arbitrary phase of that comb and returns
++25.29 %, which is an artefact. The fitted-density baseline averages it out
+(−1.25 %). This does not affect any continuous-position variant, but it is a
+reason not to use the median convention when comparing estimators.
 
 **Core σ** is a Gaussian-core-plus-flat-background fit to the truth-matched
 residual `z_reco − z_truth` over ±0.4 mm (2.5 µm bins). **IQR σ** is
