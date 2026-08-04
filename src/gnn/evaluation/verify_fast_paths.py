@@ -39,30 +39,45 @@ from gnn.models.ttva_gat import TTVAGATModel
 from pv_finder.utils.peak_finding import pv_locations_updated_res
 from pv_finder.utils.peak_finding_fast import pv_locations_updated_res_fast
 
-PEAK_PARAMS = dict(
-    threshold=1e-2, integral_threshold=0.40, min_width=3, min_height=0.03
-)
 
+def verify_peaks(hists_path: str, peak_params: dict) -> dict:
+    """Bit-exactness + timing of the numba peak finder on real histograms.
 
-def verify_peaks(hists_path: str) -> dict:
-    """Bit-exactness + timing of the numba peak finder on real histograms."""
+    The two implementations are separate transcriptions of the same scan, so
+    any change to pv_locations_updated_res must be mirrored in
+    peak_finding_fast.py — this check is what catches a one-sided edit.
+    """
     hists = np.load(hists_path)["hists"]
-    pv_locations_updated_res_fast(hists[0], **PEAK_PARAMS)  # JIT warmup
+    pv_locations_updated_res_fast(hists[0], **peak_params)  # JIT warmup
 
     t_legacy, t_fast = [], []
     n_diff = 0
-    for h in tqdm(hists, desc="peaks"):
+    first_diff: dict = {}
+    for i, h in enumerate(tqdm(hists, desc="peaks")):
         t0 = time.perf_counter()
-        legacy = pv_locations_updated_res(h, **PEAK_PARAMS)
+        legacy = pv_locations_updated_res(h, **peak_params)
         t1 = time.perf_counter()
-        fast = pv_locations_updated_res_fast(h, **PEAK_PARAMS)
+        fast = pv_locations_updated_res_fast(h, **peak_params)
         t2 = time.perf_counter()
         t_legacy.append(t1 - t0)
         t_fast.append(t2 - t1)
         if not all(np.array_equal(a, b) for a, b in zip(legacy, fast)):
             n_diff += 1
+            if not first_diff:
+                first_diff = {
+                    "event": i,
+                    "n_peaks_legacy": int(len(legacy[0])),
+                    "n_peaks_fast": int(len(fast[0])),
+                    "max_abs_dz_mm": (
+                        float(np.abs(legacy[0] - fast[0]).max())
+                        if len(legacy[0]) == len(fast[0]) and len(legacy[0])
+                        else None
+                    ),
+                }
 
     result = {
+        "peak_params": peak_params,
+        "first_difference": first_diff,
         "n_events": len(hists),
         "n_events_differing": int(n_diff),
         "bit_exact": n_diff == 0,
@@ -148,9 +163,16 @@ def main() -> None:
         else "cpu"
     )
 
+    peak_params = dict(
+        threshold=args.peak_threshold,
+        integral_threshold=args.integral_threshold,
+        min_width=args.min_width,
+        min_height=args.min_height,
+    )
+
     report: dict = {}
     if args.hists:
-        report["peak_finder"] = verify_peaks(args.hists)
+        report["peak_finder"] = verify_peaks(args.hists, peak_params)
         p = report["peak_finder"]
         print(f"peaks: bit_exact={p['bit_exact']} "
               f"({p['n_events_differing']}/{p['n_events']} differ), "
@@ -182,6 +204,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--weights", default=None, type=str, help="GNN weights .pyt")
     p.add_argument("-d", "--device-id", default=0, type=int)
     p.add_argument("-o", "--output-dir", required=True, type=str)
+    # Peak operating point: verify at the point actually deployed, since
+    # bit-exactness can depend on which cuts are active.
+    p.add_argument("--peak-threshold", default=1e-2, type=float)
+    p.add_argument("--integral-threshold", default=0.40, type=float)
+    p.add_argument("--min-width", default=3, type=int)
+    p.add_argument("--min-height", default=0.03, type=float)
     return p.parse_args()
 
 
