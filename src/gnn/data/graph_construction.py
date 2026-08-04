@@ -254,14 +254,15 @@ def create_training_graph(
         )
     )
 
-    truth_set = set(zip(truth_track_indices_all, truth_pv_indices_all))
-    truth_edges = np.array(
-        [
-            1 if (t, p) in truth_set else 0
-            for t, p in zip(track_indices_flat, pv_indices_flat)
-        ],
-        dtype=np.int64,
-    )
+    # Label edges by (track, pv) membership in the truth pairs. Encoding each
+    # pair as a single integer key lets np.isin do this without a Python loop
+    # over every edge (~27k/event at mu=200); bit-identical to the set lookup.
+    stride = max(num_good_pvs, 1)
+    edge_keys = track_indices_flat.astype(np.int64) * stride + pv_indices_flat
+    truth_keys = truth_track_indices_all.astype(
+        np.int64
+    ) * stride + truth_pv_indices_all.astype(np.int64)
+    truth_edges = np.isin(edge_keys, truth_keys).astype(np.int64)
 
     # Construct HeteroData graph
     data = HeteroData()
