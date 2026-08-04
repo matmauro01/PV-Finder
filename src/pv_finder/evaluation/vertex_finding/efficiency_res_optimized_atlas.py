@@ -4,16 +4,27 @@ from collections import namedtuple
 
 import numpy as np
 
+from pv_finder.utils.peak_finding import LEGACY_CENTROID_HALFWIDTH
+
 PerformanceInfo = namedtuple(
     "PerformanceInfo", ("reco_merged", "reco_split", "reco_clean", "reco_fake")
 )
 
 
 def pv_locations_updated_res(
-    targets, threshold, integral_threshold, min_width, min_height=0.0
+    targets,
+    threshold,
+    integral_threshold,
+    min_width,
+    min_height=0.0,
+    centroid_halfwidth=LEGACY_CENTROID_HALFWIDTH,
 ):
     """
     Compute the z positions from the input KDE using the parsed criteria.
+
+    Kept numerically identical to ``pv_finder.utils.peak_finding`` — that module
+    is the canonical implementation and any change must be mirrored here (and in
+    ``peak_finding_fast``).  ``tests/test_peak_finding.py`` enforces agreement.
 
     Inputs:
       * targets:
@@ -32,6 +43,11 @@ def pv_locations_updated_res(
           Minimum peak amplitude (max bin value in region) to record a PV.
           Default 0.0 keeps all peaks; production eval sets ~0.03.
 
+      * centroid_halfwidth:
+          Half-width in bins of the local-centroid window about the region
+          maximum, clipped to the region.  0 = historical full-region weighted
+          mean.
+
     Returns:
       * array of float32 values corresponding to the PV z positions
 
@@ -45,6 +61,8 @@ def pv_locations_updated_res(
     sum_weights_locs_sq = 0.0
     # keeps track of peak location (assuming first entry is close to zero)
     currentmax = 0
+    # first above-threshold bin of the current region (local-centroid window clip)
+    region_start = 0
 
     bin_width_val = 0.04
     z_min_val = -240
@@ -70,6 +88,8 @@ def pv_locations_updated_res(
             currentmax = i
         # If bin value above 'threshold', then trigger
         if targets[i] >= threshold:
+            if state == 0:
+                region_start = i
             state += 1
             integral += targets[i]
             sum_weights_locs += i * targets[i]  # weight times location
@@ -103,12 +123,28 @@ def pv_locations_updated_res(
                     conjoinedright = np.resize(conjoinedright, len(conjoinedright) + 1)
                     pv_sigmas = np.resize(pv_sigmas, len(pv_sigmas) + 1)
 
-                # Adding '+0.5' to account for the bin width
                 weighted_mean_bin = sum_weights_locs / integral
                 weighted_variance_bin = (sum_weights_locs_sq / integral) - (
                     weighted_mean_bin * weighted_mean_bin
                 )
-                items[nitems] = weighted_mean_bin * bin_width_val + z_min_val
+
+                pos_bin = weighted_mean_bin
+                if centroid_halfwidth > 0:
+                    # Local centroid about the region maximum, clipped to the
+                    # region so a conjoined neighbour is never read.
+                    region_end = i if targets[i] >= threshold else i - 1
+                    lo = max(region_start, currentmax - centroid_halfwidth)
+                    hi = min(region_end, currentmax + centroid_halfwidth)
+                    tot = 0.0
+                    wsum = 0.0
+                    for j in range(lo, hi + 1):
+                        v = targets[j]
+                        if v > 0.0:
+                            tot += v
+                            wsum += j * v
+                    pos_bin = wsum / tot if tot > 0.0 else float(currentmax)
+
+                items[nitems] = pos_bin * bin_width_val + z_min_val
                 peakvals[nitems] = targets[currentmax]  # store peak value
                 peakpos[nitems] = currentmax
 

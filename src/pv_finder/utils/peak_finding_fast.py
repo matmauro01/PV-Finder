@@ -17,6 +17,7 @@ import numba
 import numpy as np
 
 from pv_finder.utils.constants import Z_MAX, Z_MIN
+from pv_finder.utils.peak_finding import LEGACY_CENTROID_HALFWIDTH
 
 _N_BINS = 12000
 _BIN_WIDTH = (Z_MAX - Z_MIN) / _N_BINS  # 0.04 mm
@@ -29,6 +30,7 @@ def _scan(
     integral_threshold: float,
     min_width: int,
     min_height: float,
+    centroid_halfwidth: int,
     items: np.ndarray,
     peakvals: np.ndarray,
     peakpos: np.ndarray,
@@ -40,6 +42,7 @@ def _scan(
     sum_wl = 0.0
     sum_wl2 = 0.0
     currentmax = 0
+    region_start = 0
     peak_passed = False
     n = 0
 
@@ -48,6 +51,8 @@ def _scan(
             currentmax = i
 
         if targets[i] >= threshold:
+            if state == 0:
+                region_start = i
             state += 1
             integral += targets[i]
             sum_wl += i * targets[i]
@@ -73,7 +78,21 @@ def _scan(
                 if wvar < 0:
                     wvar = 0.0
 
-                items[n] = wmean * _BIN_WIDTH + Z_MIN
+                pos = wmean
+                if centroid_halfwidth > 0:
+                    region_end = i if targets[i] >= threshold else i - 1
+                    lo = max(region_start, currentmax - centroid_halfwidth)
+                    hi = min(region_end, currentmax + centroid_halfwidth)
+                    total = 0.0
+                    weighted = 0.0
+                    for j in range(lo, hi + 1):
+                        v = targets[j]
+                        if v > 0.0:
+                            total += v
+                            weighted += j * v
+                    pos = weighted / total if total > 0.0 else float(currentmax)
+
+                items[n] = pos * _BIN_WIDTH + Z_MIN
                 peakvals[n] = targets[currentmax]
                 peakpos[n] = currentmax
                 sigmas[n] = np.sqrt(wvar) * _BIN_WIDTH
@@ -95,6 +114,7 @@ def pv_locations_updated_res_fast(
     integral_threshold: float = 0.5,
     min_width: int = 3,
     min_height: float = 0.0,
+    centroid_halfwidth: int = LEGACY_CENTROID_HALFWIDTH,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Drop-in numba replacement for pv_locations_updated_res.
 
@@ -114,6 +134,7 @@ def pv_locations_updated_res_fast(
         integral_threshold,
         min_width,
         min_height,
+        centroid_halfwidth,
         items,
         peakvals,
         peakpos,
