@@ -3119,3 +3119,86 @@ New `scripts/fetch_run4_all_etas.sh`: rsync `--size-only --inplace --partial`,
 3. Note sec. 02_method still publishes A=0.179, B=0.727 as the fit, with the
    open "check the residual features" NB at line 156.
 4. Refit (A,B,C) on the new sample and register a new preset before converting.
+
+## 2026-08-04 — v6 trained on the all-eta pool; the pairwise-dz bump explained
+
+### v6 finder trained
+
+`hllhc_alleta_v6_mse_2ep` finished 2026-08-01 18:31 on the full extended-|eta|
+pool (59,599,872 train sub-events, 465,624 steps/epoch, 2+2 epochs, plain MSE,
+`hllhc_alleta` target widths). Final Phase 2: train 0.016330, val 0.015755,
+mini-val eff 0.6044, fpr 1.5412. Checkpoint
+`hllhc_alleta_v6_mse_2ep_phase2_epoch_2_fullstate.pth`.
+
+Phase 1 ran both epochs (best val 0.034881 at ep 2, vs 0.037282 at ep 1) after
+MM chose to match the published recipe rather than skip epoch 2.
+
+Confirmed again, on a fresh model and fresh data: **Phase-2 val loss falls
+0.01961 -> 0.01666 (-15%) while mini-val efficiency stays flat** (0.6032 ->
+0.5861, slope -0.0036/100k steps) and FPR shows no trend. Same signature as
+v4b. The loss/metric decoupling is a property of the objective, not of one run.
+
+### The pairwise-dz bump: not the data, not a PV-Finder defect
+
+New tool `src/pv_finder/diagnostics/pairwise_dz_comparison.py`; write-up in
+`docs/research/pairwise_dz_bump.md`; outputs in
+`outputs/08_04_2026_output/pairwise_dz/`.
+
+At the 240-bin binning the pairwise-Delta-z distribution shows a +14% excess at
+|dz| ~ 0.57 mm just outside the resolution dip. Three-way control on the SAME
+1900 mu-matched held-out events (<mu> = 192.6):
+
+| | plateau | dip | peak excess | at |dz| | band 0.3-0.7 |
+|---|---|---|---|---|---|
+| Truth (nTrk>=2) | 6665 | +0.5% | 3.3% | 0.57 mm | +0.5% |
+| AMVF | 4941 | -99.8% | 8.9% | 0.92 mm | -14.5% |
+| PV-Finder | 5760 | -99.6% | 13.7% | 0.57 mm | +7.6% |
+
+- Truth is flat -> the excess is NOT the sample's vertex-spacing physics.
+- AMVF shows the same structure, displaced to ~0.9 mm -> NOT a PVF pathology.
+- The excess sits just outside each algorithm's own resolution limit (PVF dip
+  recovers by ~0.35 mm, AMVF only by ~0.85 mm).
+
+Proposed mechanism: a marginally-resolvable pair is split only when the density
+between the peaks dips enough to show two objects; each position is then the
+amplitude-weighted mean of its own side of the valley, so both are pushed
+outward and the separation is biased high. Deficit just below the limit, excess
+just above. Consistent with the excess GROWING v4b -> v5 (8.8% -> 16.5%, same
+file and events, only narrower target widths).
+
+In the 0.3-0.7 mm band PVF is at +7.6% while AMVF is at -14.5%: AMVF has
+essentially no vertex pairs there. The bump is PVF resolving pairs AMVF merges.
+
+**An adversarial verification pass was commissioned on this result** (independent
+re-derivation, bootstrap-over-events errors since pairs within an event are
+correlated, direct test of the outward-bias mechanism, and checks against
+peak-finder split-rule artifacts and sub-event stitching). Conclusions above
+should be treated as provisional until that lands.
+
+### Two measurement bugs found and fixed today
+
+1. **Plot/fit binning mismatch** (`plots_pvf.py`). The sigmoid is fitted to bin
+   counts, so drawing a 240-bin fit over a 60-bin histogram put the curve a
+   factor 4 below the data and made a correct fit look like a failed one.
+   `plot_resolution` now takes `n_bins`; each caller passes what its fit used.
+   A stability scan on 45.6M held-out pairs also showed the old 60-bin fit did
+   not merely bias sigma high, it **did not converge** (error +-1e6 mm);
+   240/480/960 agree at 0.2243-0.2245 mm.
+2. **mu mismatch in the pairwise comparison** (mine, caught by MM). The eval
+   pkl stores every event READ, not the mu-window subset it summarises. On a
+   flat-mu held-out file that meant comparing PVF at <mu>~100 against
+   AMVF/truth at <mu>~192. The tool now selects on the stored per-event mu.
+   The bump figure was 20.9% under the bug; the correct value is 13.7%.
+
+### Held-out evaluation is now the default
+
+Reminder recorded on 2026-07-31 and still true: the documented HL-LHC eval file
+`r16438` is INSIDE the training pool, so the published HL-LHC numbers are
+measured on training data. The flat-mu tags r16443/r16638 were excluded from
+training and give 7,680 mu-in-[185,215] events each. `--max-events 25000` reads
+enough of a flat-mu file to yield ~1,920 usable events; both files together give
+~3,840, comparable to the usual 2,500. Measured bias from evaluating on training
+data was small: efficiency 87.5% -> 87.0%.
+
+Note `--save-histograms` costs a ~10x slowdown (2 h vs 12 min for 25k events);
+use `peak_operating_point.py` for floor sweeps instead.
