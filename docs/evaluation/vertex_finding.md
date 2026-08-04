@@ -83,6 +83,45 @@ Note on defaults: `run_eval_pvf_run3.py --min-height` defaults to `0.03`, but th
 (reproduction parity); the `0.03` floor is reported as a separate HL-LHC
 operating point, not the baseline.
 
+### HL-LHC operating point (2026-08-04) — current recommendation
+
+Chosen on half of the held-out r16443 events and reported on the other half,
+then confirmed by a full eval on both held-out files. Launch it with
+`scripts/eval_v6_operating_point.sh`, which records the invocation and git SHA
+into the output directory.
+
+```
+--centroid-halfwidth 3     local centroid about the region maximum, clipped
+--integral-threshold 0.30  (the previous production value was 0.20)
+--min-height 0.03
+--peak-threshold 0.01      unchanged      min_width 3   unchanged
+```
+
+v6 model, μ ∈ [185, 215], 1920 / 1888 events:
+
+| | efficiency | fake/evt | σ_vtx-vtx | reco/evt |
+|---|---|---|---|---|
+| previous production | 0.8820 / 0.8825 | 21.52 / 21.32 | 0.2328 / 0.2325 | 106.8 |
+| **this operating point** | **0.8643 / 0.8656** | **16.64 / 16.36** | **0.2190 / 0.2200** | **101.0** |
+| AMVF, same events | — | 17.80 / 17.60 | 0.3048 | 97.9 |
+
+PV-Finder now reconstructs **more vertices than AMVF with fewer fakes**
+(101.0 vs 97.9 reco/evt, 16.6 vs 17.8 fake/evt).
+
+Reading the efficiency drop. Only about 1.06 of the 1.77 points is a real loss;
+the rest is the matching window, which this eval derives from the fitted
+σ_vtx-vtx and therefore tightens by the same 6% the estimator improved. Of the
+1.06, 0.33 belongs to the position estimator and bought resolution rather than
+fake suppression, and it is **entirely merge credit**: truth-clean vertices move
+84.563 → 84.550 per event, so nothing that was resolved stopped being resolved.
+The threshold move alone costs 0.151 efficiency points per fake/event removed.
+The next step out (integral 0.5, height 0.05 → 11.84 fake/evt) costs 0.257 and
+was rejected.
+
+Note `min_height` is the right knob for **isolated** low-amplitude fakes and the
+wrong one for the satellite peaks behind the pairwise-Δz bump, which it makes
+relatively worse. See `docs/research/pairwise_dz_bump.md`.
+
 **Unified-threshold (2026-04-16):** Both performance and resolution use `0.5`
 by default on Run 2 / Run 3 / MC. This is consistent and filters small sidelobe
 peaks out of both metrics. Rationale:

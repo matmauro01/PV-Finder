@@ -3546,3 +3546,57 @@ the GNN graph builders and all diagnostics are untouched — the deployed TTVA
 checkpoints were trained on these positions and `pv_sigmas`, and moving them
 needs its own A/B. `run_eval_pvf.py` was not wired up either; it carried
 unrelated uncommitted GBT work at the time.
+
+---
+
+## 2026-08-04 — Held-out eval at the chosen operating point
+
+Full evaluation of the v6 finder at the operating point selected the same day,
+on both flat-mu held-out files, 25 000 entries each, summarised on mu in
+[185, 215]. Launcher: `scripts/eval_v6_operating_point.sh` (records the full
+invocation and git SHA into the output directory). Outputs in
+`outputs/08_04_2026_output/eval_v6_operating_point/{r16443,r16638}/`.
+
+Settings: `--centroid-halfwidth 3 --integral-threshold 0.30 --min-height 0.03
+--peak-threshold 0.01 --pairwise-bins 240`, v6 checkpoint
+`hllhc_alleta_v6_mse_2ep_phase2_epoch_2_fullstate.pth`.
+
+| | efficiency | fake/evt | sigma_vtx-vtx | reco/evt |
+|---|---|---|---|---|
+| previous production | 0.8820 / 0.8825 | 21.52 / 21.32 | 0.2328 / 0.2325 | 106.8 |
+| this operating point | 0.8643 / 0.8656 | 16.64 / 16.36 | 0.2190 / 0.2200 | 101.0 |
+| AMVF, same events | — | 17.80 / 17.60 | 0.3048 | 97.9 |
+
+The two files agree to 0.13 efficiency points and 0.3 fake/evt, but they share
+`e8481_s4494` and differ only in reco tag, so they are probably the same
+generated events reconstructed twice. Treat this as a consistency check, not as
+two independent samples.
+
+**The result worth quoting.** PV-Finder now reconstructs more vertices than AMVF
+while making fewer fakes: 101.0 vs 97.9 reco/evt at 16.6 vs 17.8 fake/evt, with
+sigma_vtx-vtx 0.219 vs 0.305 mm. At the previous operating point it found more
+vertices but also made more fakes (21.5 vs 17.8), so the comparison was
+ambiguous. It no longer is.
+
+**How to read the 1.77-point efficiency drop.** About 1.06 points is real; the
+remainder is the matching window, which this eval derives from the fitted
+sigma_vtx-vtx and therefore tightens by the same 6 % the estimator improved.
+Within the 1.06, the estimator's 0.33 is entirely merge credit (truth-clean
+84.563 -> 84.550 per event), so nothing that was resolved stopped being
+resolved. The threshold move alone costs 0.151 efficiency points per fake/event
+removed, inside the 0.2 budget agreed for this campaign; the next step out
+(integral 0.5, height 0.05) costs 0.257 and was rejected.
+
+**Process fix.** The previous production eval recorded its invocation nowhere —
+no launch script in git, nothing in the pickle — and its `integral_threshold`
+had to be reconstructed after the fact as 0.2 by replaying stored per-event peak
+lists against the peak finder (30/30 events matched). The new launcher writes
+the invocation and the git SHA next to the results.
+
+**Also fixed today.** `--resolution-preset` no longer defaults to the superseded
+`hllhc` in `root_to_h5.py` or `gnn/data/root_to_graphs.py`; it is required, and
+the module-level (A, B, C) in `root_to_h5` are NaN placeholders so a missed code
+path fails loudly rather than writing plausible targets from the wrong
+resolution model. `scripts/build_v3_shards.sh` hard-codes `hllhc`, correct for
+the old |eta| < 2.5 shards and wrong for anything built on `data/run4_all_etas`,
+which needs `hllhc_alleta`.
