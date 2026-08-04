@@ -68,7 +68,10 @@ def pairwise_profile(
     edges = np.linspace(-half_range, half_range, n_bins + 1)
     counts, _ = np.histogram(dz, bins=edges)
     centres = 0.5 * (edges[:-1] + edges[1:])
-    baseline = float(np.median(counts[np.abs(centres) > BASELINE_MIN_MM]))
+    # Median over the positive half only: the histogram is symmetric by
+    # construction, so using both halves doubles every value and makes the
+    # median land on an arbitrary tie at the 0.5-count level.
+    baseline = float(np.median(counts[centres > BASELINE_MIN_MM]))
     return centres, counts, baseline
 
 
@@ -89,17 +92,40 @@ def summarise(centres: np.ndarray, counts: np.ndarray, baseline: float) -> dict:
 
 
 def load_amvf_and_truth(
-    root_path: str, n_events: int, mu_min: float, mu_max: float, min_ntrk: int = 2
+    root_path: str,
+    n_events: int,
+    mu_min: float,
+    mu_max: float,
+    n_entries: int,
+    min_ntrk: int = 2,
 ) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """AMVF and truth vertex z per selected event, matching the eval's mu window."""
+    # entry_stop MUST NOT exceed the range the pkl covers, or the mu selection
+    # walks past it and we silently compare PV-Finder against AMVF/truth from
+    # DIFFERENT events. The caller passes n_entries = len(pkl per_event).
     arrs = uproot.open(f"{root_path}:{TREE}").arrays(
-        ["RecoVertex_z", "TruthVertex_z", "TruthVertex_nTracks", "ActualNumOfInt"],
-        entry_stop=max(n_events * 15, n_events),
+        [
+            "RecoVertex_z",
+            "TruthVertex_z",
+            "TruthVertex_nTracks",
+            "RecoVertex_nTracks",
+            "ActualNumOfInt",
+        ],
+        entry_stop=n_entries,
         library="np",
     )
     mu = np.asarray(arrs["ActualNumOfInt"], dtype=float)
     keep = np.where((mu >= mu_min) & (mu <= mu_max))[0][:n_events]
-    amvf = [np.asarray(arrs["RecoVertex_z"][i], dtype=np.float64) for i in keep]
+    # The eval counts AMVF vertices with nTracks >= 2 (verified: per_event
+    # ["n_amvf"] matches that cut exactly, not len(RecoVertex_z) -- ~1.3% of
+    # events carry a type==1 dummy with nTrk < 2). Apply the same cut here or
+    # the AMVF curve is a different object from the one the eval reports.
+    amvf = [
+        np.asarray(arrs["RecoVertex_z"][i], dtype=np.float64)[
+            np.asarray(arrs["RecoVertex_nTracks"][i]) >= min_ntrk
+        ]
+        for i in keep
+    ]
     truth = [
         np.asarray(arrs["TruthVertex_z"][i], dtype=np.float64)[
             np.asarray(arrs["TruthVertex_nTracks"][i]) >= min_ntrk
@@ -180,8 +206,17 @@ def main() -> None:
     )
     pvf = [np.asarray(res["pred_pvs_mm"][i], dtype=np.float64) for i in keep_pkl]
     amvf, truth = load_amvf_and_truth(
-        args.root, len(keep_pkl), args.mu_min, args.mu_max
+        args.root,
+        len(keep_pkl),
+        args.mu_min,
+        args.mu_max,
+        n_entries=len(res["per_event"]),
     )
+    if not (len(amvf) == len(truth) == len(pvf)):
+        raise ValueError(
+            f"event-count mismatch: pvf={len(pvf)} amvf={len(amvf)} "
+            f"truth={len(truth)} -- the three curves would not be the same events"
+        )
 
     profiles, summary = {}, {}
     for name, zs in (("PV-Finder", pvf), ("AMVF", amvf), ("Truth", truth)):

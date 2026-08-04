@@ -3255,3 +3255,76 @@ floor, and the bump is a usable monitor of the surplus-peak population.
 Process note: before starting an analysis, check `outputs/` for prior work on
 the same question. The adversarial verification pass commissioned earlier today
 is still running and will be reported against the corrected conclusion.
+
+## 2026-08-04 (verification) — bump result audited; conclusion holds, write-up did not
+
+An adversarial verification pass (independent re-derivation from the raw pkl +
+ROOT, own binning and matching code) reported. Summary: **the satellite
+conclusion is confirmed; two of my mechanistic claims and several quoted
+numbers were wrong.**
+
+Confirmed independently:
+- Event alignment is exact: pkl `event_idx` is 0..24999 contiguous, pkl `mu`
+  is bit-identical to ROOT `ActualNumOfInt`, `truth_pvs_mm` equals
+  `TruthVertex_z[nTrk>=2]` element-wise, and `n_amvf` matches
+  `(RecoVertex_nTracks>=2).sum()` (NOT `len(RecoVertex_z)` — 318/25000 events
+  carry a type==1 dummy with nTrk<2). The comparison is valid.
+- Profiles reproduce exactly at n_events=1920.
+- Significance: bootstrap over events, 4000 replicas. Peak +13.67 +-1.40%
+  (9.7 sigma); band +7.76 +-0.47% (16.7 sigma); truth band +0.57 +-0.50%
+  (1.1 sigma, flat). Intra-event pair correlation turns out NOT to matter:
+  Fano factor 1.07, inflation over naive sqrt(N) is 1.00x.
+- Surplus peaks carry the whole excess: genuine-pair excess is NEGATIVE at
+  every matching window (-10%/-6%/-23% at 0.3/0.5/0.8 mm).
+- Ruled out with measurements: the peak-finder min_width floor (0.12 mm is
+  reached only for sigma~0.05 mm peaks; the dip edge is set by predicted peak
+  WIDTH), a truth-convolved-with-resolution toy, and tile stitching (a real
+  but <=1% effect: 5.97% vs 4.99% of pair midpoints near a boundary; AMVF
+  shows none, as expected since it has no tiles).
+
+Corrected in `docs/research/pairwise_dz_bump.md`:
+1. The "excess scales as 1/n" claim is OVERSTATED. Measured log-log slope is
+   -1.55 and the absolute excess SATURATES at ~2.9 pairs/event above n~40
+   rather than growing like n. What is solid is that the fraction is not
+   n-independent, which is what kills the two-vertex-physics hypothesis. The
+   clean per-peak statement is that the satellite rate per isolated real vertex
+   is mu-independent: 17.95% (mu 1-50) -> 20.31% (mu 150-215).
+2. The 08-01 numbers I quoted (1.06/1.56 pair-class ratios, 1.54x
+   cross-correlation, "excess/baseline integral 5.23->4.66->3.39 mm") are
+   **not reproducible** — see the reproducibility gap below. Removed.
+3. AMVF dip recovers at ~0.66 mm, not 0.85. AMVF peak location is unstable
+   (bootstrap 68% interval [0.925, 1.075]); quote a shoulder at 0.9-1.1 mm.
+4. sigma_vtx_vtx on THIS sample is 0.2465 +-0.0025 (PVF) / 0.3048 +-0.0056
+   (AMVF). The 0.224/0.284 I quoted are v4b-on-r16438 and must not be mixed
+   with the v6/r16443 table. The ~20% advantage survives either way.
+5. Added bootstrap uncertainties throughout; the page previously had none.
+
+**Operating-point correction — this matters.** The band excess does NOT fall
+monotonically with the height floor. Measured: +7.8% (floor 0) -> +11.7%
+(0.03) -> +9.9% (0.05) -> +6.6% (0.08) -> +2.9% (0.12) -> -1.2% (0.20) ->
+-5.5% (0.30). The floor removes baseline pairs faster than satellite pairs at
+first. Satellites are only meaningfully suppressed at floors >~0.12, far above
+the 0.03-0.05 in use. The earlier "a floor removes the excess 2.5x faster than
+the baseline" statement came from the unreproducible 08-01 metric and is
+withdrawn.
+
+**Three bugs fixed in `pairwise_dz_comparison.py`:**
+- AMVF was taken without the `nTrk>=2` cut the eval applies, so the AMVF curve
+  was a different object from the eval's AMVF summary (band -14.43 vs -14.52%).
+- `entry_stop = n_events*15` was a silent-failure heuristic: for n_events
+  above ~1930 the ROOT-side mu selection walks past the pkl's event range and
+  compares PV-Finder against AMVF/truth from DIFFERENT events, with no error.
+  Now hard-capped at `len(per_event)` with an explicit count check.
+- The plateau median was taken over the symmetrised (duplicated) array,
+  landing on an arbitrary 0.5-count tie. Now the positive half only.
+
+**REPRODUCIBILITY GAP — flag for the note.** `outputs/08_01_2026_output/
+bump_study/` is five PNGs with no surviving code: nothing in git history,
+no JSON, no error bars, and `temp/_investigate.py` is an unrelated script.
+Its conclusions were independently reproduced, but its specific numbers were
+not and must be regenerated from committed code before use.
+
+Process note: three further investigations were commissioned into the
+satellite population itself (network output vs peak finder; extractor
+alternatives incl. topographic prominence; and whether this is the known
+UNet sidelobe artefact re-surfacing).
