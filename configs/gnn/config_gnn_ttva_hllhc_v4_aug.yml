@@ -1,0 +1,71 @@
+# GNN TTVA v4 (arm A: chain-like augmentation) - extended-|eta| July-2026
+# re-production, sitting on top of PV-Finder v6.
+#
+# Changes vs v3:
+#   - data is data/run4_all_etas (|eta| < 4), built with the hllhc_alleta
+#     resolution preset. v3 used |eta| < 2.5 data and the 'hllhc' preset.
+#   - 18 shards x 10k instead of 9 x 20k: the extended-|eta| events carry
+#     ~1315 tracks (vs ~927), so a 20k shard no longer fits comfortably in
+#     the 32 GB per-process limit. 324 epochs = 18 passes, the same number
+#     of graph presentations as v3's 162 epochs over 20k shards.
+#   - augmentation parameters re-measured on the v6 chain, not reused from
+#     the v4b chain.
+#
+# Validation is the PRISTINE 5k val shard in BOTH arms, so this curve and
+# the no-augmentation arm's curve are read against one common yardstick.
+# Arm A therefore validates slightly out of its training distribution; the
+# chain evaluation, not this loss, is what decides between the arms.
+#
+# Usage (inside tmux):
+#   python -u -m gnn.training.train_ttva -c configs/gnn/config_gnn_ttva_hllhc_v4_aug.yml
+
+# --- Data (sharded, one shard resident per epoch) ---
+data_files:
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_0.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_1.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_2.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_3.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_4.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_5.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_6.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_7.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_8.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_9.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_10.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_11.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_12.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_13.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_14.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_15.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_16.pt"
+  - "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_augmented/train_shard_17.pt"
+val_file: "/data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/v4_shards_pristine/val_shard.pt"
+batch_size: 32
+num_workers: 2
+
+# --- Model architecture (unchanged since the mu60 baseline) ---
+model_config:
+  track_input_size: 8   # d0, z0, d0_err, z0_err, cov, theta, phi, pt_scaled
+  pv_input_size: 2      # z_position, peak_height
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3      # long_sig, horiz_sig, |dz|
+  dropout: 0.25
+
+# --- Training ---
+n_epochs: 324           # 18 passes x 18 shards
+learning_rate: 0.001
+lr_schedule:
+  type: cosine
+  eta_min: 0.00001
+grad_clip: 1.0
+device_id: 2
+
+# --- Checkpointing ---
+save_weights: true
+save_frequency: 12
+save_folder: "/data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_hllhc_v4_aug/"
+
+# --- MLflow ---
+experimentname: "TTVA_GNN"
+runname: "ttva_gat_alleta_k20_v4_aug180k"
