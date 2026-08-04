@@ -32,6 +32,7 @@ from tqdm import tqdm
 
 from gnn.evaluation.classification import classify_assignments, get_top_k_associations
 from gnn.evaluation.evaluate_ttva_graphs import _truth_from_graph
+from gnn.evaluation.threshold_scan import TRACK_COUNT_KEYS, track_assignment_counts
 from gnn.models.ttva_gat import TTVAGATModel
 
 THRESHOLD_GRID = (0.3, 0.5, 0.7, 0.9, 0.95, 0.98, 0.99, 0.995, 0.999)
@@ -54,6 +55,8 @@ def cache_event(
         "tti": tti,
         "tpi": tpi,
         "truth_count": int((pv_ntracks >= 2).sum()),
+        "track_truth": graph["track"].truth_pv.cpu().numpy(),
+        "n_tracks": int(graph["track"].num_nodes),
     }
 
 
@@ -78,15 +81,25 @@ def scan_point(cache: list[dict], threshold: float) -> dict:
     totals = np.zeros(6, dtype=np.int64)
     totals_drop = np.zeros(6, dtype=np.int64)
     n_empty = 0
+    track_totals = dict.fromkeys(TRACK_COUNT_KEYS, 0)
+    n_truth_tracks = n_tracks_total = 0
     for cached in cache:
         lists = matched_lists(cached, threshold)
         args = (cached["pt"], cached["tti"], cached["tpi"], cached["truth_count"])
-        rows, _ = classify_assignments(lists, *args)
+        rows, info = classify_assignments(lists, *args)
         totals += np.array(rows, dtype=np.int64)
         nonempty = [m for m in lists if len(m)]
         n_empty += len(lists) - len(nonempty)
         rows_d, _ = classify_assignments(nonempty, *args)
         totals_drop += np.array(rows_d, dtype=np.int64)
+
+        # Track level, via the SAME helper threshold_scan uses at mu60, so the
+        # two campaigns' efficiency/purity/F1 stay comparable by construction.
+        counts = track_assignment_counts(lists, info, cached["track_truth"])
+        for key in TRACK_COUNT_KEYS:
+            track_totals[key] += counts[key]
+        n_truth_tracks += int((cached["track_truth"] >= 0).sum())
+        n_tracks_total += cached["n_tracks"]
 
     def _rates(t: np.ndarray) -> dict:
         clean, merged, split, fake, n_reco, n_truth = (int(x) for x in t)
@@ -100,11 +113,21 @@ def scan_point(cache: list[dict], threshold: float) -> dict:
             "clean_per_truth": clean / max(n_truth, 1),
         }  # fmt: skip
 
+    eff = track_totals["n_correct"] / max(n_truth_tracks, 1)
+    pur = track_totals["n_correct"] / max(track_totals["n_assigned_truth"], 1)
     return {
         "t": threshold,
         "n_empty_vertices": int(n_empty),
         "all_peaks": _rates(totals),
         "drop_empty": _rates(totals_drop),
+        "track": {
+            "efficiency": eff,
+            "purity": pur,
+            "f1": 2 * eff * pur / (eff + pur) if eff + pur else 0.0,
+            "assigned_fraction": track_totals["n_assigned"] / max(n_tracks_total, 1),
+            "n_truth_tracks": int(n_truth_tracks),
+            **{k: int(v) for k, v in track_totals.items()},
+        },
     }
 
 
@@ -142,12 +165,14 @@ def main() -> None:
         json.dump(payload, f, indent=2)
 
     print(f"\n{'t':>6} {'clean/truth':>12} {'fake(all)':>10} {'fake(drop)':>11} "
-          f"{'empty':>7}")  # fmt: skip
+          f"{'empty':>7} {'trkEff':>7} {'trkPur':>7} {'trkF1':>7}")  # fmt: skip
     for r in results:
         print(f"{r['t']:>6} {r['all_peaks']['clean_per_truth']:>12.4f} "
               f"{r['all_peaks']['fake_rate']:>10.4f} "
               f"{r['drop_empty']['fake_rate']:>11.4f} "
-              f"{r['n_empty_vertices']:>7}")  # fmt: skip
+              f"{r['n_empty_vertices']:>7} "
+              f"{r['track']['efficiency']:>7.4f} {r['track']['purity']:>7.4f} "
+              f"{r['track']['f1']:>7.4f}")  # fmt: skip
     print(f"Saved to {out_dir / 'chain_scan.json'}")
 
 
