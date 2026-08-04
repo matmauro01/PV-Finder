@@ -59,6 +59,16 @@ kernel=stride creates seam artifacts, (2) 8x downsampling makes sharp peaks
 sub-resolution at bottleneck, (3) k=25 correlates bins across the full sidelobe range.
 See JOURNAL.md 2026-03-11 entry for investigation details.
 
+> **Open issue (2026-08-04): the nearest-neighbour upsample is itself phase-locked.**
+> Two `F.interpolate(..., mode="nearest")` stages make the decoder write on a
+> stride-4 lattice. On held-out PU200 data, surplus (unmatched) peaks have a
+> **35.1 % modulation of their argmax bin mod 4** (χ² = 854 on 3 dof) against
+> 3.9 % for truth-matched peaks. So this fixed the ConvTranspose seam but left a
+> lattice artefact of its own, and it lands preferentially on the spurious
+> population. Replacing it (linear interpolation, or a learned sub-pixel
+> upsample) is a retrain-level candidate; see
+> [pairwise_dz_bump](../research/pairwise_dz_bump.md).
+
 ## Loss Functions
 
 - **MSELoss**: standard, used in Phase 3 (recommended)

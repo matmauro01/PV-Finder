@@ -32,5 +32,6 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 
 ## Research
 
+- [pairwise_dz_bump](research/pairwise_dz_bump.md) — **the Δz bump: satellite peaks, model vs data, how to reduce it**
 - [peak_classification_study](research/peak_classification_study.md) — post-hoc fake rejection (GBT)
-- [resolution_bump_analysis](research/resolution_bump_analysis.md) — Run 3 sidelobe / Δz bump analysis
+- [resolution_bump_analysis](research/resolution_bump_analysis.md) — *superseded* by pairwise_dz_bump; kept only to record what it got wrong

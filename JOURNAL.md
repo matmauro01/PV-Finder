@@ -3328,3 +3328,148 @@ Process note: three further investigations were commissioned into the
 satellite population itself (network output vs peak finder; extractor
 alternatives incl. topographic prominence; and whether this is the known
 UNet sidelobe artefact re-surfacing).
+
+## 2026-08-04 (cleanup) - bump documentation reconciled: it is the data, and the estimator
+
+Three pages in `docs/` disagreed about the pairwise-Δz bump. This entry records
+the resolution. Single source of truth is now
+`docs/research/pairwise_dz_bump.md`; `docs/research/resolution_bump_analysis.md`
+is reduced to a stub listing what it got wrong.
+
+### What we believed, and what we now know
+
+| believed | now |
+|---|---|
+| (Apr) AMVF's bump is 6x PV-Finder's; PVF's is noise; 85% genuine physics | inverted on all three counts |
+| (Aug, earlier today) band excess +7.8%, peak +13.7% | **not reproducible; +12.5% and +17.5%** on both held-out files |
+| the bump grew because the model changed | mostly the **data**; and "the model" is itself a data change |
+| a height floor suppresses it | at the production floor 0.03 it makes it **worse** |
+| the fakes are UNet deconvolution sidelobes | amplitude uncorrelated with parent (r = -0.004): not a sidelobe |
+| fakes are isolated ("none within 0.3 mm of a real peak") | only 7.2% are further than 3 mm from a real peak; median 0.76 mm |
+
+### The headline number was wrong
+
+`pairwise_dz_comparison.py`, re-run today on `eval_v6_heldout/r16443`, gives
+PV-Finder band **+12.5%** and peak **+17.5%**, not the +7.8% / +13.7% on the
+page. The AMVF and truth rows reproduce exactly. Cause: the stored
+`pairwise_dz_summary.json` is timestamped 15:35 and the eval pkl it was computed
+from is timestamped 15:58: the eval was re-run into the same directory and the
+PV-Finder input was replaced under it. The second held-out file `r16638`
+independently gives +12.5%, and a from-scratch re-derivation from ROOT +
+checkpoint gives 12.48%. The peak-finder setting behind the old pkl is
+unrecoverable. Withdrawn.
+
+Lesson: an eval output directory is not immutable. Re-run before quoting, or
+record which pkl a number came from.
+
+### Model vs data, measured
+
+New tools `src/pv_finder/diagnostics/bump_model_vs_data.py` and
+`pairwise_dz_metrics.py`; outputs in
+`outputs/08_04_2026_output/bump_model_vs_data/`.
+
+The |eta|<2.5 and all-|eta| productions of `r16443` hold the **same events**:
+`ActualNumOfInt` and `RecoVertex_z` are identical entry by entry, so each
+checkpoint can be run on each production over the same 1920 mu-matched events.
+v4b, v5 and v6 share architecture and loss exactly; only their training data,
+target-width preset and epoch budget differ, so even the "model" axis is mostly
+a data axis.
+
+Band excess 0.3-0.7 mm [%], paired-bootstrap errors:
+
+|            | \|eta\|<2.5 | all-\|eta\| | Δ data |
+|---|---|---|---|
+| v4b        | 7.99 ± 0.54 | 11.41 ± 0.51 | +3.42 ± 0.40 |
+| v5         | 9.62 ± 0.49 | 10.68 ± 0.47 | +1.06 ± 0.38 |
+| v6         | 10.86 ± 0.51 | 12.48 ± 0.48 | +1.62 ± 0.37 |
+| Δ model    | +2.87 ± 0.45 | +1.07 ± 0.43 | total +4.49 ± 0.46 |
+
+Satellites per peak (multiplicity invariant):
+
+|            | \|eta\|<2.5 | all-\|eta\| | Δ data |
+|---|---|---|---|
+| v4b        | 0.0277 | 0.0609 | +0.0332 ± 0.0026 |
+| v5         | 0.0460 | 0.0717 | +0.0257 ± 0.0027 |
+| v6         | 0.0339 | 0.0579 | +0.0240 ± 0.0025 |
+| Δ model    | +0.0062 ± 0.0028 | −0.0030 ± 0.0028 | total +0.0302 ± 0.0028 |
+
+**It is the data.** The data axis carries 79-110% of the multiplicity-invariant
+change; the model axis carries −10% to +21% and is consistent with zero on the
+production that matters. It is not domain shift either: v6 moves from the
+production it was NOT trained on to the one it WAS and gets worse. On the raw
+band excess the two decomposition paths bracket the data effect at 36-76% and
+the model effect at 24-64% with a large negative interaction, because that
+observable also responds to the +6-8 peaks/event. Controls behave: truth moves
++0.36 ± 0.39% despite +16.2 vertices/event; AMVF's vertex collection is
+bit-identical between productions (it ran at AOD level) so its −6.16% shift is
+pure nTrk>=2 acceptance.
+
+**Within the model axis the lever is the target-width preset**, not the pool or
+the schedule: v5 differs from v4b only in that preset and is +0.0183 ± 0.0028
+(6.5σ) worse. `hllhc_corrected` is narrower than `hllhc`, so narrower targets
+make satellites worse, the opposite of what was assumed when v5 was built.
+
+### Mechanism, now reproducible from committed code
+
+New tool `src/pv_finder/diagnostics/satellite_mechanism.py`;
+`outputs/08_04_2026_output/satellite_mechanism/`. The equivalent numbers
+previously lived only in `outputs/.../satellite_origin/*.py`, which is
+gitignored.
+
+- 92.5% of band satellites exist only because the conjoined-split rule fired
+  (51.9% for truth-matched peaks). The rule cannot be removed: efficiency
+  0.883 → 0.616 without it. Run on **target** histograms it produces **zero**
+  surplus peaks, so the rule is not the cause on its own: the output is.
+- Band satellites have median topographic prominence 0.029 against 0.751 for
+  truth-matched peaks; 22.3% are below 0.005.
+- **Upsampling lattice.** Surplus peaks show a 35.1% modulation of their argmax
+  bin mod 4 (χ² = 854, 3 dof); truth-matched peaks only 3.9%. Two
+  `F.interpolate(mode="nearest")` stages put the decoder on a stride-4 lattice
+  and the spurious population is phase-locked to it.
+- **Target reachability.** Under `hllhc_alleta`, 31.6% of nTrk>=2 truth vertices
+  get sigma below one 0.04 mm bin, amplitude scale up to 22.4x (median 2.84x).
+
+### The position estimator changed under the analysis
+
+While this was running, the approved local-centroid estimator landed in
+`src/pv_finder/utils/peak_finding.py` and one measurement silently changed
+estimator mid-flight (caught because its band excess disagreed with the
+production pkl). Both new tools now take `--centroid-halfwidth`, default `0` =
+historical full-region weighted mean, and every number is labelled. The A/B was
+re-run pinned and reproduces the earlier caches bit-for-bit. Measured effect,
+same peaks, only the positions moving:
+
+| estimator | band excess |
+|---|---|
+| full-region weighted mean | +12.48% |
+| local centroid ±2 bins | +3.82% |
+| local centroid ±3 bins | +5.11% |
+| local centroid ±5 bins | +6.72% |
+
+The approved change removes 59% of the bump at zero cost in peaks. It does not
+remove the surplus peaks; it stops them being mis-placed into the band.
+
+### Also measured, for the operating point
+
+- Height floor: band excess 12.5% (0.0) → **13.9% (0.03)** → 10.8 (0.05) → 7.3
+  (0.08) → 4.2 (0.12) → −1.4 (0.20). The production floor makes the bump worse.
+  It is still a good fake remover (4.9:1 surplus-to-real at 0.03) but it targets
+  isolated low peaks, not band satellites.
+- Prominence gate (declined by MM): 0.005 → +3.07% band, at 5.07 peaks/evt of
+  which 1.70 truth-matched (2.0:1). Recorded so it need not be re-derived.
+
+### Still open
+
+- The surplus peaks remain: 20.8/event, ~22% of them on real nTrk<2 truth
+  vertices that `run3_io.py` removes from truth, so the fake rate is overstated
+  by about a fifth. Fixing the truth definition is a separate, cheap job.
+- Whether replacing the nearest-neighbour upsample reduces the satellite rate.
+  The lattice correlation is strong but only a retrain tests it.
+- Whether capping the target sigma at the bin width helps. The v4b/v5/v6
+  comparison argues for it but it is untested.
+- Combined effect of the local-centroid estimator with a prominence gate is not
+  measured; they act on the same peaks and will not simply add.
+- Slide decks still carry "sidelobes" and "fakes are not sidelobes" language;
+  listed in the doc under Downstream claims that still need revisiting.
+- `outputs/08_01_2026_output/bump_study/` still has no code and is now
+  contradicted on the height-floor claim. Retired.

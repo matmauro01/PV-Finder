@@ -373,10 +373,15 @@ fitted `sigma_vtx_vtx` (the AMVF reco–reco analogue of the eval's window).
 
 > **Off by default, not used in canonical evals.** Both steps default to off
 > (`--smooth-sigma 0`, `--nms-min-sep 0`), and the headline Run 2 / Run 3 / HL-LHC
-> numbers do **not** use them — sidelobe peaks are simply counted as fakes. They are
-> experimental Run 3 tools and are **counterproductive at PU200**, where the fakes
-> are not sidelobes and genuine close pairs dominate the suppression window (see
-> [resolution_bump_analysis](../research/resolution_bump_analysis.md)).
+> numbers do **not** use them — surplus peaks are simply counted as fakes. They
+> are experimental Run 3 tools and remain off at PU200: NMS removes genuine close
+> pairs at a similar rate to surplus ones because it keys on a height ratio,
+> which does not separate the two populations.
+>
+> The PU200 surplus population is **not** a deconvolution sidelobe: its amplitude
+> is uncorrelated with its parent's (r = −0.004). What it actually is, and what
+> does suppress it, is in
+> [pairwise_dz_bump](../research/pairwise_dz_bump.md).
 
 Two optional post-processing steps reduce fake sidelobe peaks on Run 3 data.
 The E2E model produces UNet deconvolution sidelobes — small spurious peaks
@@ -429,9 +434,10 @@ python src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py \
 
 ### Histogram-only GBT fake gate (HL-LHC, 2026-06-09)
 
-At PU200 the sidelobe tools above do not apply (the fakes are not sidelobes).
-Instead, a post-hoc gradient-boosted-tree classifier on **histogram-only** peak
-features can gate fakes without retraining the model.
+At PU200 the sidelobe tools above do not apply (the surplus peaks are not
+sidelobes — see [pairwise_dz_bump](../research/pairwise_dz_bump.md)). Instead, a
+post-hoc gradient-boosted-tree classifier on **histogram-only** peak features can
+gate fakes without retraining the model.
 
 | Flag | Default | Description |
 |------|---------|-------------|
