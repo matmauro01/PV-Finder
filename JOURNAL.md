@@ -3202,3 +3202,56 @@ data was small: efficiency 87.5% -> 87.0%.
 
 Note `--save-histograms` costs a ~10x slowdown (2 h vs 12 min for 25k events);
 use `peak_operating_point.py` for floor sweeps instead.
+
+## 2026-08-04 (later) — CORRECTION: the pairwise-dz bump is a satellite artefact
+
+The entry earlier today concluded the bump was "PVF resolving pairs AMVF
+merges, not a pathology". **That conclusion was wrong.** Correcting it here;
+`docs/research/pairwise_dz_bump.md` has been rewritten.
+
+Cause: a bump study already existed at `outputs/08_01_2026_output/bump_study/`
+(2026-08-01) which had settled the question. It was not consulted before
+writing. It contains three measurements that the truth/AMVF control alone
+cannot reach:
+
+1. `bump_decomposition.png` — split the pairwise distribution by whether both
+   members are truth-matched. Pairs of two genuine vertices are FLAT (1.06);
+   pairs containing >=1 surplus (unmatched) peak carry the whole excess (1.56
+   at 0.45 mm for PVF, 1.25 at 1.0 mm for AMVF). Remove unmatched peaks and
+   the bump disappears.
+2. `satellite_crosscorrelation.png` — surplus peaks cluster at 1.54x baseline
+   density 0.35-0.5 mm from the nearest truth-matched vertex; truth-matched
+   peaks show no clustering at all.
+3. `excess_vs_pileup_and_floor.png` — the excess scales as 1/n with the number
+   of reconstructed vertices. Genuine two-vertex physics would give a constant
+   excess FRACTION (signal and baseline both scale as n^2); 1/n is the
+   signature of a per-peak effect (satellite pairs ~ n, total pairs ~ n^2).
+   Cross-checked against pile-up: 4.8x excess at mu 1-25, 1.2x at mu 185-215.
+
+So the bump is **satellite peaks**, i.e. surplus reconstructed vertices at a
+characteristic distance from real ones. It is a finder artefact — though AMVF
+has the same pathology, displaced to ~0.95 mm.
+
+The outward-bias ("repulsion") mechanism proposed earlier IS real and was
+measured independently (`pair_separation_repulsion.png`: fraction with
+dz_reco > dz_truth peaks at 0.86 at true separation 0.15-0.2 mm, decaying to
+0.5 by 0.7 mm, for both algorithms). But it **moves pairs without creating
+them**, so it cannot lift the distribution above its own plateau. It explains
+the shape of the dip edge, not the excess. Attributing the excess to it was the
+error.
+
+What survives from the earlier entry: truth is flat (+0.5%), so the excess is
+not the sample's vertex-spacing physics; and PVF's dip is genuinely narrower
+than AMVF's (~0.35 mm vs ~0.85 mm), consistent with sigma_vtx_vtx 0.224 vs
+0.284 mm. That resolution advantage is real; it just is not what the bump
+measures.
+
+**Actionable consequence for the working point:** a height floor removes the
+excess 2.5x faster than it removes the baseline (excess/baseline integral
+5.23 -> 4.66 -> 3.39 mm for floors 0.0 -> 0.03 -> 0.05), because satellites are
+systematically lower-amplitude. This is an independent argument for a non-zero
+floor, and the bump is a usable monitor of the surplus-peak population.
+
+Process note: before starting an analysis, check `outputs/` for prior work on
+the same question. The adversarial verification pass commissioned earlier today
+is still running and will be reported against the corrected conclusion.
