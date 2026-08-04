@@ -30,6 +30,9 @@ from pv_finder.models.autoencoder_models import (  # noqa: E402
     trackstoHists_UNet_1000,
 )
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2  # noqa: E402
+from pv_finder.utils.peak_finding import (  # noqa: E402
+    RECOMMENDED_CENTROID_HALFWIDTH,
+)
 
 sys.path.insert(0, str(Path(__file__).parent))
 from efficiency_res_optimized_atlas import (  # noqa: E402
@@ -301,6 +304,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     else:
         print("  No MC truth — using AMVF (RecoVertex) as truth reference")
     print(f"  Peak height floor (min_height): {args.min_height}")
+    print("  Position estimator: "
+          + (f"local centroid, max +-{args.centroid_halfwidth} bins"
+             if args.centroid_halfwidth > 0 else "full-region weighted mean"))  # fmt: skip
     if args.smooth_sigma > 0:
         print(f"\n  Peak-finding smoothing: sigma={args.smooth_sigma} bins "
               f"({args.smooth_sigma * BIN_WIDTH:.3f} mm)")  # fmt: skip
@@ -328,6 +334,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             args.integral_threshold,
             MIN_WIDTH,
             args.min_height,
+            args.centroid_halfwidth,
         )
         p_pvs_r, p_hts_r, *_ = pv_locations_updated_res(
             ph_peaks,
@@ -335,6 +342,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             args.integral_threshold_res,
             MIN_WIDTH,
             args.min_height,
+            args.centroid_halfwidth,
         )
         if args.nms_min_sep > 0:
             keep = suppress_neighbor_peaks(
@@ -548,7 +556,8 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         t2kde_checkpoint=args.t2kde_model, k2h_checkpoint=args.k2h_model,
         e2e_checkpoint=args.e2e_model, data_source="root" if args.root else "npz",
         correct_beam=not args.no_correct_beam, smooth_sigma=args.smooth_sigma,
-        nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio)
+        nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio,
+        centroid_halfwidth=args.centroid_halfwidth)
     # fmt: on
     pkl_path = outdir / "eval_results.pkl"
     with open(pkl_path, "wb") as fp:
@@ -598,6 +607,12 @@ def _cli() -> argparse.Namespace:
                    help="bins across the +-6 mm pairwise-dz range for the "
                         "sigma_vtx_vtx sigmoid fit; 60 (pre-2026-07-31) biases "
                         "sigma high, 240+ is stable")  # fmt: skip
+    a.add_argument("--centroid-halfwidth", type=int,
+                   default=RECOMMENDED_CENTROID_HALFWIDTH,
+                   dest="centroid_halfwidth",
+                   help="half-width in bins of the local-centroid position "
+                        "window about the region maximum, clipped to the "
+                        "region; 0 = legacy full-region weighted mean")  # fmt: skip
     a.add_argument("--min-height", type=float, default=0.03, dest="min_height",
                    help="minimum peak amplitude to keep (operating point; "
                         "0.0 disables). Default 0.03 drops the lowest fakes.")  # fmt: skip
