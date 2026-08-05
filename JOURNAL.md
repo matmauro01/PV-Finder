@@ -3749,6 +3749,152 @@ work at the time.
 
 ---
 
+## 2026-08-05 — One authoritative metric reference; two taxonomies reconciled by measurement
+
+The project uses the words clean / merged / split / fake for **two different
+classifiers** and nothing said which was which. `docs/evaluation/metric_definitions.md`
+is now the reference: every metric with its formula, its numerator and
+denominator named, the file:line that computes it, its units, and whether it is
+truth-side or reco-side. Linked from both evaluation pages.
+
+### The gap it closes
+
+`compare_res_reco` (positional: is this vertex inside a window of a truth
+vertex?) and `classify_assignments` (track purity: do ≥70% of its tracks come
+from one truth vertex?) partition the *identical* AMVF collection on the
+*identical* 1920 r16443 events into **clean/truth 0.6090 against 0.3094**. Both
+are correct. The bridge, and it closes with zero residual:
+
+```
+187,960 AMVF vertices, median dominant-truth purity 0.6316 (straddles the 0.70 cut)
+├─ purity >= 0.70 :  76,541  ->  Clean  66,127  +  Split 10,414
+└─ purity <  0.70 : 111,419  ->  Merged 80,104  +  Fake   135  +  Split 31,180
+                                                          Split total 41,594  ✓
+```
+
+So the factor of two is **half the purity cut and half the split demotion** —
+the positional taxonomy has no analogue of the second (AMVF split rate 0.3%
+positionally against 22.1% by tracks, because two AMVF vertices are rarely
+within one sigma of each other but very often share a dominant truth vertex).
+This also explains the 0.4072-vs-0.3518 discrepancy sitting unexplained in
+`amvf_convention.json`: the purity scan counts *before* the demotion.
+
+### Measured, not argued
+
+Everything in the page is reproduced from stored outputs. The published r16443
+summary is reproduced **bit-for-bit** from the stored peak list
+(`clean 138012 / merged 22312 / split 1754 / fake 31867`), which anchors every
+formula quoted.
+
+**The matching window is worth 0.66 efficiency points per 6% of sigma.** Same
+peak list, only the window changes:
+
+| sigma as window (mm) | efficiency | fake/evt |
+|---|---|---|
+| 0.2190 | 0.8643 | 16.637 |
+| **0.2200** (published) | **0.8648** | **16.597** |
+| 0.2283 (the mu-window sigma) | 0.8688 | 16.331 |
+| 0.2328 | 0.8709 | 16.187 |
+| 0.5000 | 0.9332 | 9.589 |
+
+Event bootstrap (2000 replicas): +-0.0007 on efficiency, +-0.097 on fake/evt.
+Reco-side *clean* is nearly flat across the whole range (138,005 -> 138,402);
+efficiency rises almost entirely through **merged**, i.e. through crediting
+close pairs that share one peak.
+
+**What the sigma-population fix (2e55f79) will do to the headline.** The
+published r16443/r16638 evals predate it (INVOCATION.txt records 53d1967), so
+their sigma was fitted at <mu> ~ 100 and used as the window for a summary at
+<mu> = 192.5. Feeding the mu-window sigma (0.2283 mm at 300 bins, from
+`ripple_study/binning.json`) through the stored peak list gives **0.8688 /
+16.331** — expect roughly **+0.4 efficiency points and -0.27 fake/event** on
+re-run, with the model unchanged.
+
+**nTrk = 1 census, read straight from the ntuple.** r16443, mu in [185,215],
+1920 events: 111.32 truth vertices/evt with nTrk >= 2 (the denominator),
+**23.13/evt with nTrk = 1** (discarded by `run3_io._filter_amvf`), 0.00 with
+nTrk = 0, 134.45 TruthVertex entries in total against <mu> = 192.5. So even the
+truth list is a reconstruction-level object, and a peak landing on one of the
+23.13 counts as our fake — consistent with the independently measured 4.2 of
+the ~16.6 fake/event being real interactions.
+
+### Worked example, committed and pinned
+
+`src/pv_finder/diagnostics/metric_worked_example.py`: six truth vertices, six
+reco, 65 tracks, run through **both production classifiers** (the positional
+labels are parsed out of `compare_res_reco`'s own `debug=1` trace and
+cross-checked against its returned totals, so it cannot drift into a
+paraphrase). Same six objects, same five truth PVs:
+
+```
+positional  : clean 2  merged 1  split 1  fake 2   eff 0.800   clean/truth 0.400
+track-purity: clean 1  merged 2  split 2  fake 1               clean/truth 0.200
+```
+
+Two vertices disagree, in **opposite** directions: P_b is at the right z but
+60% pure (positional clean, track Merged); P_f has a perfectly pure track list
+but sits 0.32 mm out (positional fake, track Split). Variants in the same
+script: widening the window 0.22 -> 0.35 mm takes efficiency 0.80 -> 1.00, and
+keeping nTrk = 1 truth turns a fake into a clean match.
+`tests/test_metric_worked_example.py` pins all of it (7 tests).
+
+### Found while writing it
+
+- **BUG (docs).** Three places state a track-purity Fake means *no* track has a
+  truth association (`classification.py:147`, `amvf_convention_check.py:12-13`,
+  the vertex_association classification table). The code takes the **plurality**
+  over a dict in which truthless tracks are a bucket keyed `"Fake"`
+  (`classification.py:314,319`), so 3 truthless + 1 truth-associated track is
+  Fake. P_d in the worked example is exactly that case. Behaviour is
+  defensible; the docstrings are wrong.
+- **BUG (latent crash).** `classification.py:293` does `int(truth_pv_num)` on
+  the result of a `np.nonzero` lookup. A track index appearing in two
+  `TruthVertex_assocTracks` lists gives a size-2 array and raises `TypeError`
+  mid-eval. Checked 4,000 r16443 events: zero occurrences, zero negative, zero
+  out-of-range. Latent, not active; not fixed because that file is shared by
+  every TTVA eval and the regression guard.
+- **Discrepancy.** `amvf_convention_check.vertex_purities` maxes over real
+  truths only while `classify_assignments` maxes over a dict including the
+  truthless bucket — the diagnostic is not measuring quite what it explains.
+  Bounded by 135/187,960 = 0.07%, so no published conclusion moves.
+- **Asymmetry, not a bug.** The positional reco-side clean/merged split is
+  order-dependent: the first reco vertex reached in index order absorbs a shared
+  unclaimed truth vertex, and peaks always arrive sorted in z. Measured by
+  reflecting the whole slice in z: **23 of 193,945 vertices (0.012%)** move
+  between clean and merged; split, fake, tc, tm and efficiency are bit-identical.
+  Truth-side efficiency is provably order-independent.
+- **Knife edge.** Promoting the stored float32 peak positions to float64 before
+  `mm_to_bins` flips exactly one vertex in 193,945 between split and fake — the
+  `<=` at `efficiency_res_optimized_atlas.py:258`. Harmless; worth knowing
+  before chasing a one-count difference.
+- `_filter_amvf` grooms AMVF to nTracks >= 2 before scoring and **nothing
+  equivalent is applied to our peak list** (we cannot — a peak has no track
+  count until the associator runs). 187,908 groomed against 187,960 ungroomed
+  on the same events, so 52 vertices at PU200. Structural, always in AMVF's
+  favour.
+- The finder eval **never prints AMVF's truth-side efficiency**. Its AMVF block
+  is reco-side counts expressed as percentages of the truth count, i.e.
+  clean/truth, not clean_rate.
+
+### Portability rules, generalised
+
+- A ratio whose denominator is a convention is not portable across that
+  convention. AMVF's track clean/truth fell 0.573 -> 0.3094 between v3 and v4;
+  truth density only rose 12.6%, so the denominator explains almost none of it.
+- Normalise to a bound measured on the same data. **fraction-of-oracle** is the
+  headline; absolute clean/truth is secondary.
+- A rate whose category definition is threshold-shaped reverses when the
+  population changes. "18x fewer fakes than AMVF" is a v3-data statement and is
+  false at extended |eta|.
+- Never compare across a change in sigma without saying so — the window is
+  sigma (section 5.1).
+- Bootstrap over events, never sqrt(N).
+
+Outputs: `outputs/08_05_2026_output/metric_taxonomy/` (window_probe.json,
+window_probe.log, code/). r16638 is the same e8481_s4494 as r16443 with a
+different reco tag, so it is a consistency check and not a second sample; the
+page says so.
+
 ## 2026-08-05 — Adversarial audit of the PV-Finder vs AMVF comparison
 
 Independent re-derivation of the comparison in `run_eval_pvf_run3.py`, built
@@ -3824,5 +3970,211 @@ the absolute headline does not. Quote the margin and the window, not the
 Not done, deliberately: the fixes themselves. Deciding whether the published
 efficiency should switch to strict one-to-one, and whether the fake rate should
 absorb splits, changes numbers already circulated and is the user's call.
+
+---
+
+## 2026-08-05 — The AMVF comparison was not symmetric; measured both asymmetries and replaced it
+
+The published PV-Finder vs AMVF comparison compared the two algorithms in a way
+that could not be defended, in two independent respects that run in opposite
+directions. Neither was a coding error — both are consequences of conventions
+that are individually reasonable and jointly unfair.
+
+**Asymmetry 1 — the matching window was ours, applied to them.**
+`run_eval_pvf_run3.py` derives `sig_bins` from PV-Finder's own fitted σ_vtx-vtx
+(line 492) and classifies AMVF with it (lines 518, 551). Fitted with the same
+procedure on the same events, σ_PVF = 0.2182 mm and σ_AMVF = 0.3047 mm, so AMVF
+was being judged with a window 28.4 % tighter than its own resolution. The
+coupling is visible in our own outputs and was verified before anything was built
+on it: between the 08-04 and 08-05 held-out evals our σ improved 0.2328 → 0.2200
+and AMVF's measured fake rate rose 17.37 → 17.78/evt. AMVF did not change. That
+0.41 fake/event was purely mechanical.
+
+**Asymmetry 2 — nTrk = 1 truth vertices counted against us.** `run3_io.py`
+filters truth to nTracks ≥ 2. There are 111.32 such vertices/event and 23.13 with
+nTrk = 1 (none with 0), and a reconstructed vertex landing on one of those real
+interactions is scored as a fake.
+
+**What replaced it.** A scan of efficiency and fake rate for both algorithms
+against a *common* matching window swept 0.1–1.0 mm, plus a headline table at a
+pre-registered common 0.5 mm (round; ≥ 1.6× both σ; ~half the mean inter-vertex
+spacing at PU200 — chosen before looking at any result and independent of either
+fit). Both truth definitions are reported for both algorithms. 1920 held-out
+r16443 events, μ ∈ [185, 215]; r16638 agrees throughout but is the same generated
+events reconstructed twice and is used only as a consistency check. Errors are
+bootstrap over events, differences paired. No inference was re-run: PV-Finder's
+peaks come from the existing `eval_v6_operating_point` pkl, AMVF and the
+unfiltered truth from ROOT, with per-event alignment proved on every event rather
+than assumed.
+
+At 0.5 mm: PV-Finder 93.32 ± 0.06 % efficiency, 9.59 ± 0.07 fake/evt (5.25 ± 0.06
+on the corrected truth definition); AMVF 92.46 ± 0.06 %, 11.65 ± 0.08 (8.02 ±
+0.06). Paired differences +0.86 ± 0.05 points and −2.06 ± 0.07 fake/event.
+
+**What the asymmetries were worth.** Asymmetry 1 flattered us by **2.14
+efficiency points** (the gap is +3.00 points at the published window and +0.86 at
+the common one) and *penalised* us by **0.90 fake/event** (gap −1.16 → −2.06). It
+does not point one way, which the original framing of the problem did not expect.
+Asymmetry 2 is worth **0.97 ± 0.07 fake/event**, not the 3.33 it appears to be:
+AMVF also puts 2.36 ± 0.05 vertices/event on real nTrk = 1 interactions against
+PV-Finder's 3.33 ± 0.05, so most of that correction cancels. The accidental floor
+was measured with two independent controls (another event's nTrk = 1 list, and
+this event's list displaced by 10 mm) which agree to 0.04/event.
+
+**Two findings that narrow our margin, and are the reason this was worth doing.**
+
+1. The fake-rate lead is largely a *relabelling*. Widening the window turns a
+   surplus vertex from "fake" into "split", and PV-Finder's surplus is
+   disproportionately near-neighbour satellites (4.49 split/evt at 0.5 mm against
+   AMVF's 2.63) while AMVF's is more isolated. On surplus = fake + split, which
+   is immune to that, the two are a statistical tie at 0.5 mm (−0.20 ± 0.08/evt)
+   and **AMVF is ahead beyond 0.596 mm**. Fake rates should not be quoted without
+   the surplus number beside them.
+2. PV-Finder emits 101.0 candidates/event against AMVF's 97.9. Raising the height
+   floor 0.03 → 0.0444 equalises them (exactly equivalent to re-running the peak
+   finder at that `--min-height`) and the efficiency advantage collapses to
+   **+0.12 ± 0.05 points** — a tie — while the surplus advantage grows to
+   2.37 ± 0.08/event. So the defensible claim is not "PV-Finder is more efficient
+   than AMVF" but "PV-Finder sits on a better efficiency/purity frontier, and the
+   deployed operating point spends that advantage on efficiency".
+
+Also recorded: **AMVF's truth-side efficiency is never printed by the eval**,
+only its reco-side categories, which is why no AMVF efficiency number had ever
+appeared in the wiki. It is 92.46 % at the common window and 83.49 % at the
+window the eval actually uses. And judged self-consistently — each algorithm at
+its own σ — AMVF's efficiency comes out *higher* than PV-Finder's (0.8755 vs
+0.8638). That is not a statement about the algorithms; it is what happens when
+each picks its own acceptance criterion, and it is the clearest demonstration
+that the self-consistent convention cannot settle a comparison.
+
+New code in `src/pv_finder/diagnostics/amvf_fair_comparison/`. The matcher there
+is verified bit-for-bit against `compare_res_reco` by
+`tests/test_amvf_fair_matching.py` at five windows, and on the real data it
+differs from the production matcher by 1 vertex in 193 945 (PV-Finder) and 2 in
+187 908 (AMVF) — a float boundary from matching in mm rather than bin units —
+with truth-side matched counts identical. Nothing was taken from it before that
+check passed. Numbers, figure and invocation in
+`outputs/08_05_2026_output/amvf_fair_comparison/`; wiki section in
+`docs/evaluation/vertex_finding.md`, which now carries a warning on the old AMVF
+row and a correction to the fake-decomposition paragraph rather than a silent
+overwrite.
+
+**Addendum, same day.** A concurrent independent audit
+(`docs/evaluation/amvf_fairness_audit.md`, written from scratch with a Hungarian
+matcher rather than reusing `compare_res_reco`) landed while this was in
+progress. The two studies were done separately and agree where they overlap,
+which is worth recording as a cross-check: σ_PVF = 0.2182 mm, σ_AMVF ≈ 0.3047 mm,
+AMVF efficiency 0.8349 at the published window, and the height floor 0.0444 that
+equalises the two candidate yields at 97.87/evt were each derived twice,
+independently, to the digits quoted.
+
+The audit found one effect this study had silently inherited by reusing
+`compare_res_reco`: **efficiency credits one reco vertex with every truth vertex
+in its window**. It is now measured here too. At the common 0.5 mm window it is
+worth +15.2 points of absolute efficiency (93.32 with merge credit, 78.09 strict
+one-to-one) — and it does not cancel in the comparison. AMVF has fewer reco
+vertices, so each of its merges absorbs more truth and it collects proportionally
+more merge credit; the convention therefore *shrinks* our measured lead, from
++3.01 ± 0.06 points strict to +0.86 ± 0.05 with merge credit. Both are now in the
+wiki table. The lesson is the same one as the window: an absolute efficiency
+without its convention named is not a measurement.
+
+Scope note: the two studies are complementary rather than redundant. The audit
+ranks every asymmetry it can find at one window and deliberately stops short of
+fixing anything; this one produces the window *scan* across 0.1–1.0 mm, the
+pre-registered 0.5 mm table, both truth definitions for both algorithms with a
+measured accidental floor, and the surplus and matched-multiplicity controls.
+They should be merged into one page rather than left as two.
+
+---
+
+## 2026-08-05 — sigma_vtx_vtx was fitted on the wrong events; fixed and re-run
+
+Flagged in the post-hoc study earlier today and left for the user to call.
+The answer was yes, so this fixes it. Commits `2e55f79` and `934930d`; corrected
+artefacts in `outputs/08_05_2026_output/eval_v6_mu_window/`.
+
+### The bug
+
+`pairwise_dz.append(...)` sat in the per-event inference loop with no mu filter,
+so `dz_arr` spanned every event read, while the summary block quoted efficiency
+on the mu window. On the flat-mu held-out files that is **25 000 events at
+<mu> = 99.6** against **1920 / 1888 events at <mu> = 192.5**. Because sigma is
+fed back as the matching window, the mismatch did not stay in the resolution
+line -- it propagated into the headline efficiency and fake rate too.
+
+### The fix
+
+Pairwise dz is now kept per event and the fit runs on the mu-window subset
+whenever a window is in force; with no window the behaviour is unchanged. Both
+numbers are printed -- the mu-window sigma as the headline with its event and
+pair counts, the all-events sigma as a secondary line marked *mixed-mu; NOT the
+headline* -- so the change is visible in the log rather than silently moving a
+number people have already seen. `eval_results.pkl` carries both, plus
+`in_mu_window`, the selection label and the fit's event/pair counts;
+`pairwise_dz_mm` stays the array `sigma_vtx_vtx_mm` was fitted to so
+`replot_from_pkl` keeps drawing one over the other consistently. The resolution
+plot now shows the population its quoted sigma describes.
+
+The selection predicate moved to `pv_finder.utils.pairwise_dz.in_summary_window`
+and is called by **both** the fit and the summary block. One function is the
+actual fix: two independent copies of "which events count" is what the bug was.
+
+### Corrected numbers, mu in [185,215], 1920 / 1888 events
+
+| | efficiency | fake/evt | sigma_vtx-vtx |
+|---|---|---|---|
+| as published 08-04 | 0.8643 / 0.8656 | 16.64 / 16.36 | 0.2190 / 0.2200 |
+| + commensurate binning | 0.8648 / 0.8662 | 16.60 / 16.32 | 0.2200 / 0.2213 |
+| **+ sigma on the mu window** | **0.8691 / 0.8695** | **16.31 / 16.10** | **0.2290 +- 0.0031 / 0.2278 +- 0.0032** |
+
+Secondary (mixed-mu) sigma from the same runs: 0.2200 +- 0.0031 and
+0.2213 +- 0.0030, over 45.5 M and 46.0 M pairs against 8.93 M and 8.70 M in the
+window. Net: sigma +4.1% / +2.9%, efficiency +0.43 / +0.33 points, fake rate
+-0.29 / -0.21 per event. **No peak moved** -- the peak lists are identical and
+only the matching window changed.
+
+Cross-checked two ways before reporting. Replaying the stored peak lists at a
+fixed 0.2283 mm window predicts 0.8688 efficiency and 16.331 fake/event; the
+re-run measured 0.8691 and 16.308. Independently, extrapolating the
+window-sensitivity scan from the cached held-out dump predicted sigma ~ 0.228,
+efficiency ~ 0.869 and 16.3 fake/event. Both land on the measurement, so nothing
+else moved.
+
+### The earlier artefacts are superseded, not merely updated
+
+`outputs/08_05_2026_output/eval_v6_operating_point/` was produced at `53d1967`,
+before this fix, and **cannot be reproduced from current HEAD**. Do not diff its
+numbers against new ones as though they were the same measurement. The current
+artefacts are `eval_v6_mu_window/`, whose `INVOCATION.txt` records `2e55f79`
+(r16443) and `934930d` (r16638) -- the two differ only in a warning message on a
+branch neither run reaches, so both match HEAD.
+
+### Two things folded in from work that landed alongside
+
+- The published efficiencies use the **merged-credit** convention, worth
+  **+11.5 points** over strict one-to-one. `docs/evaluation/vertex_finding.md`
+  now states that next to the numbers and points at
+  `docs/evaluation/metric_definitions.md` and
+  `docs/evaluation/amvf_fairness_audit.md` rather than restating them.
+- The nTrk = 1 finding is corrected for the comparison case: **AMVF also books
+  2.36/evt** of these, so the net differential is **0.97/evt, not 3.3**. The two
+  PV-Finder figures on that page (4.17/evt at the 0.2328 mm production window
+  with an accidental control, 3.33/evt at the audit's common 0.5 mm window) are
+  now explicitly reconciled so they do not read as contradicting each other.
+
+### And the comb's provenance, stated in three places
+
+The plateau sawtooth **arrived with the local-centroid estimator on 08-04** --
+39.4% |dz| comb against 0.9% for the full-region weighted mean it replaced,
+1.3% AMVF, 0.8% truth, all on the same 240 bins. That estimator change was a
+real physics win (-3.85% core width, -13% sigma_vtx-vtx) and it stands, but it
+also made the resolution plot look dramatically worse for a purely
+presentational reason. Anyone comparing an 08-03, an 08-04 and an 08-05 figure
+sees a plot degrade and then clean up while the resolution only ever improved.
+Now called out at the top of `docs/research/resolution_plot_ripple.md`, in the
+binning section of `docs/evaluation/vertex_finding.md`, and next to the
+estimator change itself in `docs/research/peak_position_estimator.md`, which
+previously recorded only the win.
 
 ---
