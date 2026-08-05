@@ -39,8 +39,22 @@ python -m gnn.training.train_ttva \
 See `configs/gnn/config_gnn_ttva.yml` for all parameters. Variants:
 - `config_gnn_ttva_repro.yml` — μ≈60 end-to-end reproduction (existing 51k
   fully-connected graph set from the Nov 2025 workspace).
-- `config_gnn_ttva_hllhc.yml` — HL-LHC PU200 (30k kNN k=20 graphs built by
-  `gnn.data.root_to_graphs`, hllhc resolution preset).
+- `config_gnn_ttva_hllhc.yml` — HL-LHC PU200 |η|<2.5 (30k kNN k=20 graphs
+  built by `gnn.data.root_to_graphs`, `hllhc` resolution preset).
+- `config_gnn_ttva_hllhc_v4_aug.yml` / `_v4_noaug.yml` — HL-LHC PU200
+  **extended |η|** on `data/run4_all_etas`, **`hllhc_alleta` preset**.
+
+> **Resolution preset — read before building any graphs.** `hllhc` is
+> superseded and is correct *only* for the old |η|<2.5 production. Anything on
+> `data/run4_all_etas` must use **`hllhc_alleta`**: at fixed truth nTracks the
+> AMVF-truth residual is 13–26% wider at extended |η|, because nTracks now
+> counts forward tracks with σ(z0) up to 2.8 mm. The preset sets PV-node
+> heights and edge significances — features the GAT trains on — so the wrong
+> preset does not crash, it silently trains on mis-scaled inputs.
+> `--resolution-preset` is now a required argument (there is no
+> `DEFAULT_RESOLUTION_PRESET` any more). Note that
+> `scripts/build_v3_shards.sh` hard-codes `hllhc` and is correct only for the
+> v3 |η|<2.5 shards; `scripts/build_ttva_v4_shards.sh` uses `hllhc_alleta`.
 
 ## HL-LHC PU200 training
 
@@ -113,6 +127,86 @@ checkpoint**: truth graphs 0.823 clean/truth @ t=0.5 / 0.9155 @ t=0.95;
 full chain **0.716 @ 0.05% fakes (t=0.98)** vs v1 0.647 / AMVF 0.573.
 Improved every metric incl. HS-ID (98.1% > AMVF). The transfer gap is
 effectively closed (96% of the oracle bound on peaks).
+
+## v4: extended-|η| retrain on the PV-Finder v6 chain (2026-08-05)
+
+v4 moves the associator onto `data/run4_all_etas` (the July-2026 extended-|η|
+re-production) and onto PV-Finder v6, and runs augmentation as a **controlled
+A/B** rather than assuming the v3 finding carries over. The v6 chain has a much
+higher junk-peak rate than the v4b chain the v3 augmentation was tuned on.
+
+| | arm A | arm B |
+|---|---|---|
+| config | `config_gnn_ttva_hllhc_v4_aug.yml` | `config_gnn_ttva_hllhc_v4_noaug.yml` |
+| shards | `v4_shards_augmented` | `v4_shards_pristine` |
+| augmentation | chain-like, p=0.7 | none (control) |
+| GPU | 2 | 3 |
+
+Everything else is identical: same events, same shard boundaries, same per-shard
+seeds (100+i), same architecture, same schedule, and **both validate on the same
+pristine 5k val shard** so the two learning curves share one yardstick. Arm A
+therefore validates slightly out of its training distribution by design — the
+chain evaluation, not this loss, decides between the arms.
+
+Differences from the v3 recipe that matter:
+
+- **`hllhc_alleta` resolution preset, not `hllhc`.** See the box above.
+- **18 shards × 10k, not 9 × 20k.** Extended-|η| events carry ~1366 tracks
+  against ~927, so a 20k shard no longer fits the 32 GB per-process limit.
+- **Augmentation quantiles measured on r16638 and reported on r16443**, two
+  disjoint held-out files. v3 measured and reported on the same events.
+- **Augmentation measured at centroid half-width 3**, matching the v6 operating
+  point, so arm A's peak statistics match the deployment condition exactly.
+
+### Epoch budget: 108, not 324
+
+The design target was 324 epochs (18 dataset passes, matching v3's
+graph-presentation count). The campaign had a hard 4–5 h training budget and
+sneezy was at load ≈296, where an epoch costs 85–165 s rather than the ~28 s it
+costs on a quiet box. **108 is the largest multiple of 18 whose cosine anneal
+completes inside that window.**
+
+Two constraints worth remembering for any future resize:
+
+1. **The epoch count must be a multiple of the shard count.** `ShardCyclingLoader`
+   advances one shard per epoch round-robin, so any other count shows some
+   shards one more time than others. In an A/B whose whole point is that the
+   arms differ only in augmentation, that is an uncontrolled variable.
+2. **Shorten the schedule; do not truncate a long one.** With cosine annealing
+   to 1e-5, an early-stopped checkpoint has not annealed and does not represent
+   the recipe. `T_max` must equal the epoch budget.
+
+`save_frequency: 1` (every epoch), so a wall-clock guard always has a loadable
+state_dict. `scripts/ttva_v4_deadline_guard.sh` enforces the budget with
+SIGTERM — never SIGKILL, which on this kernel creates unkillable core-spinners.
+
+**108 epochs is 6 dataset passes against v3's 18.** Read the two arms as a
+like-for-like A/B against each other, not against v3's absolute numbers.
+
+### Verifying a shard build before training on it
+
+Both builds were checked before use (a 3-hour run on a silently broken shard set
+is the expensive failure mode here). Sampling 300 graphs/shard:
+
+| | pristine | augmented |
+|---|---|---|
+| tracks/event | 1366.4 | 1366.4 (same events) |
+| PV nodes/event | 138.9 | 132.3 |
+| track→pv edges | 27,327 | 27,327 (= knn 20 × tracks) |
+| positive-edge fraction | 0.0490 | 0.0455 |
+| PV heights identically 0 | 0.0000 | 0.0000 |
+
+The PV-node drop is the augmentation working, and it is quantitatively right:
+of ~138.9 truth vertices, ~111.3 have nTrk≥2 and are droppable at the measured
+~22% miss rate, giving ~114.4 kept, plus junk at 0.1397/kept ≈ 16.0, i.e. ~130.4
+per augmented event. With augmentation applied to 70% of events that predicts
+132.4 overall against the 132.3 measured. The lower positive-edge fraction is
+the same effect from the label side: junk nodes contribute only negative edges.
+
+**Always confirm PV heights are not identically zero.** The double-`Z_MIN` bug
+(fixed 2026-07-14) left them at exactly 0 in every pre-fix truth graph, and
+legacy files deliberately retain that for reproduction, so a stale file mixed
+into a new campaign trains a dead feature.
 
 ## mu60 v2: fixed heights + augmentation (2026-07-14)
 
