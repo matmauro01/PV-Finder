@@ -22,6 +22,7 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 
 ## Evaluation
 
+- [amvf_fairness_audit](evaluation/amvf_fairness_audit.md) — is the PVF vs AMVF comparison apples-to-apples, and by how much
 - [vertex_finding](evaluation/vertex_finding.md) — PVF metrics
 - [vertex_association](evaluation/vertex_association.md) — GNN metrics
 

@@ -3748,3 +3748,81 @@ work at the time.
   source instead of working around it in the plot binning.
 
 ---
+
+## 2026-08-05 — Adversarial audit of the PV-Finder vs AMVF comparison
+
+Independent re-derivation of the comparison in `run_eval_pvf_run3.py`, built
+from the r16443 ROOT ntuple and the stored peak lists with a matcher written
+from scratch (`diagnostics/fair_matching.py`, Hungarian rather than greedy),
+deliberately not reusing `compare_res_reco` — that code was the subject of the
+audit. Full findings in `docs/evaluation/amvf_fairness_audit.md`;
+numbers in `outputs/08_05_2026_output/amvf_fairness_audit/`.
+
+The audit reproduces the published run to four decimals (PVF eff 0.8648,
+FP 16.598/evt against the log's 0.8648 / 16.597), which is what licenses the
+rest of it.
+
+Ranked by size, the ways the comparison is not apples-to-apples:
+
+1. Efficiency credits one reco vertex with several truths (`:532` plus the
+   claim rule at `efficiency_res_optimized_atlas.py:292-296`). Worth +11.5
+   points: strict one-to-one gives 0.7501, not 0.8648. Close to the ATLAS
+   "merged" convention, so a convention choice rather than a bug — but it
+   inflates the absolute number and had never been applied to AMVF.
+2. No AMVF efficiency existed anywhere: `:550` discards the truth-side
+   classification. Computed it — AMVF 0.8349 under the same convention, so the
+   margin is +2.99 points rather than "86.5 % against nothing".
+3. The matching window is our own sigma applied to AMVF (`:492`). Worth +1.59
+   eff points and −1.77 fake/evt to AMVF if it gets its own 0.3048 mm. Does
+   not reverse anything: at a common window the efficiency gap is stable at
+   +0.018..+0.038 across 0.10–2.00 mm.
+4. nTrk=1 truth removed from truth but our peaks there still count as fakes —
+   costs us 1.24 fake/evt more than it costs AMVF.
+5. "Split" reco excluded from the published fake rate. We make 2.4x more
+   splits than AMVF (0.913 vs 0.373/evt), so ~46 % of the published fake-rate
+   advantage is accounting: gap 1.18/evt → 0.64/evt honest.
+
+Checked and clean, recorded so the audit is a complete statement: the
+`--min-amvf-vtx`/`--min-tracks` event cuts remove 0 of 25000 events; beam
+correction is applied to nothing in the MC path and `BeamPosZ` is identically
+0; no vertex on either side lies outside the ±240 mm range; greedy vs optimal
+matching is worth ≤0.05 points and is symmetric; there are no duplicate
+vertices to make tie-breaking ambiguous; the unseeded pairwise-dz shuffle at
+`:375` produces sigma = 0.2182 ± 0.0000 over 25 randomisations, i.e. no
+run-to-run variance; and the 12x40 mm sub-event stitching costs nothing at the
+block edges (0.7363 vs 0.7351 in the bulk).
+
+`_filter_amvf`'s nTracks>=2 grooming of AMVF — the item I most expected to
+bite — is real as an asymmetry of kind but numerically nothing: AMVF emits 52
+sub-2-track vertices in 1920 events, 0.03/evt, and ungrooming moves its fake
+rate from 19.819 to 19.834.
+
+Independent numbers at a common 0.17 mm window (3x the worse of the two core
+position resolutions, 0.0551 mm PVF / 0.0565 mm AMVF), strict one-to-one,
+paired bootstrap over 1920 events:
+
+- truth nTrk>=2: PVF 0.7351 ± 0.0008 eff, 19.179 ± 0.106 fake/evt;
+  AMVF 0.7011 ± 0.0008, 19.819 ± 0.103; difference +0.0340 ± 0.0006 and
+  −0.640 ± 0.098.
+- truth nTrk>=1: PVF 0.6442 ± 0.0008, 14.403 ± 0.093; AMVF 0.6068 ± 0.0008,
+  16.280 ± 0.098; difference +0.0373 ± 0.0005 and −1.877 ± 0.090.
+
+At equal vertex yield (height floor raised to 0.0444 so both emit 97.87/evt)
+PV-Finder is still +2.94 points and −3.27 fake/evt, so the margin is not an
+artefact of our tuned operating point.
+
+Two caveats on the absolute scale, symmetric so they do not affect the
+comparison: displacing the reco lists by +3 mm still "matches" 16.6 % (PVF) /
+16.4 % (AMVF) of truth, and 11.26 adjacent truth pairs/evt are closer than the
+window and unresolvable by any algorithm.
+
+Conclusion: the comparison is not apples-to-apples and the corrections run in
+both directions, but none of them reverses the result. The margin survives;
+the absolute headline does not. Quote the margin and the window, not the
+86.5 %.
+
+Not done, deliberately: the fixes themselves. Deciding whether the published
+efficiency should switch to strict one-to-one, and whether the fake rate should
+absorb splits, changes numbers already circulated and is the user's call.
+
+---
