@@ -56,12 +56,32 @@ The second held-out file `r16638` gives +12.5 % independently.
 > | AMVF (nTrk≥2) | −99.8 % | −14.8 % |
 >
 > So the shipped configuration carries roughly **a quarter** of the excess this
-> page characterises. Two cautions on reading it. First, this uses the
-> far-plateau median baseline, which the reconciliation note in
-> [§3](#3-how-to-reduce-it) shows runs about 4.5 points high at 0.5 mm because
-> the \|Δz\| density is not flat (61.65 pairs/evt/mm at 1.0–1.5 falling to 59.77
-> at 4.5–6.0). Against a fitted baseline the residual may be close to zero, and
-> that re-measurement has **not** been done. Second, AMVF's −14.8 % is **not** evidence it has fewer
+> page characterises — and against a *fitted* baseline it carries none that can
+> be separated from truth. The +3.6 % above uses the far-plateau median
+> baseline, which the reconciliation note in [§3](#3-how-to-reduce-it) shows runs
+> about 4.5 points high at 0.5 mm because the \|Δz\| density is not flat.
+> Re-fitting the baseline as a straight line over several far regions and
+> extrapolating into the band, with truth on the same events as the control:
+>
+> | baseline fitted over | PV-Finder band | Truth band |
+> |---|---|---|
+> | 1.2–6.0 mm | −0.05 % | +0.57 % |
+> | 2.0–6.0 mm | +0.97 % | +0.03 % |
+> | 3.0–6.0 mm | +1.67 % | −0.24 % |
+> | 4.0–6.0 mm | +0.69 % | −1.45 % |
+>
+> **PV-Finder is indistinguishable from truth at the deployed operating point.**
+> Both scatter within about ±1.5 % depending on where the baseline is fitted, so
+> the choice-of-baseline systematic now exceeds any residual signal. The residual
+> \|Δz\| slope is real rather than a satellite tail tilting the fit: it survives
+> fitting over 4–6 mm alone (−28.9 per mm), where satellites are negligible.
+>
+> Read that as: the pathology this page documents was **+12.48 % and 26 σ in the
+> diagnostic configuration, and is at most 1–2 % and unresolvable in production**.
+> It has not been shown to be exactly zero, and the mechanism in §1 is unchanged
+> — the split rule still fires on ripple. What changed is that the local centroid
+> stopped mis-placing the results into this band and the operating point removed
+> the lowest-amplitude ones. Second, AMVF's −14.8 % is **not** evidence it has fewer
 > satellites: its dip is wider, so it is still recovering across this band. Its
 > own shoulder sits at 0.9–1.1 mm. Comparing two algorithms at a fixed band
 > compares them at different points of their own recovery, which is the same
