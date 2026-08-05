@@ -97,16 +97,25 @@ into the output directory.
 --peak-threshold 0.01      unchanged      min_width 3   unchanged
 ```
 
-v6 model, μ ∈ [185, 215], 1920 / 1888 events:
+v6 model, μ ∈ [185, 215], 1920 / 1888 events. Re-run 2026-08-05 with the
+commensurate pairwise binning (see below); the 240-bin row is what was published
+on 08-04 and is kept so the size of that change is visible.
 
 | | efficiency | fake/evt | σ_vtx-vtx | reco/evt |
 |---|---|---|---|---|
 | previous production | 0.8820 / 0.8825 | 21.52 / 21.32 | 0.2328 / 0.2325 | 106.8 |
-| **this operating point** | **0.8643 / 0.8656** | **16.64 / 16.36** | **0.2190 / 0.2200** | **101.0** |
-| AMVF, same events | — | 17.80 / 17.60 | 0.3048 | 97.9 |
+| this operating point, 240 bins (08-04) | 0.8643 / 0.8656 | 16.64 / 16.36 | 0.2190 ± 0.0050 / 0.2200 ± 0.0047 | 101.0 |
+| **this operating point, 300 bins (current)** | **0.8648 / 0.8662** | **16.60 / 16.32** | **0.2200 ± 0.0031 / 0.2213 ± 0.0030** | **101.0 / 100.3** |
+| AMVF, same events | — | 17.78 / 17.55 | 0.3048 | 97.9 / 97.4 |
 
 PV-Finder now reconstructs **more vertices than AMVF with fewer fakes**
 (101.0 vs 97.9 reco/evt, 16.6 vs 17.8 fake/evt).
+
+The binning change moves efficiency by +0.05 points and the fake rate by
+−0.04/evt, entirely through the matching window: the peak list is bit-identical
+and σ shifted by +0.5 %. What it buys is the **fit error, down 38 %**, and a
+plateau you can read. AMVF's numbers move a little for the same reason — it is
+classified against truth with the same window.
 
 Reading the efficiency drop. Only about 1.06 of the 1.77 points is a real loss;
 the rest is the matching window, which this eval derives from the fitted
@@ -121,6 +130,40 @@ was rejected.
 Note `min_height` is the right knob for **isolated** low-amplitude fakes and the
 wrong one for the satellite peaks behind the pairwise-Δz bump, which it makes
 relatively worse. See `docs/research/pairwise_dz_bump.md`.
+
+**This operating point is the optimum of the stated trade, and post-hoc levers
+do not improve on it (2026-08-05).** A joint scan of Gaussian pre-smoothing,
+anti-lattice notch filters, NMS, minimum-separation and prominence gates on the
+split, each crossed with the integral and height thresholds — **817
+configurations**, selected on half the held-out events and reported on the
+other — puts every one of them on or below the plain integral/height frontier.
+**0 of 817 beat the deployed point, on either half**, and the two halves agree
+to within 0.159 efficiency points and 0.126 fake/event across the whole grid.
+
+Cheapest fake removal each family can manage, in efficiency points per
+fake/event removed, against a budget of 0.2: **thresholds 0.216**, Gaussian
+pre-smoothing 0.236, anti-lattice notch 0.246, prominence gate 0.313, relative
+prominence gate 0.322, peakiness (height/integral) 0.422, NMS 0.708, minimum
+separation 1.581. Even the cheapest is already over budget — that is the
+quantitative statement that this operating point is at the knee. Details and the
+ranked table: `docs/research/resolution_plot_ripple.md` and
+`outputs/08_05_2026_output/ripple_study/`.
+
+### Pairwise-Δz binning (2026-08-05) — `--pairwise-bins` now defaults to 300
+
+The plateau of `resolution_plot.png` used to alternate between two levels by
+3.9 %, four times its own error bars. That was not noise and not satellites: it
+is a beat between the 0.04 mm quantisation of reco positions and the 0.05 mm
+bins the 240-bin default gave. `lcm(0.04, 0.05) = 0.20 mm`, hence a 4-bin
+sawtooth.
+
+`--pairwise-bins` now defaults to `DEFAULT_PAIRWISE_BINS = 300` (0.04 mm bins,
+derived as `2 × 6 mm / BIN_WIDTH_MM`), and the eval warns if it is given an
+incommensurate value. Effect, both held-out files: comb amplitude 3.8–4.0 % →
+0.04–0.15 %, plateau pull RMS 4.2–4.6 → 1.6–2.0, σ_vtx-vtx **fit error nearly
+halved**. σ itself moves +0.6 to +0.9 %, inside the old error bar — this is a
+presentation fix, not a resolution improvement, and no peak moves.
+See `docs/research/resolution_plot_ripple.md`.
 
 **Unified-threshold (2026-04-16):** Both performance and resolution use `0.5`
 by default on Run 2 / Run 3 / MC. This is consistent and filters small sidelobe
@@ -155,7 +198,7 @@ Summary statistics (clean/merged/split/fake averages) are computed only over eve
 
 `pv_locations_updated_res` returns PVs sorted ascending in z, so all pairwise differences `pvs[i]-pvs[j]` for `i<j` are negative. Both `+dz` and `-dz` are added to make the distribution symmetric before fitting the sigmoid.
 
-> **Binning caveat (2026-07-20):** the default 60-bin fit over ±6 mm (0.2 mm/bin) under-samples the *PVF* dip, whose walls are near-vertical, biasing σ_vtx_vtx high (0.29 mm at PU200) — the fit does not even converge at 120 bins. Refining to ≥240 bins gives a stable PVF σ ≈ **0.22 mm** (AMVF's rounded dip is binning-independent at 0.28 mm). Quoted PU200 resolutions of ~0.28–0.29 mm from coarse-binned fits are artifacts; PVF is ~20% finer than AMVF. See JOURNAL 2026-07-20.
+> **Binning caveat (2026-07-20):** the default 60-bin fit over ±6 mm (0.2 mm/bin) under-samples the *PVF* dip, whose walls are near-vertical, biasing σ_vtx_vtx high (0.29 mm at PU200) — the fit does not even converge at 120 bins. Refining to ≥240 bins gives a stable PVF σ ≈ **0.22 mm** (AMVF's rounded dip is binning-independent at 0.28 mm). Quoted PU200 resolutions of ~0.28–0.29 mm from coarse-binned fits are artifacts; PVF is ~20% finer than AMVF. See JOURNAL 2026-07-20. *(2026-08-05: fineness is necessary but not sufficient — the bin width must also be an integer multiple of the 0.04 mm model grid. 240 bins is 0.05 mm and is not; the default is now 300. See the section above and `docs/research/resolution_plot_ripple.md`.)*
 
 ## Outputs
 

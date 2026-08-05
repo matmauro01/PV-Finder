@@ -3600,3 +3600,151 @@ path fails loudly rather than writing plausible targets from the wrong
 resolution model. `scripts/build_v3_shards.sh` hard-codes `hllhc`, correct for
 the old |eta| < 2.5 shards and wrong for anything built on `data/run4_all_etas`,
 which needs `hllhc_alleta`.
+
+## 2026-08-05 — Post-hoc fruit hunt: one free fix for the plot, a measured no for the fakes
+
+Question: are there still simple, non-overfitting post-hoc changes that cut the
+fake rate and clean up the resolution plot, in particular the ripple? No
+retraining. Answer: **the ripple yes and for free; the fake rate no, and the no
+is now quantitative.** Numbers, figures and every script in
+`outputs/08_05_2026_output/ripple_study/`; write-up in
+`docs/research/resolution_plot_ripple.md`; corrections to
+`docs/research/pairwise_dz_bump.md` sections 1.5, 3.2, 3.5 and a new 3.6.
+
+**Method.** Reused the 7680-event held-out histogram dumps and the verified
+region scanner / matcher from the 2026-08-04 operating-point study, so nothing
+was re-inferred. Selection on half A, reporting on half B, same seed as 08-04;
+the two held-out files share `e8481_s4494` and are the same generated events, so
+the split is *inside* one file. Matching window held fixed at 0.2328 mm
+everywhere, and the ranking re-checked at 0.2140 and 0.2800 mm. Every new lever
+verified against a committed reference before any result was taken from it:
+region scanner vs `pv_locations_updated_res` (0/40 count mismatches, max 7e-6
+mm), NMS vs `suppress_neighbor_peaks` (0/40 events disagreeing), prominence vs
+`scipy.signal.peak_prominences` (2/23528 peaks outside the documented
+run-boundary convention). Two bugs were found in my own prominence code this way
+before it produced a number.
+
+### The ripple in the resolution plot is a binning beat, and it was one day old
+
+The plateau alternated between two levels by 3.9%, four times its Poisson error,
+across the whole +-6 mm range. Not noise, not satellites, not the model: peak
+positions are combed at the 0.04 mm output grid (135.8% modulation of the
+position fractional part, 40% of |dz|) and lcm(0.04, 0.05) = 0.20 mm, so the
+240-bin plot picked up a 4-bin sawtooth.
+
+Controls at the same 240 bins: AMVF 1.3% comb, truth 0.8%, and **PV-Finder with
+the historical full-region weighted mean 0.9%**. The comb arrived with the
+local-centroid estimator on 2026-08-04 -- `outputs/08_04_2026_output/
+eval_v6_heldout/` (the last eval before it) has a visibly smooth plateau. A side
+effect of an otherwise good change, and free to undo.
+
+`--pairwise-bins` now defaults to 300 (0.04 mm), derived as
+`2 * 6 mm / BIN_WIDTH_MM` in the new `pv_finder/utils/pairwise_dz.py` rather than
+hardcoded, and the eval warns on incommensurate values. Sub-multiples are
+rejected too: with 0.02 mm bins every second bin catches a comb tooth. Both
+files, all four peak lists: comb 3.8-4.0% -> 0.04-0.15%, plateau pull RMS
+4.2-4.6 -> 1.6-2.0, sigma_vtx-vtx fit error nearly halved. Paired bootstrap over
+events: the comb reduction is 3.75 +- 0.14% (26.5 sigma) and 3.77 +- 0.12%
+(31.8 sigma). At 0.04 mm bins the plateau beyond 2 mm is statistical (pull RMS
+0.90-1.11); the 2.44 left at 1.2-2.0 mm is the satellite shoulder.
+
+The peak list is bit-identical. Efficiency and fakes move at all only because
+this eval derives its matching window from the fitted sigma. Full re-run on both
+held-out files, mu in [185,215]:
+
+| | efficiency | fake/evt | sigma_vtx-vtx | reco/evt |
+|---|---|---|---|---|
+| 240 bins (08-04) | 0.8643 / 0.8656 | 16.64 / 16.36 | 0.2190 +- 0.0050 / 0.2200 +- 0.0047 | 101.0 |
+| **300 bins (now)** | 0.8648 / 0.8662 | 16.60 / 16.32 | **0.2200 +- 0.0031 / 0.2213 +- 0.0030** | 101.0 / 100.3 |
+
++0.05 efficiency points and -0.04 fake/evt, all of it the window. The fit error
+is down 38%, and the plateau is readable.
+
+### No post-hoc lever beats the two thresholds already in the eval
+
+817 configurations: Gaussian pre-smoothing (sigma 0.5-2.0 bins, positions from
+the smoothed *or* the raw histogram), anti-lattice notch filters, NMS, minimum
+separation, absolute and relative prominence gates on the conjoined split, a
+peakiness (height/integral) cut, and prominence x separation combinations --
+each crossed with the integral and height thresholds. **0 of 817 beat the
+deployed operating point, on either half, at any of three fixed windows.** Half
+A and half B agreed to within 0.159 efficiency points and 0.126 fake/event
+across the whole grid.
+
+Cheapest fake removal each family can manage, efficiency points per fake/event
+removed, against a 0.2 budget: thresholds 0.216, Gaussian 0.236, notch 0.246,
+prominence 0.313, relative prominence 0.322, peakiness 0.422, NMS 0.708, minimum
+separation 1.581. Paired bootstrap on the score (2000 replicas): even the
+cheapest move, raising the integral threshold to 0.40, is **-0.025 +- 0.010**,
+2.5 sigma below break-even, P(worth taking) = 0.009. Everything else is
+P = 0.0000.
+
+Framing that came out of it and is worth keeping: **a post-hoc filter must remove
+>= 4.5 surplus peaks per real peak removed to be worth taking** -- one matched
+peak/event is 1/111.2 of the truth denominator = 0.90 efficiency points, one
+fake/event is worth 0.20. The height floor manages 4.9:1, which is why it is in
+the operating point. Nothing else gets close.
+
+### Two findings that change earlier pages
+
+**The upsampling lattice is position quantisation, not additive ripple, so no
+linear filter can touch it.** The mean power spectrum of the predicted histogram
+has no line at the lattice frequency (power/continuum 1.00 at 1/4 cycles/bin,
+0.94 at 1/2), and the 31% mod-4 modulation of surplus peaks is unchanged by every
+filter tried: 33.1% after a 1.5-bin Gaussian, 33.4% after a symmetric 4-bin
+boxcar, which is the *exact* annihilator of a x4 zero-order hold (zeros at
+periods 4, 2 and 4/3). The filters remove surplus peaks uniformly in phase. This
+closes off the post-hoc route and makes the retrain item (replace the
+nearest-neighbour upsample) better motivated, not less.
+
+**The prominence gate is much worse now than when it was declined on 08-04.** At
+the old setting (integral 0.2, height 0.0) the satellites it targets had median
+prominence 0.029. At the deployed operating point the thresholds have already
+removed that population: surviving surplus peaks have median prominence 0.068
+and median prominence/height **0.89** -- standalone low peaks, not flank ripple.
+Removal ratio 1.3-2.0:1 against the 4.5:1 break-even, and sigma_vtx-vtx degrades
+0.2140 -> 0.2457 mm because the gate also kills peaks that were resolving genuine
+close pairs. Declined again, with a better reason. A *relative* prominence gate,
+which should be the better discriminator by construction, is no better (0.322).
+
+### About a quarter of the "fake" rate is real vertices
+
+Against the **unfiltered** TruthVertex list, with a displaced-peak control:
+29.5 / 29.8% of surplus peaks sit within the matching window of a real truth
+vertex with nTrk < 2 (every one of them nTrk = 1, none nTrk = 0), against a 5.3%
+accidental level that is flat for displacements of 1 to 12 mm. **Excess 24.2% =
+4.17 per event.** So of the quoted ~16.6 fake/event, about 4.2 are real
+sub-threshold interaction vertices and about 12 are genuinely spurious. The
+nTrk >= 2 convention should stay -- it is what AMVF is counted with -- but the
+note should carry the decomposition. This tightens the "About 22%" figure that
+was carried over untested from the 08-04 pass.
+
+### Flagged, deliberately not fixed
+
+`run_eval_pvf_run3.py` accumulates `pairwise_dz` over **every event it reads** and
+applies the mu window only to the summary, so on the flat-mu held-out files the
+quoted sigma_vtx-vtx is a flat-mu number sitting next to mu in [185,215]
+efficiency and fake rates. Measured: 0.2190 mm over all 25000 events against
+0.2270 mm on the mu-window subset, 3.5%. sigma is fed back as the matching
+window, so fixing it moves the headline efficiency -- a decision about what the
+published number means, not a drive-by fix. Resolve before the note quotes sigma
+and efficiency in one table.
+
+`run_eval_pvf.py` (the h5/MC eval) still hardcodes 60 pairwise bins. That is
+commensurate (0.2 mm = 5 x 0.04) so it has no comb, but 60 is the binning
+documented as biasing sigma high. Left alone: it carried unrelated uncommitted
+work at the time.
+
+### Retrain-only, listed not attempted
+
+- Replace `F.interpolate(..., mode="nearest")` in `src/pv_finder/models/unet_v2.py:35`
+  with linear or a learned sub-pixel upsample. Now the *only* route to the
+  lattice artefact.
+- Cap the target sigma at the bin width and drop the `max(1, 0.15/sigma)`
+  amplitude compensation, or move to a finer output grid for the peak region.
+- Objectness head / fake-aware loss -- the only item that attacks surplus peaks
+  at the source rather than downstream.
+- A sub-bin position regression head, which would remove the quantisation at
+  source instead of working around it in the plot binning.
+
+---

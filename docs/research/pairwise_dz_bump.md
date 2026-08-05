@@ -73,11 +73,12 @@ Two numbers, and you need both:
   to zero by 0.7 mm) but redistribution conserves pairs and cannot lift the
   integral above the plateau, and its predicted shape (monotonically falling
   from +27 % at 0.3 mm) is the opposite of what is observed.
-- **Not all fakes.** About 22 % of surplus peaks sit on *real* truth vertices
+- **Not all fakes.** A quarter of the surplus peaks sit on *real* truth vertices
   with nTrk < 2, which `src/pv_finder/data/run3_io.py` (`_filter_amvf`, applied
   to truth as well as to AMVF) removes from the truth list, so they can never be
-  matched. The reported fake rate is overstated by roughly a fifth. *(Carried
-  over from the 2026-08-04 verification pass.)*
+  matched. Re-measured at the deployed operating point on 2026-08-05 with an
+  accidental-coincidence control: **24.2 % above accidentals, 4.17 per event**
+  out of 17.2 surplus. See [3.6](#36-about-a-fifth-of-the-fake-rate-is-real-vertices).
 
 ---
 
@@ -169,6 +170,18 @@ uniform, and the effect is concentrated exactly where it should not be:
 Real peaks are placed by the tracks and are nearly phase-free; surplus peaks are
 strongly phase-locked to the decoder's own grid. This is a genuine architectural
 artefact, and it is a retrain-level fix.
+
+> **What kind of artefact, established 2026-08-05.** It is *position
+> quantisation of weak structure*, not an additive periodic component. The mean
+> power spectrum of the predicted histogram shows no line at the lattice
+> frequency (power/continuum 1.00 at 1/4 cycles/bin), and the mod-4 modulation
+> survives every linear filter unchanged, including one matched exactly to a ×4
+> zero-order hold. That closes off any post-hoc filter and leaves only the
+> retrain item in [3.4](#34-retrain-level-candidates-in-order-of-expected-effect);
+> see [3.5](#35-not-recommended--and-as-of-2026-08-05-measured-properly).
+> Separately, the same quantisation is what put a spurious sawtooth in the
+> resolution plot once the local-centroid estimator landed —
+> `docs/research/resolution_plot_ripple.md`, fixed by the plot binning.
 
 **Targets the network cannot draw.** `root_to_h5._build_truth_histogram` gives
 each truth vertex a Gaussian of width σ(nTrk) and then multiplies it by
@@ -394,6 +407,22 @@ It works (0.005 removes 75 % of the band excess) but it costs 1.70
 truth-matched peaks/event, a surplus-to-real removal ratio of only 2.0:1.
 **Declined.** Recorded here so the trade-off does not have to be re-derived.
 
+> **Re-opened and re-declined, 2026-08-05, with a reason that is now much
+> stronger.** The table above is at the *old* production setting
+> (`integral 0.2, min_height 0.0`). At the operating point deployed on
+> 2026-08-04 the population the gate targets has already been removed by the
+> thresholds: surviving surplus peaks have median topographic prominence
+> **0.068** and median prominence/height **0.89**, i.e. they are standalone low
+> peaks, not ripple riding on a flank. Removal ratios collapse to **1.3–2.0
+> surplus per real peak** for both an absolute and a relative gate, against a
+> break-even of **4.5:1** (removing one matched peak per event costs 1/111.2 of
+> the truth denominator = 0.90 efficiency points; one fake/event is worth 0.20).
+> Measured cost: **0.604 efficiency points per fake/event removed**, three times
+> the budget — and σ_vtx-vtx degrades 0.2140 → 0.2457 mm, because the gate also
+> removes peaks that were resolving genuine close pairs. A *relative* prominence
+> gate, which ought to be the better discriminator by construction, is no better
+> (0.606). See `docs/research/resolution_plot_ripple.md`.
+
 ### 3.3 Height floor: already in use, and it does not do what was assumed
 
 | floor | 0.00 | 0.03 | 0.05 | 0.08 | 0.12 | 0.20 | 0.30 |
@@ -425,14 +454,107 @@ do not expect it to fix the bump below ~0.12, which is far too expensive.
   roadmap. This is the only item that attacks the surplus peaks at the source
   rather than downstream of them.
 
-### 3.5 Not recommended
+### 3.5 Not recommended — and, as of 2026-08-05, measured properly
 
-- **Pre-smoothing before peak finding** (`--smooth-sigma`). A 0.08 mm Gaussian
-  removes 31 % of band satellites but also 3.4 % of truth-matched peaks, and it
-  widens the dip, which inflates σ_vtx-vtx. Off by default; leave it off.
+A joint scan of every post-hoc lever against the integral and height thresholds —
+**817 configurations**, selection half / reporting half, matching window held
+fixed — puts **all of them on or below the plain threshold frontier**.
+**0 of 817 beat the deployed operating point, on either half.**
+
+Cheapest fake removal each family can manage: the configuration with the lowest
+efficiency cost per fake/event removed among those that remove at least
+0.5 fake/event, chosen on half A, reported on half B.
+
+| lever | cost (eff. points per fake/evt) |
+|---|---|
+| **integral / height thresholds** | **0.216** |
+| Gaussian pre-smoothing (σ = 0.5 bins) | 0.236 |
+| anti-lattice notch, cos(ω) | 0.246 |
+| Gaussian pre-smoothing, positions from the raw histogram | 0.254 |
+| notch, positions from the raw histogram | 0.271 |
+| absolute prominence gate on the split | 0.313 |
+| relative prominence gate on the split | 0.322 |
+| peakiness (height / integral) | 0.422 |
+| NMS (separation + height ratio) | 0.708 |
+| minimum separation alone | 1.581 |
+
+Budget 0.2, so even the cheapest lever is already over it — which is the
+quantitative statement that the deployed point sits at the knee. Combining a
+prominence gate with a minimum separation does not help either: the best corner
+of that grid *is* the pure-threshold corner, 0.216.
+
+Half A and half B agreed to within **0.159 efficiency points** and **0.126
+fake/event** across all 817 configurations, so none of this is selection noise.
+
+Paired bootstrap over events (2000 replicas, reporting half, same resampling
+applied to both members of every difference) on the score — efficiency points
+gained minus 0.2 per fake/event removed, relative to the deployed point:
+
+| lever, cheapest configuration | Δ efficiency (pts) | Δ fake/evt removed | score | P(score > 0) |
+|---|---|---|---|---|
+| integral 0.40 (thresholds) | −0.335 ± 0.009 | +1.550 ± 0.020 | **−0.025 ± 0.010** | 0.009 |
+| Gaussian σ 0.5 + integral 0.40 | −0.376 ± 0.011 | +1.593 ± 0.023 | −0.058 ± 0.012 | 0.000 |
+| notch cos(ω) + integral 0.40 | −0.481 ± 0.016 | +1.956 ± 0.026 | −0.090 ± 0.018 | 0.000 |
+| NMS 0.35 mm / 0.2 | −0.872 ± 0.015 | +1.231 ± 0.018 | −0.626 ± 0.015 | 0.000 |
+| prominence ≥ 0.002, int 0.40, h 0.05 | −1.259 ± 0.018 | +4.021 ± 0.033 | −0.455 ± 0.019 | 0.000 |
+| prominence/height ≥ 0.05, int 0.40, h 0.05 | −1.330 ± 0.018 | +4.123 ± 0.034 | −0.505 ± 0.020 | 0.000 |
+| min separation 0.30 mm | −1.563 ± 0.020 | +0.989 ± 0.016 | −1.365 ± 0.020 | 0.000 |
+| peakiness ≥ 0.08, int 0.40, h 0.00 | −1.650 ± 0.020 | +3.906 ± 0.032 | −0.869 ± 0.021 | 0.000 |
+
+Errors are small because the bootstrap is *paired*: the same events, the same
+peaks up to the filter, so the difference is far better determined than either
+absolute value. **Even the cheapest move available — just raising the integral
+threshold — is 2.5σ below break-even.** That is the operating point sitting at a
+knee, stated quantitatively rather than by eye.
+
+Details and the ranked table: `docs/research/resolution_plot_ripple.md`,
+`outputs/08_05_2026_output/ripple_study/`.
+
+- **Pre-smoothing before peak finding** (`--smooth-sigma`). Scanned jointly with
+  both thresholds at σ = 0.5 to 2.0 bins, with positions taken from either the
+  smoothed or the raw histogram. It never beats simply raising the integral
+  threshold, and it *worsens* the position quantisation (see below). Off by
+  default; leave it off.
 - **NMS.** Keys on a height ratio, which does not separate satellites from
-  genuine close pairs at PU200.
+  genuine close pairs at PU200. Confirmed: 0.708 points per fake, 3.5× the
+  budget. A pure minimum-separation rule (drop the shorter of any pair closer
+  than *d*) is worse still at 1.581 — below 0.12 mm it removes essentially
+  nothing, and above that it starts eating resolved pairs.
+- **An anti-lattice filter cannot work, and the reason corrects
+  [1.5](#15-two-structural-reasons-the-network-emits-ripple-there).** The lattice
+  shows up as *position quantisation of weak structure*, not as an additive
+  periodic component, so no linear filter can remove it. Two measurements: the
+  mean power spectrum of the predicted histogram has **no line at the lattice
+  frequency** (power/continuum = 1.00 at 1/4 cycles/bin, 0.94 at 1/2); and the
+  mod-4 modulation of surplus peaks is **unchanged** by every filter tried —
+  31.0 % unfiltered, 33.1 % after a 1.5-bin Gaussian, 33.4 % after a symmetric
+  4-bin boxcar, which is the *exact* annihilator of a ×4 zero-order hold (zeros
+  at periods 4, 2 and 4/3). The filters remove surplus peaks uniformly in phase.
+  The retrain-level item in [3.4](#34-retrain-level-candidates-in-order-of-expected-effect)
+  is therefore the only route to this artefact, and it is now better motivated,
+  not less.
 - **Disabling the conjoined split.** Efficiency 0.883 → 0.616. Not an option.
+
+### 3.6 About a fifth of the "fake" rate is real vertices
+
+Measured at the deployed operating point on both held-out files, against the
+**unfiltered** `TruthVertex` list, with a displaced-peak control for accidental
+coincidences:
+
+| | per event | % of surplus |
+|---|---|---|
+| surplus peaks (fake + split) | 17.22 / 17.12 | 100 % |
+| within the matching window of a real truth vertex with nTrk < 2 | 5.08 / 5.10 | 29.5 / 29.8 % |
+| …of which accidental (same peaks displaced by 3–12 mm) | 0.91 | 5.3 % |
+| **excess over accidental — real vertices counted as fakes** | **4.17** | **24.2 %** |
+| genuinely spurious | ~12.0 | ~70 % |
+
+Every one of them has nTrk = 1 (none have 0). The accidental control is flat at
+5.1–5.5 % for displacements of 1 to 12 mm, so the excess is not a density
+effect. This does not change the algorithm and the nTrk ≥ 2 convention should
+stay — it is what AMVF is counted with — but the quoted 16.2 fake/event is
+**~4.2/event of real, sub-threshold interaction vertices** and the note should
+say so.
 
 ---
 
