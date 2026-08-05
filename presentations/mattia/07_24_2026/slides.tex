@@ -293,7 +293,7 @@
             \begin{itemize}\setlength\itemsep{0.05em}
                 \item \textbf{Track selection} (Run 2/3): $p_T>500$\,MeV,
                     $|\eta|<2.5$, $|z_0|<200$\,mm. \textcolor{pennred}{At HL-LHC the
-                    ITk selection is different} --- see Part III
+                    ITk selection is different}, see Part III
                 \item Masked MLP (set-invariant) $\to$ latent $\to$ 1-D U-Net
                 \item $12\times40$\,mm intervals $\to$ 12{,}000 bins; KDE-free warm-up, MSE loss
             \end{itemize}}
@@ -345,7 +345,7 @@
                     bins \textcolor{black!55}{($-13\%$ on $\sigma_{\text{vtx-vtx}}$
                     against the full-region weighted mean)}
                 \item \textbf{Conjoined peaks} that never dip below $\tau$ are split at
-                    their shared local minimum --- with \textbf{zero noise tolerance}
+                    their shared local minimum, with \textbf{zero noise tolerance}
             \end{itemize}
         \end{column}
         \begin{column}{0.64\linewidth}
@@ -546,7 +546,7 @@
         \hline
         \textcolor{mygreen!70!black}{\textbf{clean}}  & won a dedicated truth, nothing unclaimed left in its window \\
         \textcolor{myorange!85!black}{\textbf{merged}} & won a truth \emph{and} absorbed $\geq 1$ extra unclaimed truth \\
-        \textcolor{myblue}{\textbf{split}}   & won nothing, but a truth \emph{is} in its window --- a closer reco took it \\
+        \textcolor{myblue}{\textbf{split}}   & won nothing, but a truth \emph{is} in its window, a closer reco took it \\
         \textcolor{myred}{\textbf{fake}}    & won nothing and \emph{no} truth is in its window \\
         \hline
     \end{tabular}
@@ -566,7 +566,7 @@
 
     \textcolor{pennred}{\textbf{Efficiency $=(\text{tc}+\text{tm})/n_\text{truth}$ is
     truth-side. Fake rate $=$ fake$/N_\text{events}$ is reco-side.}} They divide by
-    different things and \textbf{do not sum to anything} --- there is no
+    different things and \textbf{do not sum to anything}, there is no
     ``efficiency $+$ fake $= 1$''.
 \end{frame}
 
@@ -755,7 +755,8 @@
     \begin{columns}[c]
         \begin{column}{0.62\linewidth}
             \centering
-            \footnotesize
+            \scriptsize
+            \setlength{\tabcolsep}{3.5pt}
             \begin{tabular}{llrl}
                 \toprule
                 Version & Arch. (chan./latent) & Params & Outcome \\
@@ -770,7 +771,7 @@
             \end{tabular}
         \end{column}
         \begin{column}{0.38\linewidth}
-            \small
+            \footnotesize
             \begin{itemize}\setlength\itemsep{0.35em}
                 \item v3 has \textbf{5$\times$ the parameters} of v2 and converges to the \textbf{same} performance
                 \item An LR / optimizer / loss sweep (SGD vs Adam, MSE\,$+$\,total variation) reached the \textbf{same plateau}
@@ -798,8 +799,7 @@
             \begin{itemize}\setlength\itemsep{0.3em}
                 \item Fitting each bin with a Gaussian core plus flat background removes wrong-match contamination, giving $A{=}0.124$, $B{=}0.458$
                 \item Close to the Run 3 model ($A{=}0.238$, $B{=}0.495$) at about half the amplitude, reflecting the better ITk $z_0$
-                \item Refit on the extended-$|\eta|$ sample: $A{=}0.143$, $B{=}0.362$
-                    --- \ntrk\ now counts forward tracks. \textbf{v6} was trained with
+                \item Refit on the extended-$|\eta|$ sample: $A{=}0.143$, $B{=}0.362$, \ntrk\ now counts forward tracks. \textbf{v6} was trained with
                     this preset
             \end{itemize}
             \vspace{0.25em}
@@ -897,7 +897,7 @@
             \textbf{At $0.5$\,mm nearly half the measured efficiency is coincidence};
             at $0.17$\,mm it is under a fifth. The floor is the same for both
             algorithms to within $0.3$ points, so it does not bias the
-            \emph{comparison} --- but it destroys the meaning of any \emph{absolute}
+            \emph{comparison}, but it destroys the meaning of any \emph{absolute}
             number quoted at a loose window.
         \end{column}
     \end{columns}
@@ -958,7 +958,7 @@
 
 \begin{frame}[shrink=15]{Choosing a Matching Window That Favours Neither Algorithm}
     \small
-    Both algorithms were matched with the \emph{same} window --- but that window was
+    Both algorithms were matched with the \emph{same} window, but that window was
     derived from PV-Finder's own fitted $\sigma_{\text{vtx-vtx}}$. Two reasons why
     that is not a valid basis for comparison.
 
@@ -1012,7 +1012,7 @@
     \includegraphics[width=0.985\linewidth, height=0.80\textheight, keepaspectratio]{images/amvf_window_scan_r16443.png}\\[1pt]
     {\scriptsize\textcolor{black!60}{Dotted black is the \textbf{accidental floor}: the
     efficiency still scored with the reco list displaced by $3$\,mm. Bottom right is
-    the paired difference --- the strict one-to-one margin holds between $+3.4$ and
+    the paired difference, the strict one-to-one margin holds between $+3.4$ and
     $+2.3$ points across the whole range.}}
 \end{frame}
 
@@ -1056,7 +1056,7 @@
                     $r = -0.004$}
                 \item Running the same peak finder on the \emph{target} histograms
                     gives \textbf{zero} surplus, so the rule set is not intrinsically
-                    at fault --- it becomes so only on the network's output
+                    at fault, it becomes so only on the network's output
             \end{itemize}
         \end{column}
         \begin{column}{0.5\linewidth}
@@ -1076,7 +1076,7 @@
                 \item \textbf{$300$ commensurate bins} removes it: plateau pull RMS
                     $4.17 \to 1.60$ (Poisson is $1.0$)
                 \item \textcolor{black!60}{No figure in this talk predates the fix
-                    with a visible comb --- measured $0.18$--$0.51\%$ on every
+                    with a visible comb, measured $0.18$--$0.51\%$ on every
                     earlier artefact}
             \end{itemize}
         \end{column}
@@ -1096,8 +1096,7 @@
             \begin{itemize}\setlength\itemsep{0.25em}
                 \item \textbf{Merged}: close pairs $<0.5$\,mm, limited by resolution
                 \item \textbf{Missed}: low-multiplicity, little track signal
-                \item \textbf{Fake}: small peaks at sparse-track spots ---
-                    \textcolor{pennred}{and \emph{not} the most curable, see next slide}
+                \item \textbf{Fake}: small peaks at sparse-track spots, \textcolor{pennred}{and \emph{not} the most curable, see next slide}
             \end{itemize}
             \vspace{0.35em}
             \textbf{A hard ceiling:} the median adjacent-vertex spacing is
@@ -1124,7 +1123,7 @@
             \footnotesize
             \textbf{The signal is real.} A GBT on 23 per-peak features separates real
             from fake at \textbf{AUC 0.965}; histogram-only gives $0.959$ and
-            track-only $0.957$, so the two groups are \textbf{redundant} --- the model
+            track-only $0.957$, so the two groups are \textbf{redundant}, the model
             has already integrated the tracks.
             \vspace{0.35em}
 
@@ -1136,7 +1135,7 @@
                     beat the deployed operating point}}, the cheapest by $2.5\sigma$
                 \item One real peak lost costs $0.90$ efficiency points, so a filter
                     must remove \textbf{$\geq4.5$ surplus per real peak}. The
-                    \textbf{height floor $0.03$ manages $4.9{:}1$} --- which is why it,
+                    \textbf{height floor $0.03$ manages $4.9{:}1$}, which is why it,
                     and nothing else, is in the operating point
                 \item The saved GBT gate \textbf{does not transfer}: the threshold that
                     removed ${\sim}38\%$ of v4b fakes removes $7.4\%$ on v6. The AUC
@@ -1146,52 +1145,52 @@
     \end{columns}
 \end{frame}
 
-\begin{frame}{And About a Quarter of the ``Fakes'' Are Real Vertices}
+\begin{frame}[shrink=15]{About a Quarter of the ``Fakes'' Are Real Vertices}
+    \small
+    Truth is filtered to $\ntrk\geq2$, the ATLAS convention. These events also
+    contain \textbf{$23.1$ real single-track interactions per event}, and a peak
+    landing on one of them is scored as a fake.
+
+    \vspace{0.6em}
     \begin{columns}[t]
-        \begin{column}{0.52\linewidth}
-            \small
-            Truth is filtered to $\ntrk\geq2$, the ATLAS convention. But these events
-            also contain \textbf{$23.1$ real single-track interactions per event}, and
-            a peak landing on one of them is scored as a fake.
-            \vspace{0.3em}
+        \begin{column}{0.5\linewidth}
             \centering
             \footnotesize
             \begin{tabular}{lr}
                 \toprule
                 surplus peaks (fake $+$ split) & $17.2$/evt \\
-                within the window of a real $\ntrk\!<\!2$ vertex & $5.08$ \\
-                \dots of which accidental (peaks displaced $3$--$12$\,mm) & $0.91$ \\
+                on a real $\ntrk\!<\!2$ vertex & $5.08$ \\
+                accidental (displaced control) & $0.91$ \\
                 \midrule
-                \textbf{excess over accidental --- real vertices} & $\mathbf{4.17}$ \\
+                \textbf{real vertices} & $\mathbf{4.17}$ \\
                 genuinely spurious & ${\sim}12.0$ \\
                 \bottomrule
             \end{tabular}
         \end{column}
-        \begin{column}{0.48\linewidth}
-            \small
-            \textbf{The honest version of this argument is much smaller than it
-            looks.} AMVF is penalised by the same convention:
-            \vspace{0.3em}
+        \begin{column}{0.5\linewidth}
             \centering
             \footnotesize
             \begin{tabular}{lcc}
                 \toprule
-                & genuine / evt & \% of its fakes \\
+                & genuine/evt & \% of fakes \\
                 \midrule
                 PV-Finder & $3.33 \pm 0.05$ & $34.7\%$ \\
                 AMVF      & $2.36 \pm 0.05$ & $20.3\%$ \\
                 \bottomrule
-            \end{tabular}
-            \vspace{0.4em}
+            \end{tabular}\\[0.5em]
             \raggedright
-
-            So the net correction to the \emph{comparison} is
-            \textbf{$0.97 \pm 0.07$ fake/event}, not $3.33$. The direction is as
-            expected --- AMVF needs $\geq2$ tracks and sits on single-track
-            interactions less often --- but the effect largely cancels and must never
-            be quoted one-sided.
+            AMVF is penalised by the same convention, so most of the correction
+            cancels.
         \end{column}
     \end{columns}
+
+    \vspace{0.7em}
+    \centering
+    The net correction to the \emph{comparison} is
+    \textbf{$\mathbf{0.97 \pm 0.07}$ fake/event}, not $3.33$.\\[0.2em]
+    {\footnotesize\textcolor{black!55}{AMVF requires $\geq2$ tracks and so sits on
+    single-track interactions less often, which is the expected direction. The effect
+    is real but must never be quoted one-sided.}}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1398,7 +1397,7 @@
         \midrule
         PV-Finder peaks + GNN (\(t=0.99\)) & 90.4\% & 7.4\% & 0.02\% & \textbf{77.4\%} \\
         AMVF & 76.7\% & 20.0\% & 0.7\% & 60.9\% \\
-        GNN on truth vertices (bound) & --- & --- & ${\sim}0$ & 89.2\% \\
+        GNN on truth vertices (bound) &, &, & ${\sim}0$ & 89.2\% \\
         \bottomrule
     \end{tabular}\\[2pt]
     {\scriptsize Above AMVF in every multiplicity bin; track-level \(F_1\) 0.874 vs 0.849; hard-scatter ID 99.0\% vs 98.8\%. Drop-empty convention.}
@@ -1436,7 +1435,7 @@
                 \def\W{7.6}
                 \foreach \y/\f/\lab/\col in {%
                     3.6/1.000/{truth PVs ($\ntrk\!\geq\!2$)}/black!45,
-                    2.4/0.781/{finder cap --- \emph{uniquely} matched, $0.5$\,mm}/mydarkblue!70,
+                    2.4/0.781/{finder cap, \emph{uniquely} matched, $0.5$\,mm}/mydarkblue!70,
                     1.2/0.728/{oracle association on those peaks}/myorange!80!black} {
                     \fill[\col] (0,\y) rectangle ({\W*\f},{\y+0.7});
                     \node[anchor=west, font=\scriptsize, text=black!75] at ({\W*\f+0.15},{\y+0.35}) {\lab};
@@ -1460,7 +1459,7 @@
             \begin{itemize}
                 \setlength\itemsep{0.3em}
                 \item \textbf{Finder cap $0.781$}: truth PVs \emph{uniquely} matched
-                    to a peak within $0.5$\,mm --- one peak may claim only one truth
+                    to a peak within $0.5$\,mm, one peak may claim only one truth
                     here. The misses are low-multiplicity (median
                     \(\ntrk{=}3\) against 7)
                 \item \textbf{Oracle $0.728$}: assign every track to the peak nearest
@@ -1551,7 +1550,7 @@
             \vspace{0.4em}
 
             \textcolor{pennred}{\textbf{Always name the fake convention.}} The same
-            arm is $0.00173$ drop-empty and $9.67\,\%$ all-peaks --- a factor of 56
+            arm is $0.00173$ drop-empty and $9.67\,\%$ all-peaks, a factor of 56
             from bookkeeping alone.
         \end{column}
     \end{columns}
@@ -1631,7 +1630,7 @@
 \begin{frame}[shrink=15]{Next Steps}
     \begin{columns}[t]
         \begin{column}{0.5\linewidth}
-            \textbf{Finder side --- all of it needs a retrain}
+            \textbf{Finder side, all of it needs a retrain}
             \begin{itemize}
                 \setlength\itemsep{0.4em}
                 \item \textbf{Replace the nearest-neighbour upsample}
@@ -1737,7 +1736,7 @@
     \end{columns}
 \end{frame}
 
-\begin{frame}{Update: Retrained on the New Sample --- Held-Out Results}
+\begin{frame}{Update: Retrained on the New Sample, Held-Out Results}
     \begin{columns}[T]
         \begin{column}{0.56\linewidth}
             \textbf{Evaluated on genuinely held-out events} (1920 events, $\mu\in[185,215]$,
@@ -1752,7 +1751,7 @@
                 0.03 & 87.0\% & \textbf{71.01} & \textbf{17.91} & 0.230 \\
                 0.05 & 85.6\% & 69.87 & 13.79 & \textbf{0.224} \\
                 \hline
-                AMVF & --- & 67.73 & 17.46 & --- \\
+                AMVF &, & 67.73 & 17.46 &, \\
                 \hline
             \end{tabular}}
             \vspace{0.5em}
@@ -1773,8 +1772,7 @@
                 \item These are \textbf{intermediate} checkpoints from a 15\%-data
                       screen; the full-pool model is still training
                 \item Target widths refit on this sample:
-                      $A\!=\!0.143$, $B\!=\!0.362$ (were 0.124, 0.458) ---
-                      \ntrk\ now counts low-information forward tracks
+                      $A\!=\!0.143$, $B\!=\!0.362$ (were 0.124, 0.458), \ntrk\ now counts low-information forward tracks
             \end{itemize}
         \end{column}
     \end{columns}
@@ -1792,7 +1790,7 @@
                 \item \textbf{Now fixed}: two reco tags were excluded from
                       training. They carry 15{,}360 events but share
                       \texttt{e8481\_s4494}, so they are the \textbf{same
-                      ${\sim}7{,}680$ generated events reconstructed twice} --- a
+                      ${\sim}7{,}680$ generated events reconstructed twice}, a
                       consistency check, \textbf{not} two independent samples
                 \item Measured bias turned out to be small:
                       efficiency $87.5\%\rightarrow87.0\%$
@@ -1804,7 +1802,7 @@
             \begin{itemize}\footnotesize\setlength\itemsep{0.25em}
                 \item Target peak height rises steeply with \ntrk, so under MSE
                       \textbf{missing a tall peak costs $50\times$ more} than
-                      missing a short one --- and the misses live at low \ntrk
+                      missing a short one, and the misses live at low \ntrk
                 \item Tested a weighted MSE that flattens this to $8\times$,
                       three arms in parallel
                 \item At \textbf{matched fake rate} the arms are
@@ -1841,7 +1839,7 @@
     narrower and shallower, so a stricter cut would discard genuine low-multiplicity
     vertices. It was $0.20$ until 2026-08-04; the operating point was re-chosen on one
     half of the held-out sample and reported on the other. \textbf{The pairwise-$\Delta z$
-    binning must be an integer multiple of the $0.04$\,mm output grid} --- $60$ bins
+    binning must be an integer multiple of the $0.04$\,mm output grid}, $60$ bins
     biases $\sigma$ high, $240$ ($0.05$\,mm) beats against the position comb at
     $0.20$\,mm.}
 \end{frame}
@@ -1889,7 +1887,7 @@
 
 \begin{frame}{Backup: Removing the KDE Supervision}
     \centering
-    \footnotesize
+    \scriptsize
     \setlength{\tabcolsep}{4pt}
     \begin{tabular}{lccl}
         \toprule
@@ -1915,7 +1913,7 @@
     Misses concentrate at low multiplicity.}}
 \end{frame}
 
-\begin{frame}[shrink=15]{Backup: HGTD Timing --- the Negative Result Has Expired}
+\begin{frame}[shrink=15]{Backup: HGTD Timing, the Negative Result Has Expired}
     \begin{columns}[c]
         \begin{column}{0.52\linewidth}
             \centering
