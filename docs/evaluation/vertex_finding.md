@@ -157,18 +157,25 @@ anything restated here.
 > a branch neither run reaches, so both match HEAD's behaviour. `INVOCATION.txt`
 > in each directory records the SHA.
 
-> **⚠ Do not quote the AMVF column of this table as a comparison.** Every number
-> in it was measured with a matching window equal to *PV-Finder's* fitted
-> σ_vtx-vtx, which is 28 % tighter than AMVF's own. The row is kept because it is
-> what the eval prints, not because it is a fair benchmark. The corrected
-> comparison is
-> [**PV-Finder vs AMVF at a common window**](#pv-finder-vs-amvf-at-a-common-matching-window-2026-08-05),
-> and it replaces the claim that used to stand here — that PV-Finder reconstructs
-> "more vertices than AMVF with fewer fakes (101.0 vs 97.9 reco/evt, 16.6 vs 17.8
-> fake/evt)". That claim is not wrong so much as unearned: at a common window the
-> efficiency lead is **3.5× smaller** than the same table implies, and the fake-rate
-> lead does not survive being counted in a way that is immune to fake/split
-> relabelling.
+> **⚠ Do not quote this table as a PV-Finder vs AMVF comparison.** Three things
+> are wrong with it as a benchmark, and they were measured on 2026-08-05:
+> the matching window is *PV-Finder's own* σ_vtx-vtx applied to AMVF as well
+> (28 % tighter than AMVF's own); σ_vtx-vtx is the wrong quantity to build a
+> window from in the first place (it is a two-vertex *separation* scale, and the
+> two algorithms differ by 40 % in it, against 3 % in the core position
+> resolution that actually governs whether a vertex was found); and the
+> efficiency column credits one reco vertex with several truth vertices, which is
+> worth **+9.7 points** of absolute efficiency and is applied here only to
+> PV-Finder. The row is kept because it is what the eval prints.
+>
+> The claim that used to stand here — that PV-Finder reconstructs "more vertices
+> than AMVF with fewer fakes (101.0 vs 97.9 reco/evt, 16.6 vs 17.8 fake/evt)" —
+> survives as a *margin* but not as a headline: at a properly derived common
+> window the lead is **+3.4 ± 0.1 efficiency points** and **0.60 ± 0.09 fewer
+> surplus vertices/event**, while the 86.5 % absolute number does not survive at
+> all. See
+> [**PV-Finder vs AMVF at a common window**](#pv-finder-vs-amvf-at-a-common-matching-window-2026-08-05)
+> and the independent [audit](amvf_fairness_audit.md).
 
 #### About a third of the quoted fake rate is real vertices — but AMVF is penalised too
 
@@ -259,192 +266,246 @@ ranked table: `docs/research/resolution_plot_ripple.md` and
 
 ### PV-Finder vs AMVF at a common matching window (2026-08-05)
 
-**This section supersedes every earlier AMVF comparison on this page.** The eval
-as it stands does not compare the two algorithms symmetrically, in two
-independent respects that run in *opposite* directions. Both are measured below.
+**This section supersedes every earlier AMVF comparison on this page.** It is one
+of two studies done independently on the same day; the other is the adversarial
+audit in [`amvf_fairness_audit.md`](amvf_fairness_audit.md), written from scratch
+with its own matcher. Where they overlap they agree — see
+[§ Agreement with the independent audit](#agreement-with-the-independent-audit).
 
 - Code: `src/pv_finder/diagnostics/amvf_fair_comparison/`
 - Test: `tests/test_amvf_fair_matching.py`
 - Numbers, figure, invocation: `outputs/08_05_2026_output/amvf_fair_comparison/`
+  (gitignored, so that is the only copy). Figure: `window_scan_r16443.png`.
 
 Same 1920 held-out r16443 events, μ ∈ [185, 215], ⟨μ⟩ = 192.5, v6 at the deployed
 operating point. Nothing was re-inferred — PV-Finder's peak list comes from the
 existing `eval_v6_operating_point` pkl, AMVF vertices and the unfiltered truth
-list from the source ROOT, with per-event alignment between the two proved on
-every event. All errors are bootstrap over events; every difference is a
-**paired** bootstrap. `r16638` reproduces every number below to within 0.1
-efficiency points and 0.2 fake/event, but it shares `e8481_s4494` with r16443 and
-is the same generated events reconstructed twice — a consistency check, never an
-independent sample.
+list from the source ROOT, with per-event alignment proved on every event. All
+errors are bootstrap over events; every difference is a **paired** bootstrap.
+`r16638` reproduces every number to within 0.1 efficiency points and 0.2
+fake/event, but it shares `e8481_s4494` with r16443 and is the same generated
+events reconstructed twice — a consistency check, never an independent sample.
 
-#### The two asymmetries
+#### Which window? Not σ_vtx-vtx, and not 0.5 mm
 
-**1. The matching window is ours, applied to them.** `run_eval_pvf_run3.py`
-sets `sig_bins = sigma / BIN_WIDTH` from PV-Finder's fitted σ_vtx-vtx (line 492)
-and uses it to classify AMVF as well (lines 518, 551). Fitted with the identical
-procedure on the identical events, σ_PVF = 0.2182 ± 0.0035 mm and
-σ_AMVF = 0.3047 ± 0.0057 mm, so **AMVF is judged with a window 28.4 % tighter
-than its own resolution**. Judged at its own σ instead, AMVF's fake rate is
-15.50/evt rather than 17.83 and its efficiency is 4.16 points higher.
+The eval builds its matching window from PV-Finder's fitted **σ_vtx-vtx**. That is
+the wrong quantity twice over. σ_vtx-vtx measures how far apart two vertices must
+be before an algorithm resolves them *separately*; "did the algorithm find this
+vertex" needs the **core position resolution**, which is how accurately it places
+a vertex it did find. The two are not the same number and do not even scale
+together:
 
-This coupling is visible in our own published outputs. Same file, same events,
-same AMVF: on 08-04 our σ was 0.2328 and AMVF's fake rate came out 17.37/evt;
-on 08-05 our σ improved to 0.2200 and AMVF's fake rate rose to 17.78. **AMVF did
-not change.** Improving our resolution tightened AMVF's window and cost it
-0.41 fake/event, mechanically.
+| | PV-Finder | AMVF | ratio |
+|---|---|---|---|
+| σ_vtx-vtx (two-vertex separation) | 0.2182 ± 0.0035 mm | 0.3047 ± 0.0057 mm | **1.40** |
+| **core position resolution** (p68 of \|Δz\|, matched pairs) | **55.1 µm** | **56.5 µm** | **1.03** |
+
+A window built on σ_vtx-vtx is unfair by construction, because the two algorithms
+differ by 40 % in it. A window built on the core position resolution is fair by
+construction, because they differ by 3 %. **The primary window is therefore
+3 × 56.5 µm = 0.17 mm**, three times the worse of the two, fixed from the data
+before any comparison was read.
+
+*(The core resolution is measured with a globally optimal assignment, not the
+production greedy one. Greedy closest-first takes the tightest pair in the event
+first and works outwards, so it creams off the core and biases the width low —
+50.1 µm instead of 55.1 µm, 10 % tighter. A tighter core gives a tighter window,
+and PV-Finder's lead grows as the window tightens, so the greedy value is the one
+that flatters us and the conservative estimator is the one used.)*
+
+**Should we use a round 0.5 mm instead? No — measured, not asserted.** At PU200
+the local truth density is ~0.9 vertices/mm, so at a wide window a reconstructed
+vertex lands inside the window of *some* truth vertex whether or not it found it.
+Displacing the whole reco list by 3 mm — far larger than any window, far smaller
+than the ~45 mm beam spot, so the density is unchanged and the association is
+destroyed — and re-matching gives the efficiency that is pure coincidence:
+
+| common window | 0.10 | **0.17** | 0.30 | **0.50** | 0.75 | 1.00 mm |
+|---|---|---|---|---|---|---|
+| accidental efficiency (merged credit) | 11.1 % | **18.6 %** | 30.8 % | **45.4 %** | 58.7 % | 68.1 % |
+| accidental efficiency (strict 1-to-1) | 10.3 % | **16.5 %** | 25.6 % | **35.2 %** | 43.1 % | 48.7 % |
+
+**At 0.5 mm very nearly half the measured efficiency is coincidence.** At 0.17 mm
+it is under a fifth. The floor is the same for both algorithms to within
+0.3 points at every window, so it does not bias the *comparison* — but it
+destroys the meaning of the *absolute* number, and 0.5 mm is too generous to
+quote as a headline. It is kept below as a labelled sensitivity point, and it is
+drawn on the figure as a dotted band so a reader can see exactly where the metric
+stops meaning "found the vertex".
+
+#### The two asymmetries this study was asked to quantify
+
+**1. The matching window is ours, applied to them.** `run_eval_pvf_run3.py:492`
+sets the window from PV-Finder's σ_vtx-vtx and uses it to classify AMVF too
+(`:518`, `:551`), a window **28.4 % tighter than AMVF's own**. Judged at its own
+σ, AMVF's fake rate is 15.50/evt rather than 17.83 and its efficiency is 4.16
+points higher. The coupling is visible in our own published outputs: between the
+08-04 and 08-05 held-out evals our σ improved 0.2328 → 0.2200 and AMVF's fake
+rate rose 17.37 → 17.78/evt. **AMVF did not change.** That 0.41 fake/event was
+purely mechanical.
 
 **2. nTrk = 1 truth vertices count against us.** `run3_io.py:46-58,155-161`
-filters truth to nTracks ≥ 2. On these events there are 111.32 truth
-vertices/event with nTrk ≥ 2 and **23.13 with nTrk = 1** (none with 0). A
-reconstructed vertex landing on one of those real interactions is counted as a
-fake.
+filters truth to nTracks ≥ 2. These events have 111.32 truth vertices/event with
+nTrk ≥ 2 and **23.13 with nTrk = 1** (none with 0), and a reconstructed vertex
+landing on one of those real interactions is scored as a fake.
 
-#### The window scan — the headline result
-
-The figure is
-`outputs/08_05_2026_output/amvf_fair_comparison/window_scan_r16443.png` (that
-directory is gitignored, so it is the only copy).
-
-Efficiency and fake rate for both algorithms against a **common** window swept
-from 0.1 to 1.0 mm. No single window choice can be accused of favouring either
-algorithm, and the crossings are visible. Over the whole range:
-
-- PV-Finder is above AMVF on efficiency at **every** window, on both the
-  production and the strict one-to-one convention — no crossing on either. On the
-  production convention the gap shrinks monotonically with window, from +3.12
-  points at 0.1 mm to +0.86 at 0.5 mm to +0.45 at 1.0 mm; that shrinkage *is*
-  asymmetry 1 plus the merge credit AMVF collects at wide windows.
-- PV-Finder is below AMVF on fake rate at every window, standard or corrected
-  truth — no crossing.
-- **On surplus (fake + split) the two cross at 0.596 mm.** Below it PV-Finder is
-  ahead by at most 0.3/event; above it AMVF is, by +0.63/event at 1.0 mm.
-
-#### Headline table — pre-registered common window, 0.5 mm
-
-0.5 mm was fixed before looking at any result, on three grounds, none of which is
-either algorithm's own fit: it is a round physical value; it is ≥ 1.6× the fitted
-σ of **both** algorithms, so neither has its own core cut into; and it is about
-half the mean inter-vertex spacing at peak PU200 density (~1.0 vertex/mm), so
-accidental matches stay subdominant. The same window is applied to both.
+#### Headline table — common window 0.17 mm
 
 Truth definitions: **standard** = the ATLAS convention, truth is nTrk ≥ 2, and it
 stays primary. **Corrected** = same efficiency denominator, but a reco vertex is
-only a fake if it matches no truth interaction with nTrk ≥ 1.
+only a fake if it matches no truth interaction with nTrk ≥ 1. Both matching
+conventions are shown because the convention is worth more than any asymmetry.
 
-| | efficiency [%] | efficiency, strict 1-to-1 [%] | fake/evt (standard, nTrk ≥ 2) | fake/evt (corrected, nTrk ≥ 1) | surplus/evt |
+| | efficiency [%] | efficiency, strict 1-to-1 [%] | fake/evt (nTrk ≥ 2) | fake/evt (nTrk ≥ 1) | fake + split /evt |
+|---|---|---|---|---|---|
+| **PV-Finder** | 83.16 ± 0.08 | 73.43 ± 0.09 | 18.73 ± 0.10 | 14.00 ± 0.09 | 19.27 ± 0.10 |
+| **AMVF** | 79.80 ± 0.09 | 70.07 ± 0.09 | 19.69 ± 0.10 | 16.16 ± 0.09 | 19.87 ± 0.10 |
+| **PVF − AMVF** (paired) | **+3.36 ± 0.06** | **+3.37 ± 0.06** | **−0.95 ± 0.09** | **−2.16 ± 0.09** | **−0.60 ± 0.09** |
+
+Accidental floor here: 18.6 % (PV-Finder) and 18.4 % (AMVF) merged credit.
+
+Sensitivity point, the round 0.5 mm — **not the headline**, and roughly half
+accidental:
+
+| | efficiency [%] | efficiency, strict 1-to-1 [%] | fake/evt (nTrk ≥ 2) | fake/evt (nTrk ≥ 1) | fake + split /evt |
 |---|---|---|---|---|---|
 | **PV-Finder** | 93.32 ± 0.06 | 78.09 ± 0.08 | 9.59 ± 0.07 | 5.25 ± 0.06 | 14.08 ± 0.09 |
 | **AMVF** | 92.46 ± 0.06 | 75.09 ± 0.08 | 11.65 ± 0.08 | 8.02 ± 0.06 | 14.28 ± 0.09 |
-| **PVF − AMVF** (paired) | **+0.86 ± 0.05** | **+3.01 ± 0.06** | **−2.06 ± 0.07** | **−2.77 ± 0.06** | **−0.20 ± 0.08** |
+| **PVF − AMVF** (paired) | +0.86 ± 0.05 | +3.01 ± 0.06 | −2.06 ± 0.07 | −2.77 ± 0.06 | −0.20 ± 0.08 |
 
-**AMVF's truth-side efficiency is not printed by the eval at all** — only its
-reco-side categories. That gap is why the AMVF efficiency column has never
-appeared on this page before. It is 92.46 % here, and 83.49 % at the window the
-eval actually uses.
+**AMVF's truth-side efficiency is not printed by the eval at all** — `:550`
+discards its truth-side classification and keeps only the reco categories. That
+is why no AMVF efficiency had ever appeared in this wiki. It is 79.80 % at the
+common window, and 83.49 % at the window the eval actually uses.
 
-**The efficiency convention has to be stated with the number.** `compare_res_reco`
-credits one reco vertex with *every* truth vertex inside its window, so a single
-reco standing between two truth vertices scores both. That is close to the ATLAS
-"merged" convention and is a legitimate choice — but it inflates the absolute
-efficiency, and by more as the window widens: at 0.5 mm it is worth **+15.2
-points** to PV-Finder (93.32 vs 78.09 strict). Crucially it does **not** cancel in
-the comparison. AMVF has fewer reco vertices, so each of its merges absorbs more
-truth, and it collects proportionally more merge credit — which means the merge
-convention *shrinks* our measured lead. Strict one-to-one gives **+3.01 ± 0.06
-points** where the production convention gives +0.86 ± 0.05. Both are in the table;
-neither is "the" answer, and quoting either without naming the convention is how
-this comparison went wrong in the first place. (The independent adversarial audit
-in `docs/evaluation/amvf_fairness_audit.md` ranks this the largest single effect
-and reaches the same conclusion by a different matcher.)
+#### The matching convention is worth more than either asymmetry
+
+`compare_res_reco` credits one reco vertex with *every* truth vertex inside its
+window, so a single reco standing between two truth vertices scores both. That is
+close to the ATLAS "merged" convention and is a legitimate choice, but it is a
+large inflation of the absolute number — **+9.7 points at 0.17 mm and +15.2
+points at 0.5 mm** — and it does not cancel in the comparison. AMVF emits fewer
+vertices, so each of its merges absorbs more truth and it collects proportionally
+more merge credit. The effect is invisible at the tight window and dominant at
+the loose one:
+
+| common window | PVF − AMVF, merged credit | PVF − AMVF, strict 1-to-1 |
+|---|---|---|
+| 0.17 mm (primary) | +3.36 ± 0.06 pts | +3.37 ± 0.06 pts |
+| 0.50 mm | +0.86 ± 0.05 pts | +3.01 ± 0.06 pts |
+| 1.00 mm | +0.45 ± 0.05 pts | +2.26 ± 0.06 pts |
+
+**The strict one-to-one margin is the stable one**: it stays between +3.4 and
++2.3 points across the whole 0.1–1.0 mm range, against +3.4 falling to +0.45 for
+merged credit. If a single
+number has to be quoted, quote the strict margin at the resolution-derived
+window — **+3.4 ± 0.1 points** — and name both the convention and the window.
 
 #### What each asymmetry was worth
 
 | | effect on the PVF − AMVF gap |
 |---|---|
-| Asymmetry 1 (window), on efficiency | published **+3.00** pts → common window **+0.86** pts: it flattered us by **2.14 points** |
-| Asymmetry 1 (window), on fake rate | published **−1.16**/evt → common window **−2.06**/evt: it *penalised* us by **0.90 fake/evt** |
+| Asymmetry 1 (window), on efficiency | published **+3.00** pts → common 0.17 mm **+3.36** pts, merged credit |
+| Asymmetry 1 (window), on fake rate | published **−1.16**/evt → common 0.17 mm **−0.95**/evt |
 | Asymmetry 2 (nTrk = 1 truth) | worth **0.97 ± 0.07 fake/evt** in our favour — not 3.33 |
+| Merge-credit convention (found by the audit) | worth **−2.15** pts to us at 0.5 mm, **−0.01** at 0.17 mm |
 
-Asymmetry 1 does not point one way. It inflated our efficiency lead because a
-tight window costs AMVF more truth matches than it costs us; it *understated* our
-fake-rate lead because at a tight window AMVF's genuinely-found vertices fall out
-of the window and are miscounted as fakes on both sides.
-
-For asymmetry 2 the naive correction is wrong. **AMVF is penalised by the
-nTrk ≥ 2 convention too**, and by more than the structural argument suggests:
+The two asymmetries we were sent to find turn out to be **the smaller effects**.
+Asymmetry 1 barely moves the efficiency gap once the window is set from the right
+quantity, because both algorithms lose comparably at a tight window. Asymmetry 2
+is real but mostly cancels, because **AMVF is penalised by the nTrk ≥ 2
+convention too**, and by more than the structural argument suggests:
 
 | | on real nTrk = 1 truth /evt | accidental floor | genuine | % of its fakes |
 |---|---|---|---|---|
 | PV-Finder | 4.34 | 1.01 | **3.33 ± 0.05** | 34.7 % |
 | AMVF | 3.63 | 1.27 | **2.36 ± 0.05** | 20.3 % |
 
-The accidental floor is measured, not assumed: the same fakes are re-matched
-against another event's nTrk = 1 list (same z profile, same multiplicity, no
-association). A second, independent control that displaces this event's own list
-by 10 mm agrees to within 0.04/event. The direction is as expected — AMVF needs
-≥ 2 tracks and sits on single-track interactions less often — but the net
-correction to the *comparison* is **0.97/event, not 3.33**.
+(at 0.5 mm, where the population is largest). The accidental floor is measured,
+not assumed: the same fakes are re-matched against another event's nTrk = 1 list,
+and a second independent control displacing this event's own list by 10 mm agrees
+to within 0.04/event. The direction is as expected — AMVF needs ≥ 2 tracks and
+sits on single-track interactions less often — but the net correction to the
+*comparison* is **0.97/event, not 3.33**.
 
-**Net:** the previously quoted comparison flattered us by 2.14 efficiency points
-and penalised us by 0.90 fake/event. Correcting both, PV-Finder's efficiency lead
-is real but 3.5× smaller than the operating-point table implies, and its
-fake-rate lead is real and slightly larger.
+#### The caveats that narrow our margin
 
-#### The caveat that most narrows our margin
+**Splits.** The fake-rate lead is partly a relabelling: a surplus vertex counts as
+"split" rather than "fake" when it has truth in its window, and PV-Finder's
+surplus is disproportionately near-neighbour satellites (0.91/evt split against
+AMVF's 0.37 at the published window; 4.49 against 2.63 at 0.5 mm). On **fake +
+split**, which is immune to that, the gap is −0.60 ± 0.09/evt at 0.17 mm and
+−0.20 ± 0.08 at 0.5 mm, and AMVF is *ahead* beyond 0.596 mm. Never quote a fake
+rate without the fake+split number beside it.
 
-The −2.06/evt fake-rate lead is **largely a relabelling**. Widening the window
-converts a surplus vertex from "fake" to "split", and PV-Finder's surplus is
-disproportionately made of near-neighbour satellites while AMVF's is
-disproportionately isolated: at 0.5 mm PV-Finder has 4.49 split/evt against
-AMVF's 2.63. On **surplus = fake + split**, which is immune to that relabelling,
-the two are a statistical tie at 0.5 mm (−0.20 ± 0.08/evt) and AMVF is *ahead*
-beyond 0.596 mm. Any claim about fake rates should be quoted next to the surplus
-number.
+**Operating point.** PV-Finder emits 101.0 candidates/event against AMVF's 97.9,
+and its thresholds are tuned while AMVF's are not. Raising the height floor from
+0.03 to 0.0444 equalises the yields — exactly equivalent to re-running the peak
+finder at that `--min-height`, since the threshold only decides whether a region
+is recorded and never moves a position:
 
-There is a second reason not to read the headline row as a clean win: PV-Finder
-emits 101.0 candidates/event against AMVF's 97.9. Raising the height floor from
-0.03 to 0.0444 equalises the two candidate multiplicities — exactly equivalent to
-re-running the peak finder at that `--min-height`, since the threshold only
-decides whether a region is recorded and never moves a position:
-
-| at equal candidate multiplicity, 0.5 mm | efficiency [%] | fake/evt | surplus/evt |
-|---|---|---|---|
-| PV-Finder, re-cut to 97.87 cand/evt | 92.58 | 7.76 | 11.91 |
-| AMVF | 92.46 | 11.65 | 14.28 |
-| **difference** (paired) | **+0.12 ± 0.05** | **−3.89 ± 0.07** | **−2.37 ± 0.08** |
-
-So the honest statement is not "PV-Finder is more efficient than AMVF" but
-**"PV-Finder sits on a better efficiency/purity frontier than AMVF, and the
-deployed operating point spends that advantage on efficiency"**. At matched
-candidate multiplicity the efficiency advantage is +0.12 ± 0.05 points — a tie in
-any practical sense — while the surplus advantage becomes 2.37/event. Both
-readings come from the same frontier; only the frontier claim is safe to publish
-without naming the operating point.
-
-#### Secondary: each algorithm judged by its own σ
-
-This is the convention the eval uses, made symmetric. It is circular — a change
-that improves an algorithm's resolution tightens its own window and moves its own
-efficiency — and is recorded only because these numbers have been seen:
-
-| window convention | PVF eff | PVF fake/evt | AMVF eff | AMVF fake/evt |
+| at equal candidate multiplicity, 0.17 mm | efficiency [%] | strict [%] | fake/evt | fake + split /evt |
 |---|---|---|---|---|
-| both at σ_PVF = 0.2182 mm (**what the eval publishes**) | 0.8638 | 16.66 | 0.8339 | 17.83 |
-| each at its own σ (0.2182 / 0.3047 mm) | 0.8638 | 16.66 | 0.8755 | 15.50 |
-| **both at 0.5 mm (fair)** | **0.9332** | **9.59** | **0.9246** | **11.65** |
+| PV-Finder, re-cut to 97.87 cand/evt | 82.69 | 72.97 | 16.11 | 16.63 |
+| AMVF | 79.80 | 70.07 | 19.69 | 19.87 |
+| **difference** (paired) | **+2.89 ± 0.06** | **+2.90 ± 0.06** | **−3.57 ± 0.09** | **−3.23 ± 0.09** |
 
-The first row is 0.8638 / 16.66 where the operating-point table above reports
-0.8648 / 16.60, because that table's run fitted σ = 0.2200 over all 25 000 events
-read using the resolution peak list (integral ≥ 0.50), while this study fits
-σ = 0.2182 on the μ-window events using the efficiency peak list — the one
-actually being matched. The peak lists are identical; only the window differs, by
-0.0018 mm. That sensitivity is itself the point of this section.
+The margin survives the equal-yield control at the resolution-derived window. (At
+0.5 mm the same control collapses the merged-credit efficiency margin to
++0.12 ± 0.05 points while the fake+split margin grows to −2.37 ± 0.08 — another
+symptom of the merge convention at a window that is half accidental, not a
+separate finding.)
 
-Note the middle row: judged self-consistently, AMVF's efficiency is *higher* than
-PV-Finder's. That is not a statement about the algorithms — it is what happens
-when you let each one pick its own acceptance criterion, and it is the clearest
-possible demonstration of why the self-consistent convention cannot settle a
-comparison. Use the common window.
+#### Agreement with the independent audit
+
+Two derivations, two matchers, one day. Where they overlap:
+
+| quantity | this study | [audit](amvf_fairness_audit.md) | agree? |
+|---|---|---|---|
+| PVF eff / fake at the published window | 0.8648 / 16.598 | 0.8648 / 16.598 | **yes**, and both match the log |
+| AMVF efficiency at the published window | 0.8349 | 0.8349 | **yes** |
+| σ_PVF, σ_AMVF (vtx-vtx) | 0.2182 / 0.3047 mm | 0.2182 / 0.3048 mm | **yes** |
+| core position resolution | 55.1 / 56.5 µm | 55.1 / 56.5 µm | **yes** |
+| strict 1-to-1 eff at ≈0.17 mm | 0.7343 / 0.7007 | 0.7351 / 0.7011 | **yes**, to 0.001 |
+| strict 1-to-1 margin at ≈0.17 mm | +3.37 ± 0.06 pts | +3.40 ± 0.06 pts | **yes** |
+| fake + split at ≈0.17 mm | 19.27 / 19.87 | 19.179 / 19.819 | **yes**, to 0.09 |
+| accidental floor at ≈0.17 mm (strict) | 16.5 % / 16.3 % | 16.6 % / 16.4 % | **yes** |
+| equal-yield margin | +2.89 pts, −3.23 fake+split | +2.94 pts, −3.27 | **yes** |
+| split rate, published window | 0.913 / 0.373 per evt | 0.913 / 0.373 | **yes** |
+
+Two differences, both explained and neither a disagreement about the physics:
+
+1. **Assignment algorithm.** The audit uses optimal (Hungarian) assignment
+   throughout; this study uses the production greedy one for *scoring*, because
+   it is verified bit-for-bit against `compare_res_reco` and the point is to
+   describe what the eval does. The two differ by ≤ 0.001 in efficiency. The one
+   place it mattered was the core resolution — greedy gives 50.1 µm against
+   optimal's 55.1 µm, a 10 % bias — which is why the optimal estimator is used
+   for that measurement here too, after which the two studies agree exactly.
+2. **What "fake" names.** The audit folds splits into its fake rate; this page
+   reports `fake` and `fake + split` as separate columns. The audit's "fake/evt"
+   is this page's "fake + split", which is why its 19.179 matches this page's
+   19.27 and not its 18.73. Same quantity, different label.
+
+There is one genuine difference of *framing*. The audit reports the corrected
+truth definition by moving the efficiency denominator to nTrk ≥ 1 as well (hence
+its 0.6442 / 0.6068); this page holds the denominator at nTrk ≥ 2 and changes
+only what counts as a fake, so that the efficiency column stays comparable with
+the ATLAS convention across all four cells. Both are defensible; they answer
+slightly different questions and should not be compared cell by cell.
+
+#### Bottom line
+
+At a window derived from the quantity that actually governs whether a vertex was
+found, and stating the convention: **PV-Finder leads AMVF by +3.4 ± 0.1
+efficiency points and 0.60 ± 0.09 fewer surplus vertices per event, and still
+leads at equal candidate yield.** The lead is robust to the matching convention,
+to the truth definition, and to the window over the whole 0.1–1.0 mm range.
+
+What does *not* survive is the absolute headline. The published 86.5 % is 9.7
+points of merge convention above a strict count, sits at a window taken from the
+wrong quantity, and at a 0.5 mm window would be nearly half coincidence. **Quote
+the margin, the convention and the window — never the bare efficiency.**
 
 ### Pairwise-Δz binning (2026-08-05) — `--pairwise-bins` now defaults to 300
 

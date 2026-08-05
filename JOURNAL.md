@@ -4178,3 +4178,68 @@ estimator change itself in `docs/research/peak_position_estimator.md`, which
 previously recorded only the win.
 
 ---
+
+**Second addendum — the window basis was wrong, and both original asymmetries
+turned out to be the small effects.**
+
+Re-derived the window from the right quantity. σ_vtx-vtx measures how far apart
+two vertices must be before an algorithm resolves them *separately*; whether a
+vertex was *found* is governed by the **core position resolution**, and the two
+do not scale together: σ_vtx-vtx is 0.2182 vs 0.3047 mm for PV-Finder and AMVF (a
+ratio of 1.40), while the core position resolution is 55.1 vs 56.5 µm (ratio
+1.03). A window built on the first is unfair by construction; one built on the
+second is fair by construction. The primary common window is therefore
+3 × 56.5 µm = **0.17 mm**, and the round 0.5 mm is demoted to a labelled
+sensitivity point.
+
+0.5 mm was demoted on a measurement, not a preference. Displacing the whole reco
+list by 3 mm — larger than any window, far smaller than the 45 mm beam spot, so
+the density is unchanged and the association destroyed — and re-matching gives
+the efficiency that is pure coincidence: 11.1 % at 0.10 mm, 18.6 % at 0.17 mm,
+45.4 % at 0.50 mm, 68.1 % at 1.00 mm (merged credit). **At 0.5 mm nearly half the
+measured efficiency is accidental.** The floor is equal for both algorithms to
+within 0.3 points at every window, so it does not bias the comparison, but it
+destroys the absolute number. It is now drawn on the window-scan figure so the
+reader can see where the metric stops meaning "found the vertex".
+
+At 0.17 mm, strict one-to-one, paired bootstrap: PV-Finder 73.43 ± 0.09 %
+efficiency and 19.27 ± 0.10 fake+split/evt; AMVF 70.07 ± 0.09 % and 19.87 ± 0.10.
+Margin **+3.37 ± 0.06 points** and **−0.60 ± 0.09 surplus/event**, surviving the
+equal-yield control at +2.90 ± 0.06 and −3.23 ± 0.09.
+
+**Both asymmetries this study was originally sent to find are smaller than the
+convention effect the audit found.** Once the window comes from the core
+resolution, asymmetry 1 moves the efficiency gap from +3.00 to +3.36 points
+rather than collapsing it, because at a tight window both algorithms lose
+comparably — the +0.86-point figure recorded in the first entry above is an
+artefact of quoting the gap at 0.5 mm under merged credit, where AMVF collects
+proportionally more merge credit than we do. The merge convention is worth
+−2.15 points to us at 0.5 mm and −0.01 at 0.17 mm. **The strict one-to-one margin
+is the stable quantity**: between +3.4 and +2.3 points across the whole
+0.1–1.0 mm range, against +3.4 falling to +0.45 for merged credit. If one number
+is quoted it should be the strict margin at the resolution-derived window, with
+the convention and the window named.
+
+Cross-check against the independent audit, which used a Hungarian matcher and its
+own code path: agreement on the published-run reproduction (0.8648 / 16.598),
+AMVF efficiency (0.8349), both σ_vtx-vtx, the core position resolutions
+(55.1 / 56.5 µm to three digits), strict efficiency at ≈0.17 mm (0.7343 / 0.7007
+against 0.7351 / 0.7011), the strict margin (+3.37 vs +3.40 points), fake+split
+(19.27 / 19.87 against 19.179 / 19.819), the accidental floor (16.5 / 16.3 %
+against 16.6 / 16.4 %), the equal-yield margin, and the split rates. Two
+differences, both chased rather than averaged and both explained: the audit
+assigns optimally throughout while this study scores with the production greedy
+matcher (≤ 0.001 in efficiency), and the audit folds splits into "fake" where
+this page keeps them as separate columns — its "fake/evt" is this page's
+"fake + split", which is why its 19.179 matches 19.27 and not 18.73. The one
+place the assignment algorithm mattered was the core resolution itself: greedy
+closest-first creams off the tightest pairs and biases the width 10 % low
+(50.1 µm against 55.1), which would have produced a tighter window, and a tighter
+window flatters PV-Finder. The conservative optimal estimator is now used for
+that measurement, after which the two studies agree exactly.
+
+The remaining difference is one of framing, not of measurement: the audit moves
+the efficiency denominator to nTrk ≥ 1 for its corrected truth definition, while
+this page holds the denominator at nTrk ≥ 2 and changes only what counts as a
+fake, so the efficiency column stays comparable with the ATLAS convention across
+all four cells. Both are defensible and they should not be compared cell by cell.
