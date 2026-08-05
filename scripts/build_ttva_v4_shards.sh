@@ -32,13 +32,18 @@ ALLHAD=data/run4_all_etas/Run4_MC21_ITk_LatestJuly2026/ATLAS_PVFinderData_601237
 FILE1=$ALLHAD/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_1.root
 FILE2=$ALLHAD/ATLAS_PVFinderData_601237_e8481_s4494_r16633_PU200_2.root
 OUT=data/run4_all_etas/ttva_graphs/v4_shards_$ARM
-LOG=outputs/08_04_2026_output/gnn_ttva_v4/build_logs_$ARM
+LOG=${LOG:-outputs/08_04_2026_output/gnn_ttva_v4/build_logs_$ARM}
 mkdir -p "$OUT" "$LOG"
 
 N_SHARDS=18
 SHARD_SIZE=10000   # ~13 GB resident per shard; fits the 32 GB ulimit
 VAL_SIZE=5000
-MAX_JOBS=6         # 6 x ~22 GB RSS on a 500 GB shared box
+MAX_JOBS=${MAX_JOBS:-6}   # 6 x ~22 GB RSS on a 500 GB shared box
+
+# The validation shard is pristine in BOTH arms and both configs point at the
+# one in v4_shards_pristine/, so a second identical copy under
+# v4_shards_augmented/ is 6.9 GB of pure duplication. SKIP_VAL=1 omits it.
+SKIP_VAL=${SKIP_VAL:-0}
 
 AUG_ARGS=()
 if [ "$ARM" = "augmented" ]; then
@@ -69,12 +74,16 @@ for i in $(seq 0 $((N_SHARDS - 1))); do
     pids+=($!)
 done
 
-throttle
-# Validation comes from file 2 and is ALWAYS pristine, in both arms, so the
-# two learning curves are read against one common yardstick.
-( AUG_ARGS=(); build "$FILE2" "$OUT/val_shard.pt" 0 "$VAL_SIZE" 999 \
-    "$LOG/val_shard.log" ) &
-pids+=($!)
+if [ "$SKIP_VAL" != "1" ]; then
+    throttle
+    # Validation comes from file 2 and is ALWAYS pristine, in both arms, so the
+    # two learning curves are read against one common yardstick.
+    ( AUG_ARGS=(); build "$FILE2" "$OUT/val_shard.pt" 0 "$VAL_SIZE" 999 \
+        "$LOG/val_shard.log" ) &
+    pids+=($!)
+else
+    echo "SKIP_VAL=1: reusing v4_shards_pristine/val_shard.pt"
+fi
 
 fail=0
 for p in "${pids[@]}"; do wait "$p" || fail=1; done

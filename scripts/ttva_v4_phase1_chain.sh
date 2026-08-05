@@ -11,31 +11,40 @@
 #   r16443 -> the evaluation set. Its 1920 events / 213,738 truth PVs are
 #             exactly the slice behind outputs/08_04_2026_output/eval_v6_heldout/r16443.
 #
-# The peak operating point is passed in, because it is set by the peak-finder
-# work landing separately. Defaults reproduce the v6 held-out evaluation
-# (threshold 1e-2 / integral 0.5 / width 3 / floor 0.0).
+# Defaults are the FINAL v6 operating point, the one behind
+# scripts/eval_v6_operating_point.sh and outputs/08_04_2026_output/eval_v6_heldout:
+#
+#   peak_threshold 0.01   integral_threshold 0.30   min_width 3
+#   min_height 0.03       centroid_halfwidth 3
+#
+# centroid_halfwidth is the one to watch. The peak_finding library default is
+# still 0 (historical full-region weighted mean) so that v3-era TTVA
+# checkpoints keep reproducing, so every call site here passes it explicitly.
+# It sets the PV-node z, which feeds every edge feature, so a mismatch between
+# the graphs a checkpoint trains on and the graphs it is evaluated on degrades
+# the result quietly and looks like a modelling problem.
 #
 # Usage (inside tmux):
-#   PEAK_THRESHOLD=0.01 INTEGRAL_THRESHOLD=0.5 MIN_WIDTH=3 MIN_HEIGHT=0.0 \
-#     bash scripts/ttva_v4_phase1_chain.sh
+#   DEVICE=3 bash scripts/ttva_v4_phase1_chain.sh
 set -eu
 cd /data/home/matmauro/codice/PV-Finder
 source venv/bin/activate
 
 PEAK_THRESHOLD=${PEAK_THRESHOLD:-0.01}
-INTEGRAL_THRESHOLD=${INTEGRAL_THRESHOLD:-0.5}
+INTEGRAL_THRESHOLD=${INTEGRAL_THRESHOLD:-0.30}
 MIN_WIDTH=${MIN_WIDTH:-3}
-MIN_HEIGHT=${MIN_HEIGHT:-0.0}
-DEVICE=${DEVICE:-2}
+MIN_HEIGHT=${MIN_HEIGHT:-0.03}
+CENTROID_HALFWIDTH=${CENTROID_HALFWIDTH:-3}
+DEVICE=${DEVICE:-3}
 
 RUN4=data/run4_all_etas/Run4_MC21_ITk_LatestJuly2026
 PVF=model_weights/hllhc_alleta_v6_mse_2ep_phase2_epoch_2_fullstate.pth
 GRAPHS=data/run4_all_etas/ttva_graphs
-OUT=outputs/08_04_2026_output/gnn_ttva_v4
+OUT=${OUT:-outputs/08_05_2026_output/gnn_ttva_v4}
 mkdir -p "$GRAPHS" "$OUT"
 
 echo "=== peak operating point: thr=$PEAK_THRESHOLD integral=$INTEGRAL_THRESHOLD"\
-     "width=$MIN_WIDTH floor=$MIN_HEIGHT ==="
+     "width=$MIN_WIDTH floor=$MIN_HEIGHT halfwidth=$CENTROID_HALFWIDTH ==="
 
 chain() {  # chain <tag> <root> <n_events_cap>
     local tag=$1 root=$2 cap=$3
@@ -46,6 +55,7 @@ chain() {  # chain <tag> <root> <n_events_cap>
         --peak-threshold "$PEAK_THRESHOLD" \
         --integral-threshold "$INTEGRAL_THRESHOLD" \
         --min-width "$MIN_WIDTH" --min-height "$MIN_HEIGHT" \
+        --centroid-halfwidth "$CENTROID_HALFWIDTH" \
         --unet-channels 280 --latent-channels 4 --hidden-nodes 128 \
         --output "$GRAPHS/pu200_chain_v6_k20_$tag.pt" \
         --output-dir "$OUT/chain_$tag/"
@@ -69,6 +79,7 @@ python -u -m gnn.diagnostics.chain_gap_decomposition \
     --peak-threshold "$PEAK_THRESHOLD" \
     --integral-threshold "$INTEGRAL_THRESHOLD" \
     --min-width "$MIN_WIDTH" --min-height "$MIN_HEIGHT" \
+    --centroid-halfwidth "$CENTROID_HALFWIDTH" \
     -o "$OUT/ttva_gap_v6/"
 
 # 4. The same decomposition on the EVALUATION chain, for its oracle and
@@ -88,6 +99,7 @@ python -u -m gnn.evaluation.verify_fast_paths \
     --peak-threshold "$PEAK_THRESHOLD" \
     --integral-threshold "$INTEGRAL_THRESHOLD" \
     --min-width "$MIN_WIDTH" --min-height "$MIN_HEIGHT" \
+    --centroid-halfwidth "$CENTROID_HALFWIDTH" \
     -d "$DEVICE" -o "$OUT/fastpaths_post_peakchange/"
 
 echo "=== PHASE 1 DONE ==="

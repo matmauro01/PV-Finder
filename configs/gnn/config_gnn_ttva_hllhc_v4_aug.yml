@@ -6,8 +6,16 @@
 #     resolution preset. v3 used |eta| < 2.5 data and the 'hllhc' preset.
 #   - 18 shards x 10k instead of 9 x 20k: the extended-|eta| events carry
 #     ~1315 tracks (vs ~927), so a 20k shard no longer fits comfortably in
-#     the 32 GB per-process limit. 324 epochs = 18 passes, the same number
-#     of graph presentations as v3's 162 epochs over 20k shards.
+#     the 32 GB per-process limit.
+#   - 108 epochs = 6 complete passes over the 18 shards. The design target was
+#     324 (18 passes, matching v3's graph-presentation count), but sneezy is
+#     running at load ~296 and the campaign has a hard 4-5 h training budget.
+#     108 is the largest multiple of 18 whose cosine anneal COMPLETES inside
+#     that window at the measured ~85-95 s/epoch, and a partial anneal is not
+#     a fair representation of the recipe. Shard count must divide the epoch
+#     count or ShardCyclingLoader shows some shards one more time than others.
+#     This is a third of v3's data exposure: read these arms as a like-for-like
+#     A/B against each other, not against v3's absolute numbers.
 #   - augmentation parameters re-measured on the v6 chain, not reused from
 #     the v4b chain.
 #
@@ -53,7 +61,7 @@ model_config:
   dropout: 0.25
 
 # --- Training ---
-n_epochs: 324           # 18 passes x 18 shards
+n_epochs: 108           # 6 passes x 18 shards (see comment above)
 learning_rate: 0.001
 lr_schedule:
   type: cosine
@@ -63,7 +71,7 @@ device_id: 2
 
 # --- Checkpointing ---
 save_weights: true
-save_frequency: 12
+save_frequency: 1
 save_folder: "/data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_hllhc_v4_aug/"
 
 # --- MLflow ---

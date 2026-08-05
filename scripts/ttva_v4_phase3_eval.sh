@@ -18,13 +18,13 @@ set -eu
 cd /data/home/matmauro/codice/PV-Finder
 source venv/bin/activate
 
-DEVICE=${DEVICE:-2}
+DEVICE=${DEVICE:-3}
 RUN4=data/run4_all_etas/Run4_MC21_ITk_LatestJuly2026
 ROOT_TEST=$RUN4/ATLAS_PVFinderData_601229_e8481_s4494_r16443_PU200.root
 GRAPHS=data/run4_all_etas/ttva_graphs
 CHAIN=$GRAPHS/pu200_chain_v6_k20_test.pt
 TRUTH=$GRAPHS/pu200_truth_k20_test_r16443.pt
-OUT=outputs/08_04_2026_output/gnn_ttva_v4
+OUT=${OUT:-outputs/08_05_2026_output/gnn_ttva_v4}
 IDX=$OUT/chain_test/entry_indices.npy
 
 [ $# -ge 1 ] || { echo "need at least one <label>=<ckpt>"; exit 2; }
