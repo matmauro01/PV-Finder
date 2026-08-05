@@ -71,3 +71,33 @@ def is_commensurate(
 
 # The eval default.  0.04 mm plot bins across +-6 mm.
 DEFAULT_PAIRWISE_BINS: int = pairwise_bins()
+
+
+def event_mu(mu: float | None, n_truth: int) -> float:
+    """The pileup the eval attributes to an event.
+
+    Falls back to the truth-vertex count when the ntuple carries no
+    ``ActualNumOfInt``, which is what the summary block has always done.
+    """
+    return float(mu) if mu is not None else float(n_truth)
+
+
+def in_summary_window(
+    mu: float | None, n_truth: int, mu_min: float, mu_max: float
+) -> bool:
+    """Whether an event belongs to the population the eval summary is quoted on.
+
+    Events with no truth vertex are excluded (they cannot enter an efficiency),
+    and the μ comparison is on the **rounded** μ, matching the historical
+    summary filter.  Note that `round` is banker's rounding, so a μ of exactly
+    184.5 rounds *down* to 184 — pinned by a test rather than relied on.
+
+    This is deliberately one function used by both the σ_vtx-vtx fit and the
+    summary.  Until 2026-08-05 the fit ran over every event read while the
+    summary ran over the μ window, and because σ is fed back as the matching
+    window that mismatch propagated into the headline efficiency.  Sharing the
+    predicate is what stops that recurring.
+    """
+    if n_truth <= 0:
+        return False
+    return mu_min <= round(event_mu(mu, n_truth)) <= mu_max

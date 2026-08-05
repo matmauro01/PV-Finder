@@ -33,6 +33,7 @@ from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2  # noqa: E402
 from pv_finder.utils.pairwise_dz import (  # noqa: E402
     DEFAULT_PAIRWISE_BINS,
     PAIRWISE_RANGE_MM,
+    in_summary_window,
     is_commensurate,
 )
 from pv_finder.utils.peak_finding import (  # noqa: E402
@@ -323,7 +324,14 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     all_truth: list[np.ndarray] = []
     all_heights: list[np.ndarray] = []
     all_hists: list[np.ndarray] = []
-    pairwise_dz: list[float] = []
+    # Pairwise dz is kept *per event*, not as one flat list, so the sigma fit can
+    # be restricted to the same event selection the summary is quoted on.  Until
+    # 2026-08-05 it was flat and the fit therefore ran over every event read,
+    # while the summary ran over the mu window — on the flat-mu held-out files
+    # that is <mu> ~ 100 against <mu> ~ 192.5, and sigma feeds back as the
+    # matching window, so the mismatch propagated into the headline efficiency.
+    pairwise_dz_by_event: list[np.ndarray] = []
+    in_mu_window: list[bool] = []
 
     for i, event in enumerate(events):
         subevents = build_subevent_inputs(event)
@@ -365,9 +373,11 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             )
         p_pvs_r_sh = p_pvs_r.copy()
         np.random.shuffle(p_pvs_r_sh)
+        dz_evt: list[float] = []
         for ii in range(len(p_pvs_r_sh)):
             for jj in range(ii + 1, len(p_pvs_r_sh)):
-                pairwise_dz.append(float(p_pvs_r_sh[ii] - p_pvs_r_sh[jj]))
+                dz_evt.append(float(p_pvs_r_sh[ii] - p_pvs_r_sh[jj]))
+        pairwise_dz_by_event.append(np.asarray(dz_evt, dtype=np.float64))
         if has_truth:
             t_pvs = (
                 event.truth_z.copy()
@@ -376,6 +386,11 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             t_pvs = event.amvf_z.copy()  # fallback: AMVF as truth
             if not args.no_correct_beam:
                 t_pvs = t_pvs - event.beam_z
+        # Exactly the predicate the summary block below uses — one function,
+        # so the two populations cannot drift apart again.
+        in_mu_window.append(
+            in_summary_window(event.mu, len(t_pvs), args.mu_min, args.mu_max)
+        )
         if i < 5 or i % 50 == 0:
             print(f"  evt {i:3d}/{n_events}: truth={len(t_pvs)} "
                   f"pred={len(p_pvs)} max={ph.max():.4f}")  # fmt: skip
@@ -392,7 +407,11 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
 
     # --- Resolution (sigma_vtx_vtx) ---
     print("\n--- Resolution (sigma_vtx_vtx) ---")
-    dz_arr = np.array(pairwise_dz, dtype=np.float64)
+    dz_all = (
+        np.concatenate(pairwise_dz_by_event)
+        if pairwise_dz_by_event
+        else np.zeros(0, dtype=np.float64)
+    )
     # Fine binning, not the historical 60. The PVF dip is box-shaped with
     # near-vertical walls, so at 60 bins only ~2 points sit inside it and the fit
     # lands at 0.29 mm; 120 does not converge; 240/480/960 are stable at 0.223 mm
@@ -410,22 +429,57 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
               f"show a spurious comb; use {DEFAULT_PAIRWISE_BINS}.")  # fmt: skip
     bins_r = np.linspace(-PAIRWISE_RANGE_MM, PAIRWISE_RANGE_MM, args.pairwise_bins + 1)
     ctrs = 0.5 * (bins_r[:-1] + bins_r[1:])
-    cnts, _ = np.histogram(dz_arr, bins=bins_r)
-    sigma, popt = 0.5, None
-    baseline, dip = float(np.median(cnts)), float(np.median(cnts)) - float(cnts.min())
-    p0 = [max(dip, 1.0), 10.0, max(baseline, 1.0), 0.5]
-    try:
-        popt, pcov = curve_fit(sigmoid_fit, ctrs, cnts.astype(float), p0=p0,
-            maxfev=10000, bounds=([0, 0, 0, 0], [np.inf, np.inf, np.inf, np.inf]))  # fmt: skip
-        sigma = float(abs(popt[3]))
-        serr = float(np.sqrt(np.diag(pcov))[3])
-        print(f"  sigma_vtx_vtx = {sigma:.4f} +/- {serr:.4f} mm "
-              f"({sigma/BIN_WIDTH:.1f} bins)")  # fmt: skip
-    except RuntimeError as exc:
-        print(f"  WARNING: fit failed ({exc}). Default sigma={sigma} mm")
+
+    def fit_dz(dz: np.ndarray) -> tuple[float, float, np.ndarray | None]:
+        """Sigmoid fit of the pairwise-dz dip. Returns (sigma, err, popt)."""
+        cnts, _ = np.histogram(dz, bins=bins_r)
+        base = float(np.median(cnts))
+        p0 = [max(base - float(cnts.min()), 1.0), 10.0, max(base, 1.0), 0.5]
+        try:
+            popt_, pcov = curve_fit(sigmoid_fit, ctrs, cnts.astype(float), p0=p0,
+                maxfev=10000, bounds=([0, 0, 0, 0], [np.inf] * 4))  # fmt: skip
+        except (RuntimeError, ValueError) as exc:
+            print(f"  WARNING: fit failed ({exc}). Default sigma=0.5 mm")
+            return 0.5, float("nan"), None
+        return (float(abs(popt_[3])), float(np.sqrt(np.diag(pcov))[3]), popt_)
+
+    # Fit on the SAME events the summary is quoted on. sigma is fed back as the
+    # matching window, so fitting it on a different (here much lower-density)
+    # population corrupts the headline efficiency too. Before 2026-08-05 this
+    # always used every event read.
+    n_win = sum(in_mu_window)
+    use_window = has_mu and 0 < n_win < len(pairwise_dz_by_event)
+    if use_window:
+        dz_arr = np.concatenate(
+            [d for d, k in zip(pairwise_dz_by_event, in_mu_window) if k]
+        )
+        sel_label = f"mu in [{args.mu_min},{args.mu_max}], {n_win} events"
+    else:
+        dz_arr, n_win = dz_all, len(pairwise_dz_by_event)
+        sel_label = f"all {n_win} events read"
+        if has_mu and n_win:
+            print("  NOTE: the mu window selects every event; sigma and the "
+                  "summary already share one population.")  # fmt: skip
+
+    sigma, serr, popt = fit_dz(dz_arr)
+    print(f"  sigma_vtx_vtx = {sigma:.4f} +/- {serr:.4f} mm "
+          f"({sigma / BIN_WIDTH:.1f} bins)  [{sel_label}, "
+          f"{len(dz_arr):,} pairs]")  # fmt: skip
+    sigma_all, serr_all, popt_all = sigma, serr, popt
+    if use_window:
+        # Secondary line: what the pre-2026-08-05 code reported, so the change is
+        # visible in the log rather than silently moving a published number.
+        sigma_all, serr_all, popt_all = fit_dz(dz_all)
+        mus = [e.mu for e in events if e.mu is not None]
+        mu_lab = f", <mu>={np.mean(mus):.1f}" if mus else ""
+        print(f"  all {len(pairwise_dz_by_event)} events read{mu_lab}: "
+              f"sigma = {sigma_all:.4f} +/- {serr_all:.4f} mm, "
+              f"{len(dz_all):,} pairs  (mixed-mu; NOT the headline)")  # fmt: skip
+
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
     ds = args.dataset_name or "Real Data"
+    # The plot must show the population the quoted sigma was fitted to.
     plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
                     n_bins=args.pairwise_bins,
         title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
@@ -511,7 +565,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     MU_MIN, MU_MAX = args.mu_min, args.mu_max
     if has_mu:
         sevts = [r for r in per_event
-                 if r["mu"] is not None and MU_MIN <= round(r["mu"]) <= MU_MAX]
+                 if in_summary_window(r["mu"], r["n_truth"], MU_MIN, MU_MAX)]
         mu_lbl = f"mu in [{MU_MIN},{MU_MAX}] (ActualNumOfInt)"
     else:
         sevts, mu_lbl = per_event, "all pileup"
@@ -567,7 +621,16 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         total_truth_clean=tot_tc, total_truth_merged=tot_tm, total_truth_missed=tot_tmiss,
         per_event=per_event, pred_pvs_mm=all_pred, pred_heights=all_heights,
         truth_pvs_mm=all_truth, histograms=all_hists if args.save_histograms else None,
+        # pairwise_dz_mm is the array sigma_vtx_vtx_mm was fitted to, so the two
+        # always agree (replot_from_pkl draws one over the other).
         pairwise_dz_mm=dz_arr, fit_params=popt.tolist() if popt is not None else None,
+        sigma_vtx_vtx_err_mm=serr, sigma_fit_selection=sel_label,
+        sigma_fit_n_events=n_win, sigma_fit_n_pairs=int(len(dz_arr)),
+        sigma_vtx_vtx_mm_all_events=sigma_all,
+        sigma_vtx_vtx_err_mm_all_events=serr_all,
+        fit_params_all_events=popt_all.tolist() if popt_all is not None else None,
+        pairwise_dz_mm_all_events=dz_all if use_window else None,
+        in_mu_window=np.asarray(in_mu_window, dtype=bool),
         t2kde_checkpoint=args.t2kde_model, k2h_checkpoint=args.k2h_model,
         e2e_checkpoint=args.e2e_model, data_source="root" if args.root else "npz",
         correct_beam=not args.no_correct_beam, smooth_sigma=args.smooth_sigma,
