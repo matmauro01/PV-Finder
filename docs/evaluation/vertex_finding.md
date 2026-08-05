@@ -111,6 +111,33 @@ on 08-04 and is kept so the size of that change is visible.
 PV-Finder now reconstructs **more vertices than AMVF with fewer fakes**
 (101.0 vs 97.9 reco/evt, 16.6 vs 17.8 fake/evt).
 
+#### About a quarter of the quoted fake rate is real vertices
+
+Read the fake rate with this attached. Measured 2026-08-05 at this operating
+point on both held-out files, against the **unfiltered** `TruthVertex` list and
+with a displaced-peak control for accidental coincidences:
+
+| | per event | % of surplus |
+|---|---|---|
+| surplus peaks (fake + split) | 17.22 / 17.12 | 100 % |
+| within the matching window of a real truth vertex with nTrk < 2 | 5.08 / 5.10 | 29.5 / 29.8 % |
+| …of which accidental (the same peaks displaced by 3–12 mm) | 0.91 | 5.3 % |
+| **excess over accidental — real vertices counted as fakes** | **4.17** | **24.2 %** |
+| genuinely spurious | ~12.0 | ~70 % |
+
+Every one of them has nTrk = 1; none have 0. The accidental control is flat at
+5.1–5.5 % for displacements of 1 to 12 mm, so this is not a vertex-density
+effect. `run3_io.py` applies the standard nTrk ≥ 2 cut to truth as well as to
+AMVF, so these vertices are not in the truth list and the matcher cannot see
+them — **roughly 4.2 of the ~16.6 fake/event are real interaction vertices, not
+algorithm failures.**
+
+The convention should stay as it is: nTrk ≥ 2 is what AMVF is counted with, and
+changing it would break that comparison. But any quote of the fake rate should
+carry this decomposition. Numbers:
+`outputs/08_05_2026_output/ripple_study/fake_decomposition.json`; method in
+`docs/research/pairwise_dz_bump.md` §3.6.
+
 The binning change moves efficiency by +0.05 points and the fake rate by
 −0.04/evt, entirely through the matching window: the peak list is bit-identical
 and σ shifted by +0.5 %. What it buys is the **fit error, down 38 %**, and a
@@ -156,6 +183,19 @@ The plateau of `resolution_plot.png` used to alternate between two levels by
 is a beat between the 0.04 mm quantisation of reco positions and the 0.05 mm
 bins the 240-bin default gave. `lcm(0.04, 0.05) = 0.20 mm`, hence a 4-bin
 sawtooth.
+
+> **If you are comparing a resolution plot from before 2026-08-04 with one from
+> after, read this first.** The sawtooth **arrived with the local-centroid
+> position estimator** on 08-04. That change was a clean win on the physics
+> (−3.85 % core residual width, −13 % σ_vtx-vtx) and it stands — but the local
+> centroid quantises positions onto the 0.04 mm grid where the old full-region
+> weighted mean did not, and that is what began beating against the plot
+> binning. Same 240 bins, same events: **39.4 % |Δz| comb for the local
+> centroid against 0.9 % for the previous estimator, 1.3 % for AMVF and 0.8 %
+> for truth.** So an 08-04 plot looks dramatically worse than an 08-03 one for a
+> purely presentational reason, and an 08-05 plot looks clean again without any
+> of the physics having moved. Do not read the difference between those three
+> plots as a change in resolution.
 
 `--pairwise-bins` now defaults to `DEFAULT_PAIRWISE_BINS = 300` (0.04 mm bins,
 derived as `2 × 6 mm / BIN_WIDTH_MM`), and the eval warns if it is given an

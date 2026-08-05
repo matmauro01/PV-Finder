@@ -131,6 +131,18 @@ difference is far better determined than either absolute value):
 
 ## Chosen: clipped, half-width 3 bins
 
+> **One side effect, found 2026-08-05 and fixed in the plot rather than here.**
+> The local centroid over a few bins around a sharp maximum lands very close to
+> that maximum's own bin, so reconstructed positions become **quantised** on the
+> 0.04 mm grid — 135.8 % modulation of the position fractional part, against a
+> continuous distribution for the full-region weighted mean it replaced. Nothing
+> below changes: the core width, σ_vtx-vtx and band-excess gains are all real.
+> But the resolution plot's 0.05 mm bins beat against that comb and acquired a
+> visible 3.9 % sawtooth the day this landed. The fix is the plot binning
+> (`--pairwise-bins` now 300), not the estimator — de-quantising variants were
+> re-measured and all cost more than they buy.
+> See [resolution_plot_ripple](resolution_plot_ripple.md).
+
 - Core width statistically tied with the best (±2 and parabolic).
 - **Best σ_vtx-vtx of every variant tried: 0.2091 vs 0.2403 mm, −13.0 %**
   (fit errors 0.0052 / 0.0029 mm → ~5σ).

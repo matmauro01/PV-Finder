@@ -17,6 +17,14 @@ is not satellites, and it is not the model. It is a beat between the 0.04 mm
 quantisation of reconstructed peak positions and the 0.05 mm bins the plot used.
 Changing the plot binning to 0.04 mm removes it, and moves no peak.
 
+> **The sawtooth is exactly one day old: it arrived with the local-centroid
+> estimator on 2026-08-04.** That estimator change was a genuine win on the
+> physics and it stands, but it also made the resolution plot look dramatically
+> worse for a purely presentational reason. Anyone comparing a plot from before
+> 08-04 with one from after needs that sentence or they will conclude the
+> resolution degraded. It did not — it improved by 13 %. See
+> [the provenance measurement](#the-ripple-is-one-day-old).
+
 > **Two different things have been called "the ripple".** This page is about the
 > visible sawtooth in the *resolution plot*, whose cause is the position
 > estimator meeting the plot binning. The sub-noise structure in the *predicted
