@@ -839,13 +839,10 @@
                     $16.10$ fake/evt, $0.228$\,mm
             \end{itemize}
             \vspace{0.35em}
-            \setlength{\fboxsep}{4pt}
-            \colorbox{pennred!8}{\parbox{0.97\linewidth}{\scriptsize
-            \textcolor{pennred}{\textbf{Do not read this as the comparison.}} The
-            matching window here is \emph{PV-Finder's own} $\sigma_{\text{vtx-vtx}}$
-            applied to AMVF as well ($28\%$ tighter than AMVF's own), and the
-            efficiency uses the merged-credit convention. The apples-to-apples
-            version is two slides on.}}
+            {\scriptsize\textcolor{black!55}{\textbf{Conventions:} matching window
+            from PV-Finder's own $\sigma_{\text{vtx-vtx}}$, merged credit. A window
+            derived from one algorithm is not a fair basis for comparing two; the
+            like-for-like comparison follows.}}
         \end{column}
     \end{columns}
 \end{frame}
@@ -959,53 +956,55 @@
     \end{columns}
 \end{frame}
 
-\begin{frame}[shrink=15]{Did We Judge AMVF by Our Own Resolution?}
+\begin{frame}[shrink=15]{Choosing a Matching Window That Favours Neither Algorithm}
     \small
-    \textbf{Yes --- the same window for both, but derived from ours.}
-    \texttt{run\_eval\_pvf\_run3.py:492} sets it from \emph{PV-Finder's} fitted
-    $\sigma_{\text{vtx-vtx}}$; \texttt{:527} applies it to us, \texttt{:518,551} to
-    AMVF. That is unfair for two independent reasons.
+    Both algorithms were matched with the \emph{same} window --- but that window was
+    derived from PV-Finder's own fitted $\sigma_{\text{vtx-vtx}}$. Two reasons why
+    that is not a valid basis for comparison.
 
-    \vspace{0.4em}
+    \vspace{0.5em}
     \begin{columns}[t]
-        \begin{column}{0.47\linewidth}
-            \textbf{(a) It moves when \emph{we} improve.}\\[0.3em]
+        \begin{column}{0.46\linewidth}
+            \textbf{It tightens as \emph{we} improve}\\[0.4em]
             \footnotesize
             \begin{tabular}{ccc}
                 \hline
-                our $\sigma$ & our fake/evt & AMVF fake/evt \\
+                window & PV-Finder & AMVF \\
                 \hline
-                $0.2328$ & $21.52$ & $17.37$ \\
-                $0.2190$ & $16.64$ & $\mathbf{17.80}$ \\
+                $0.2328$\,mm & $21.52$ & $17.37$ \\
+                $0.2190$\,mm & $16.64$ & $\mathbf{17.80}$ \\
                 \hline
-            \end{tabular}\\[0.4em]
-            Same events, same AMVF. \textbf{AMVF got worse by $0.43$ fakes/event
-            while AMVF did not change.}
+                \multicolumn{3}{c}{\scriptsize fakes per event} \\
+            \end{tabular}\\[0.5em]
+            Identical events, identical AMVF vertices. Improving our resolution
+            narrowed the window and cost AMVF $0.43$ fakes/event.
         \end{column}
-        \begin{column}{0.53\linewidth}
-            \textbf{(b) $\sigma_{\text{vtx-vtx}}$ is the wrong quantity.}\\[0.3em]
+        \begin{column}{0.54\linewidth}
+            \textbf{It is the wrong scale}\\[0.4em]
             \footnotesize
-            It is a two-vertex \emph{separation} scale. ``Was this vertex found'' is
-            governed by \emph{position} resolution:\\[0.3em]
+            $\sigma_{\text{vtx-vtx}}$ measures how close two vertices may be and still
+            be \emph{separated}. Whether a single vertex is \emph{found} is set by
+            position resolution:\\[0.4em]
             \begin{tabular}{lccc}
                 \hline
                 & PV-Finder & AMVF & ratio \\
                 \hline
-                $\sigma_{\text{vtx-vtx}}$ & $0.2182$\,mm & $0.3047$\,mm & $\mathbf{1.40}$ \\
-                core position res. & $55.1$\,\textmu m & $56.5$\,\textmu m & $\mathbf{1.03}$ \\
+                $\sigma_{\text{vtx-vtx}}$ & $0.2182$\,mm & $0.3047$\,mm & $1.40$ \\
+                position res. & $55.1$\,\textmu m & $56.5$\,\textmu m & $\mathbf{1.03}$ \\
                 \hline
-            \end{tabular}
+            \end{tabular}\\[0.4em]
+            The two algorithms locate a vertex to within $3\%$ of each other, so a
+            window built on this scale is even-handed by construction.
         \end{column}
     \end{columns}
 
-    \vspace{0.5em}
-    \setlength{\fboxsep}{5pt}
-    \colorbox{pennred!8}{\parbox{0.97\linewidth}{\footnotesize
-    A window built on the first is \textbf{unfair by construction}; on the second it
-    is \textbf{fair by construction}. Fixed common window
-    $\mathbf{0.17}$\,mm $= 3\times$ the worse of the two. And $0.5$\,mm would be too
-    loose: displacing the reco list by $3$\,mm still scores
-    $\mathbf{45.4\%}$ efficiency there, so half of it would be coincidence.}}
+    \vspace{0.6em}
+    \centering
+    \textbf{Common window $\mathbf{0.17}$\,mm} $=3\times$ the poorer position
+    resolution, applied identically to both.\\[0.2em]
+    {\footnotesize\textcolor{black!55}{A looser $0.5$\,mm would not be conservative
+    but meaningless: with the reconstructed list displaced by $3$\,mm, destroying all
+    association, $45\%$ of truth vertices still ``match''.}}
 \end{frame}
 
 \begin{frame}[shrink=15]{The Comparison Across Every Window}
@@ -1428,7 +1427,7 @@
     \end{columns}
 \end{frame}
 
-\begin{frame}{TTVA at PU200: Where the Headroom Actually Is}
+\begin{frame}[shrink=20]{TTVA at PU200: Where the Headroom Actually Is}
     \begin{columns}[c]
         \begin{column}{0.5\linewidth}
             \centering
@@ -1437,7 +1436,7 @@
                 \def\W{7.6}
                 \foreach \y/\f/\lab/\col in {%
                     3.6/1.000/{truth PVs ($\ntrk\!\geq\!2$)}/black!45,
-                    2.4/0.781/{finder cap, peak within $0.5$\,mm}/mydarkblue!70,
+                    2.4/0.781/{finder cap --- \emph{uniquely} matched, $0.5$\,mm}/mydarkblue!70,
                     1.2/0.728/{oracle association on those peaks}/myorange!80!black} {
                     \fill[\col] (0,\y) rectangle ({\W*\f},{\y+0.7});
                     \node[anchor=west, font=\scriptsize, text=black!75] at ({\W*\f+0.15},{\y+0.35}) {\lab};
@@ -1460,8 +1459,9 @@
             PVs), strict one-to-one, $0.5$\,mm:
             \begin{itemize}
                 \setlength\itemsep{0.3em}
-                \item \textbf{Finder cap $0.781$}: truth PVs with a peak within
-                    $0.5$\,mm. The misses are low-multiplicity (median
+                \item \textbf{Finder cap $0.781$}: truth PVs \emph{uniquely} matched
+                    to a peak within $0.5$\,mm --- one peak may claim only one truth
+                    here. The misses are low-multiplicity (median
                     \(\ntrk{=}3\) against 7)
                 \item \textbf{Oracle $0.728$}: assign every track to the peak nearest
                     its \emph{true} vertex. The drop is close pairs sharing one peak,
@@ -1473,8 +1473,11 @@
             That is the case for spending the next effort on the finder.
             \vspace{0.2em}
 
-            {\scriptsize\textcolor{black!55}{Strict one-to-one, so \emph{not}
-            comparable with the finder's $86.9\%$.}}
+            \vspace{0.2em}
+            {\scriptsize\textcolor{black!55}{Strict one-to-one throughout: a peak
+            shared by two truth vertices credits only one, because the track-purity
+            criterion downstream cannot separate them either. The finder's headline
+            $86.9\%$ uses merged credit; \textbf{the chain can use $78.1\%$}.}}
         \end{column}
     \end{columns}
 \end{frame}
@@ -1503,11 +1506,9 @@
             interaction has truth \emph{tracks} but no eligible truth \emph{vertex}.
             \vspace{0.5em}
 
-            \setlength{\fboxsep}{5pt}
-            \colorbox{pennred!8}{\parbox{0.95\linewidth}{%
-            \textcolor{pennred}{\textbf{Now measured on the extended-$|\eta|$ chain}}
-            --- see the next slide. The v3-era PU200 numbers rested on a different
-            truth definition and are \emph{not} quoted alongside them.}}
+            {\footnotesize\textcolor{black!55}{Results on the extended-$|\eta|$ chain
+            follow. The v3-era PU200 numbers rest on a different truth definition and
+            are not quoted alongside them.}}
         \end{column}
     \end{columns}
 \end{frame}
