@@ -136,13 +136,20 @@ def categorize_event(
 ) -> tuple[list[int], list[dict[str, Any]]]:
     """Classify each reco PV in one event as Clean/Merged/Split/Fake.
 
-    A reco PV is:
-      - **Clean** if its dominant truth PV contributes >= PURITY_THRESHOLD of
-        matched tracks.
-      - **Merged** if the dominant contribution is below that threshold.
+    Assigned tracks are bucketed by truth vertex; tracks with no truth
+    association all go into a single bucket. The winning bucket is the
+    **plurality over all buckets, including the truthless one**. A reco PV is:
+      - **Fake** if the truthless bucket wins the plurality (or it has no
+        assigned tracks at all). NOT "no truth PV matches any of its tracks" --
+        a vertex with 3 truthless and 1 truth-associated track is Fake. And
+        because truth tracks are split across many buckets while truthless
+        tracks share one, the truthless bucket need only beat the largest
+        *single* truth PV: 40% truthless / 30% PV-A / 30% PV-B is Fake.
+      - **Clean** if a truth bucket wins and holds >= PURITY_THRESHOLD of ALL
+        assigned tracks.
+      - **Merged** if a truth bucket wins with less than that.
       - **Split** if another reco PV already claimed the same dominant truth
         PV with higher sum(pT^2).
-      - **Fake** if no truth PV matches any of its tracks.
 
     Args:
         model: Trained TTVAGATModel (already on *device*).
@@ -258,6 +265,16 @@ def classify_assignments(
     and the AMVF eval (assignments from reco_pv_assoc_tracks), so both
     algorithms are judged by the identical Clean/Merged/Split/Fake logic.
 
+    **Fake is a plurality outcome, not an absence of truth.** Truthless tracks
+    are accumulated under the single dict key ``"Fake"`` alongside the
+    per-truth-PV keys, and ``max()`` below picks the modal bucket over all of
+    them. So a vertex is Fake when truthless tracks outnumber the tracks from
+    every individual truth PV -- which can happen while a majority of its
+    tracks are truth-associated, because those are split across several keys.
+    Ties are broken by dict insertion order, i.e. first-encountered track.
+    See ``gnn.diagnostics.amvf_convention_check`` for the measured
+    distributions.
+
     Args:
         matched_tracks_per_pv: For each reco PV, array of assigned track
             indices (unique).
@@ -290,6 +307,16 @@ def classify_assignments(
             if not truth_pv_num.size > 0:
                 pv_dict_name = "Fake"
             else:
+                # LATENT BUG (recorded 2026-08-05, deliberately NOT fixed here).
+                # int() on a size>1 array raises TypeError. That happens when
+                # one track appears in two TruthVertex_assocTracks lists, which
+                # the truth adjacency does not forbid. Dormant on the samples in
+                # use: zero occurrences across 4000 r16443 events and the full
+                # v4 campaign. Left alone because this file is shared by every
+                # TTVA evaluation and the regression guard, so changing it
+                # mid-campaign would invalidate the comparison it exists to
+                # support. Fix with an explicit first-match or a duplicate
+                # policy, and re-baseline, outside a campaign.
                 pv_dict_name = f"Truth_PV_{int(truth_pv_num)}"
 
             if pv_dict_name in w_pvtruth_in_pvvreco:
