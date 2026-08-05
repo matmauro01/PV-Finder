@@ -41,6 +41,33 @@ v6, `--integral-threshold 0.2 --min-height 0.0`, historical position estimator),
 
 The second held-out file `r16638` gives +12.5 % independently.
 
+> **The table above is the DIAGNOSTIC configuration, not what we ship.** It uses
+> the historical position estimator, `--integral-threshold 0.2 --min-height 0.0`
+> and 240-bin binning, because that is the configuration in which the pathology
+> was characterised. Re-measured on the same 1920 events at the **deployed
+> operating point** (local centroid ±3, integral 0.30, min-height 0.03,
+> commensurate 300-bin binning,
+> `outputs/08_05_2026_output/pairwise_dz_final/`):
+>
+> | | dip depth | band 0.3–0.7 mm |
+> |---|---|---|
+> | Truth (nTrk≥2) | +1.3 % | **+0.4 %** |
+> | **PV-Finder** | −99.6 % | **+3.6 %** |
+> | AMVF (nTrk≥2) | −99.8 % | −14.8 % |
+>
+> So the shipped configuration carries roughly **a quarter** of the excess this
+> page characterises. Two cautions on reading it. First, this uses the
+> far-plateau median baseline, which the reconciliation note in
+> [§3](#3-how-to-reduce-it) shows runs about 4.5 points high at 0.5 mm because
+> the \|Δz\| density is not flat (61.65 pairs/evt/mm at 1.0–1.5 falling to 59.77
+> at 4.5–6.0). Against a fitted baseline the residual may be close to zero, and
+> that re-measurement has **not** been done. Second, AMVF's −14.8 % is **not** evidence it has fewer
+> satellites: its dip is wider, so it is still recovering across this band. Its
+> own shoulder sits at 0.9–1.1 mm. Comparing two algorithms at a fixed band
+> compares them at different points of their own recovery, which is the same
+> error as judging both with one algorithm's matching window (see
+> `docs/evaluation/amvf_fairness_audit.md`).
+
 Two numbers, and you need both:
 
 - **Band excess** (0.3–0.7 mm, relative to plateau). The headline. It is *not*
