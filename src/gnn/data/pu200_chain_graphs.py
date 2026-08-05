@@ -59,7 +59,10 @@ from pv_finder.evaluation.vertex_finding.run_eval_pvf_run3 import (
 from pv_finder.models.autoencoder_models import MaskedDNN
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2
 from pv_finder.utils.constants import PT_SCALE
-from pv_finder.utils.peak_finding import pv_locations_updated_res
+from pv_finder.utils.peak_finding import (
+    LEGACY_CENTROID_HALFWIDTH,
+    pv_locations_updated_res,
+)
 
 BRANCHES = [
     MU_BRANCH,
@@ -201,6 +204,7 @@ def main() -> None:  # noqa: PLR0915
             args.integral_threshold,
             args.min_width,
             args.min_height,
+            args.centroid_halfwidth,
         )
         t2 = time.perf_counter()
 
@@ -332,6 +336,17 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--integral-threshold", default=0.40, type=float)
     parser.add_argument("--min-width", default=3, type=int)
     parser.add_argument("--min-height", default=0.03, type=float)
+    # Position estimator. The peak_finding library default is the historical
+    # full-region weighted mean (0) so that TTVA checkpoints trained on it keep
+    # working; the v6 operating point is the local centroid at half-width 3.
+    # It moves the PV-node z, hence every edge feature: it MUST match between
+    # the graphs a checkpoint is trained on and the graphs it is evaluated on.
+    parser.add_argument(
+        "--centroid-halfwidth",
+        default=LEGACY_CENTROID_HALFWIDTH,
+        type=int,
+        help="Local-centroid half-width in bins; 0 = full-region weighted mean",
+    )
     # v4b architecture
     parser.add_argument("--unet-channels", default=280, type=int)
     parser.add_argument("--latent-channels", default=4, type=int)

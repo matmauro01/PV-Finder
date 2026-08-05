@@ -36,7 +36,10 @@ from gnn.evaluation.classification import (
     get_top_k_associations,
 )
 from gnn.models.ttva_gat import TTVAGATModel
-from pv_finder.utils.peak_finding import pv_locations_updated_res
+from pv_finder.utils.peak_finding import (
+    LEGACY_CENTROID_HALFWIDTH,
+    pv_locations_updated_res,
+)
 from pv_finder.utils.peak_finding_fast import pv_locations_updated_res_fast
 
 
@@ -168,6 +171,7 @@ def main() -> None:
         integral_threshold=args.integral_threshold,
         min_width=args.min_width,
         min_height=args.min_height,
+        centroid_halfwidth=args.centroid_halfwidth,
     )
 
     report: dict = {}
@@ -210,6 +214,13 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--integral-threshold", default=0.40, type=float)
     p.add_argument("--min-width", default=3, type=int)
     p.add_argument("--min-height", default=0.03, type=float)
+    p.add_argument(
+        "--centroid-halfwidth",
+        default=LEGACY_CENTROID_HALFWIDTH,
+        type=int,
+        help="Local-centroid half-width in bins; 0 = full-region weighted mean. "
+        "The two transcriptions must agree at the point actually deployed.",
+    )
     return p.parse_args()
 
 

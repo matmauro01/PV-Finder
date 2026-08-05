@@ -37,6 +37,7 @@ from tqdm import tqdm
 
 from gnn.data.event_selection import iterate_entries, resolve_entry_indices
 from pv_finder.data.resolution_presets import RESOLUTION_PRESETS
+from pv_finder.utils.peak_finding import LEGACY_CENTROID_HALFWIDTH
 
 QUANTILES = np.linspace(0.0, 1.0, 101)
 WINDOWS_MM = (0.3, 0.5, 1.0)
@@ -257,7 +258,7 @@ def part_b(
         hists.append(np.asarray(hist, dtype=np.float32))
         pz, _, _, ps = pv_locations_updated_res(
             hist, args.peak_threshold, args.integral_threshold,
-            args.min_width, args.min_height,
+            args.min_width, args.min_height, args.centroid_halfwidth,
         )  # fmt: skip
         tz = ak.to_numpy(event["TruthVertex_z"]).astype(np.float64)
         tn = ak.to_numpy(event["TruthVertex_nTracks"]).astype(np.int64)
@@ -371,6 +372,13 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--integral-threshold", default=0.40, type=float)
     p.add_argument("--min-width", default=3, type=int)
     p.add_argument("--min-height", default=0.03, type=float)
+    p.add_argument(
+        "--centroid-halfwidth",
+        default=LEGACY_CENTROID_HALFWIDTH,
+        type=int,
+        help="Local-centroid half-width in bins; 0 = full-region weighted mean. "
+        "Must match the value the chain graphs were built with.",
+    )
     p.add_argument("--unet-channels", default=280, type=int)
     p.add_argument("--latent-channels", default=4, type=int)
     p.add_argument("--hidden-nodes", default=128, type=int)
