@@ -807,25 +807,41 @@ together with the operating point.
 
 ## 10. Bugs and code/documentation discrepancies found
 
-### 10.1 BUG (documentation): "Fake" is a plurality rule, not an all-or-nothing rule
+### 10.1 ~~BUG~~ FIXED 2026-08-05 (documentation): "Fake" is a plurality rule
 
-Three places state that a track-purity Fake means *no* track has a truth
-association:
-
-- `src/gnn/evaluation/classification.py:147` — *"**Fake** if no truth PV matches
-  any of its tracks."*
-- `src/gnn/diagnostics/amvf_convention_check.py:12-13` — *"Fake only when none
-  of its tracks has any truth vertex at all."*
-- `docs/evaluation/vertex_association.md`, classification table — *"No matched
-  tracks have truth associations"*.
+Three places stated that a track-purity Fake means *no* track has a truth
+association — `classification.py:147`, `amvf_convention_check.py:12-13`, and
+the `vertex_association.md` classification table. **All three are corrected as
+of commit `1c5f1b4`.**
 
 **The code does not do this.** `classification.py:314` takes the plurality over
 a dict in which truthless tracks occupy a bucket keyed `"Fake"`, and `:319`
 classifies Fake when that bucket wins. A vertex with 3 truthless tracks and 1
 truth-associated track is **Fake**. P_d in the worked example is exactly this
-case. The distinction matters for any argument about what the fake rate
-measures. The docstrings should be corrected; the behaviour is defensible and
-should not change without a decision.
+case. The behaviour is defensible and has not been changed.
+
+A second consequence, now also documented: because truth tracks split across
+many buckets while truthless tracks share one, the truthless bucket only has to
+beat the largest *single* truth PV. A vertex that is 40% truthless / 30% PV-A /
+30% PV-B is Fake despite being 60% truth-associated — i.e. a genuinely
+**Merged** vertex booked as Fake.
+
+**How much that mislabelling is worth, measured** (`amvf_convention_check`,
+r16443, 1920 events). Among vertices the rule labels Fake, counting those whose
+truth tracks are the majority *and* span ≥2 truth PVs:
+
+| | chain peaks (t=0.98) | AMVF vertices |
+|---|---|---|
+| non-empty Fakes | 303 | 135 |
+| mislabelled merges | **5** (1.7%) | 100 (74.1%) |
+| median truth-track fraction among Fakes | 0.000 | 0.667 |
+| mean truthless-track fraction, all vertices | 0.0034 | 0.0114 |
+| vertices with no truthless track | 97.56% | 87.56% |
+
+So the artefact is **large for AMVF but on a negligible population**, and
+**negligible for chain peaks** — 5 of 193,945, 0.0026%. Chain Fakes have a
+median truth-track fraction of exactly 0.000, i.e. genuine junk. Conclusions
+resting on the chain fake rate are unaffected.
 
 ### 10.2 BUG (latent crash): a track shared by two truth vertices raises
 
@@ -848,6 +864,12 @@ zero out-of-range indices. So this is latent, not active. It is an unchecked
 assumption at a data boundary; the project rule is to validate at boundaries.
 Not fixed here because `classification.py` is shared by every TTVA eval and
 touching it invalidates the regression guard.
+
+Independently confirmed dormant across the whole v4 TTVA campaign (both arms,
+1920 events × 9 thresholds × 2 models, plus the truth-graph and HS-ID passes).
+An in-code comment at `classification.py:293` now records the bug, why it is
+left alone during a campaign, and what a fix would need (an explicit first-match
+or duplicate policy, followed by a re-baseline).
 
 ### 10.3 Discrepancy: `amvf_convention_check` computes a different purity than it explains
 

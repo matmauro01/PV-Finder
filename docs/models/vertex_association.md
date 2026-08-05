@@ -147,6 +147,27 @@ evaluated on. Every peak-finding CLI takes `--centroid-halfwidth`; pass it.
   Vtx GNN TTVA" at `/share/lazy/qibinlei/trackstoHists` (training losses only,
   no eval rates).
 
+## Status (2026-08-05)
+
+- **PU200 extended-|η| FULL CHAIN — CURRENT (v4, 2026-08-05)**: PV-Finder v6
+  peaks + GNN v4 on `data/run4_all_etas`. Production checkpoint is the
+  **no-augmentation** arm:
+  `model_weights/ttva_gnn_hllhc_v4_noaug/ttva_gat_alleta_k20_v4_noaug180k_epoch_107.pyt`
+  — chain **clean/truth 0.6843 @ t=0.98, 94.0% of the oracle bound** (0.7280),
+  against **AMVF 0.3094 (42.5%)** on the identical 1920 events / 213,738 truth
+  PVs; truth-graph ceiling 0.7690; **HS-ID 94.4% vs AMVF 80.7%**.
+- **Augmentation was re-measured as a controlled A/B and it does NOT help
+  here.** The augmented arm reaches 0.6501 (89.3% of oracle), losing to the
+  control by 0.0342 ± 0.0014 (24σ) and losing at every threshold. It does buy a
+  lower fake rate (0.00117 vs 0.00173) and wins under a fake budget below
+  ~0.0015. This reverses the v3 finding; see
+  [evaluation](../evaluation/vertex_association.md) for why (v3 bundled the
+  height fix with augmentation, and the half-width-3 estimator has since shrunk
+  the domain gap augmentation exists to bridge).
+- **Absolute numbers are not comparable with v3's** — the extended-|η| truth
+  definition changes what the categories mean. Quote **fraction of oracle**
+  (v3 95.7%, v4 94.0%) and always state the convention and window.
+
 ## Status (2026-07-13)
 
 - Nov 2025 baseline **reproduced bit-exactly** end-to-end with this package

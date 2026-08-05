@@ -81,30 +81,61 @@ class Composition:
         self.n_truthless_wins = 0  # truthless bucket strictly the largest
         self.n_truthless_ties = 0  # tie with the largest truth bucket
         self.n_vertices = 0
+        self.n_empty = 0
+        # Vertices the plurality rule labels Fake, and whether that label is
+        # physically justified or an artefact of truth tracks being split.
+        self.n_fake = 0
+        self.n_fake_truth_majority = 0  # truth tracks outnumber truthless
+        self.n_fake_truth_majority_split = 0  # ...and span >= 2 truth PVs
+        self.fake_n_truth_pvs: list[int] = []
+        self.fake_truth_frac: list[float] = []
 
     def add(self, matched: list[np.ndarray], track_truth: np.ndarray) -> None:
         """Bucket one event's vertices exactly as classify_assignments does."""
         for tracks in matched:
             n = len(tracks)
             if n == 0:
-                continue  # empty vertices are Fake by a separate branch
+                self.n_empty += 1  # Fake via the separate len==0 branch
+                continue
             self.n_vertices += 1
-            truths = track_truth[tracks]
-            n_truthless = int((truths < 0).sum())
-            real = truths[truths >= 0]
-            max_truth = (
-                int(np.unique(real, return_counts=True)[1].max()) if len(real) else 0
-            )
+
+            # Replicate the classifier's dict EXACTLY: same key scheme, same
+            # insertion order (ascending track index, since matched lists are
+            # np.unique'd), so max() breaks ties the same way it does there.
+            buckets: dict[str, int] = {}
+            for t in tracks:
+                tv = int(track_truth[t])
+                key = "Fake" if tv < 0 else f"T{tv}"
+                buckets[key] = buckets.get(key, 0) + 1
+            max_key = max(buckets, key=buckets.get)  # type: ignore[arg-type]
+
+            n_truthless = buckets.get("Fake", 0)
+            truth_counts = [v for k, v in buckets.items() if k != "Fake"]
+            max_truth = max(truth_counts) if truth_counts else 0
+            n_truth_total = sum(truth_counts)
 
             self.truthless_frac.append(n_truthless / n)
-            # The Clean/Merged test uses max_value / w_total_reco, where
-            # max_value is the winning bucket's count over ALL assigned tracks.
-            self.dominant_frac.append(max(max_truth, n_truthless) / n)
+            self.dominant_frac.append(buckets[max_key] / n)
             self.sizes.append(n)
             if n_truthless > max_truth:
                 self.n_truthless_wins += 1
             elif n_truthless == max_truth and n_truthless > 0:
                 self.n_truthless_ties += 1
+
+            if max_key != "Fake":
+                continue
+
+            # --- This vertex is classified Fake. Is that physically right? ---
+            # A peak straddling two truth PVs splits its truth tracks across
+            # several buckets, so a modest truthless minority can win the
+            # plurality and book a genuinely MERGED vertex as Fake.
+            self.n_fake += 1
+            self.fake_n_truth_pvs.append(len(truth_counts))
+            self.fake_truth_frac.append(n_truth_total / n)
+            if n_truth_total > n_truthless:
+                self.n_fake_truth_majority += 1
+                if len(truth_counts) >= 2:
+                    self.n_fake_truth_majority_split += 1
 
     def report(self) -> dict:
         """Summary statistics, all measured."""
@@ -137,6 +168,33 @@ class Composition:
             "truthless_bucket_wins_plurality": self.n_truthless_wins,
             "truthless_bucket_ties_plurality": self.n_truthless_ties,
             "implied_fake_rate": self.n_truthless_wins / max(self.n_vertices, 1),
+            "n_empty_vertices": self.n_empty,
+            # How much of the Fake label is a classification artefact: a peak
+            # straddling several truth PVs splits its truth tracks, so a modest
+            # truthless minority can win the plurality and book a genuinely
+            # Merged vertex as Fake.
+            "fake_label_audit": {
+                "n_fake_with_tracks": self.n_fake,
+                "n_truth_majority": self.n_fake_truth_majority,
+                "n_truth_majority_split_over_2plus_pvs": (
+                    self.n_fake_truth_majority_split
+                ),
+                "frac_of_fakes_mislabelled": (
+                    self.n_fake_truth_majority_split / self.n_fake
+                    if self.n_fake
+                    else 0.0
+                ),
+                "median_truth_pvs_per_fake": (
+                    float(np.median(self.fake_n_truth_pvs))
+                    if self.fake_n_truth_pvs
+                    else 0.0
+                ),
+                "median_truth_frac_of_fakes": (
+                    float(np.median(self.fake_truth_frac))
+                    if self.fake_truth_frac
+                    else 0.0
+                ),
+            },
             "clean_rate_vs_purity_cut": {
                 str(c): float((df >= c).mean()) if len(df) else 0.0 for c in PURITY_GRID
             },
@@ -249,6 +307,15 @@ def _print_composition(label: str, c: dict) -> None:
     print(f"  truthless bucket wins the plurality : "
           f"{c['truthless_bucket_wins_plurality']} "
           f"({c['implied_fake_rate']:.5f})  [ties: {c['truthless_bucket_ties_plurality']}]")  # fmt: skip
+    fa = c["fake_label_audit"]
+    print(f"  Fake-label audit: {fa['n_fake_with_tracks']} non-empty Fakes "
+          f"(+{c['n_empty_vertices']} empty)")  # fmt: skip
+    print(f"    of those, truth tracks are the MAJORITY : {fa['n_truth_majority']}")
+    print(f"    ...and split over >=2 truth PVs (MISLABELLED) : "
+          f"{fa['n_truth_majority_split_over_2plus_pvs']} "
+          f"({fa['frac_of_fakes_mislabelled']:.3f} of non-empty Fakes)")  # fmt: skip
+    print(f"    median truth PVs per Fake {fa['median_truth_pvs_per_fake']:.1f}, "
+          f"median truth-track fraction {fa['median_truth_frac_of_fakes']:.3f}")  # fmt: skip
     print("  Clean rate vs purity cut (0.7 is PURITY_THRESHOLD):")
     for cut, v in c["clean_rate_vs_purity_cut"].items():
         print(f"    >= {cut} : {v:.4f}")

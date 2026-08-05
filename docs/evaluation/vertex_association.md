@@ -2,6 +2,15 @@
 
 Evaluation of the GNN TTVA model on reconstructed primary vertices.
 
+> **What every number on this page means:**
+> [metric_definitions.md](metric_definitions.md) is the authoritative reference
+> — exact formulas, which side each denominator is on, the code path that
+> computes it, a worked example run through both classifiers, and the measured
+> bridge between the two taxonomies summarised below. Also there: the
+> drop-empty convention, the oracle / finder-cap / truth-graph bounds, and the
+> rules for which of these numbers are portable across samples and truth
+> definitions.
+
 ## Classification
 
 Each reconstructed PV is classified as one of:
@@ -11,7 +20,7 @@ Each reconstructed PV is classified as one of:
 | **Clean** | Dominant truth PV contributes >= 70% of matched tracks |
 | **Merged** | Dominant truth PV contributes < 70% (tracks from multiple truth PVs) |
 | **Split** | Another reco PV already claimed the same truth PV with higher sum(pT²) |
-| **Fake** | No matched tracks have truth associations |
+| **Fake** | Truthless tracks are the **plurality** bucket — see the box below. *Not* "no matched tracks have truth associations" |
 
 ### Two conventions, one vertex collection — read this before comparing numbers
 
@@ -24,7 +33,20 @@ questions. Always say which one a number came from.
 | Code | `gnn.evaluation.classification.classify_assignments` | `efficiency_res_optimized_atlas.compare_res_reco` |
 | Question | do ≥70% of this vertex's *tracks* come from one truth vertex? | does this vertex sit within the resolution *window* of a truth vertex? |
 | Inspects | track lists only (never z) | z only (never tracks) |
-| **Fake** means | none of its tracks has any truth vertex | no truth vertex inside its window |
+| **Fake** means | truthless tracks are the **plurality** bucket (see below) | no truth vertex inside its window |
+
+> **The Fake rule is a plurality, not an absence of truth.** In
+> `classify_assignments`, tracks with no truth association are accumulated
+> under a single dict key `"Fake"` alongside the per-truth-PV keys, and the
+> winner is `max()` over *all* of them. So:
+> - a vertex with 3 truthless and 1 truth-associated track **is** Fake;
+> - because truth tracks are split across many buckets while truthless tracks
+>   share one, a vertex that is 40% truthless / 30% PV-A / 30% PV-B is Fake
+>   *despite being 60% truth-associated*.
+>
+> The docstring at `classification.py:145` used to say "Fake if no truth PV
+> matches any of its tracks". That was wrong and has been corrected; any
+> analysis resting on it needs re-deriving.
 
 On the r16443 held-out slice (1920 events) they partition the *identical*
 collection — 97.90 vs 97.87 AMVF vertices/event, 111.32 truth PVs/event — into
@@ -43,8 +65,8 @@ the dominant-truth purity of AMVF vertices has **median 0.6316** (quartiles
 approximately the right z, but their track lists absorb forward tracks from
 neighbours, so the median vertex is 63% pure and falls on the wrong side of a
 70% cut. The fake rates show the same thing from the other side: 16.0%
-positional against 0.07% track-based, because an AMVF vertex essentially always
-contains at least one track with truth.
+positional against 0.07% track-based — see (b) below for the measured mechanism
+behind that collapse.
 
 ```bash
 python -u -m gnn.diagnostics.amvf_convention_check \
@@ -65,18 +87,44 @@ classification core, different truth definition. Truth density rises from 98.8
 to 111.32 PVs/event, but that 12.6% denominator change cannot produce a 46%
 relative drop; the purity migration above does most of it.
 
-**(b) AMVF's fake rate collapses, 0.91% → 0.072%, and the GNN comparison
-REVERSES.** In the track convention a Fake needs a vertex whose tracks have *no*
-truth association at all. At extended |η| an AMVF vertex essentially always
-picks up at least one truth-associated track, so its fake rate goes to near
-zero for definitional reasons — not because AMVF improved. The PV-Finder chain
-still books junk peaks that collect few or no tracks, so on this data the chain
-makes **more** track-convention fakes than AMVF, where on v3 data it made ~18×
-fewer.
+**(b) AMVF's fake rate collapses, 0.91% → 0.072%.** Measured mechanism, from
+`amvf_convention_check` over all 187,960 AMVF vertices (median 11 tracks):
+
+| | |
+|---|---|
+| truthless-track fraction, median | **0.0000** (mean 0.0114) |
+| quantiles p75 / p90 / p99 | 0.000 / 0.042 / 0.200 |
+| vertices with **no** truthless tracks | **87.56%** |
+| vertices that are entirely truthless | 0.00% |
+| truthless bucket wins the plurality outright | **27** (0.014%) |
+| ties between truthless and the largest truth bucket | 679 |
+
+AMVF *fits vertices from tracks*, so its vertices are built almost entirely
+out of truth-associated tracks — seven in eight contain no truthless track at
+all, and the mean truthless fraction is 1.1%. Under the plurality rule the
+truthless bucket therefore almost never wins.
+
+The count reconciles exactly: 27 outright wins + 108 of the 679 ties (16%,
+broken by first-encountered-track order) = **135 Fakes**, the number
+`classify_assignments` reports. No AMVF vertex was empty.
+
+So the collapse is a property of how AMVF builds vertices meeting a plurality
+rule — not evidence that AMVF improved, and not (as an earlier version of this
+page said) because a Fake requires *no* truth tracks at all.
+
+**The GNN comparison therefore reverses.** On v3 data the chain made ~18×
+*fewer* track-convention fakes than AMVF; here it makes more — 0.173%
+(drop-empty) against AMVF's 0.072%. See (c) for why that is a finder property.
 
 > ⚠ **"18× fewer fakes than AMVF" is a v3-data statement and must not be
 > repeated for extended-|η| results.** Quote the measured fake rates from the
 > run in hand.
+
+> ⚠ **Never quote a fake rate without naming the convention.** The same arm at
+> t=0.98 gives **9.67% under `all_peaks`** and **0.173% under `drop_empty`** —
+> a factor of 56 that is pure bookkeeping over whether trackless vertices are
+> counted. `clean/truth` is identical between the two by construction, since an
+> empty vertex is never Clean.
 
 **(c) The chain's fakes are the finder's, not the associator's — and a third of
 them are not fakes at all.** Read this together with (b); the reversal is
@@ -102,6 +150,40 @@ nTrk≥2 (line ~265), while the oracle's per-track truth comes from
 `pu200_chain_graphs.truth_arrays`, which applies **no** nTrk cut. So a peak
 sitting on a real single-track interaction has truth tracks (not oracle-Fake)
 but no eligible truth vertex (counted junk).
+
+##### Is the plurality rule mislabelling merged peaks as Fake? Measured: no.
+
+The plurality rule can in principle book a genuinely **Merged** vertex as Fake:
+truth tracks split across several buckets while truthless tracks share one, so
+a modest truthless minority can win. Chain peaks are denser and come from a
+density method rather than a fit, so this was the natural place to worry.
+Measured at t=0.98 over all 193,945 peaks:
+
+| | chain peaks | AMVF vertices |
+|---|---|---|
+| median tracks assigned | 4 | 11 |
+| truthless-track fraction, mean | **0.0034** | 0.0114 |
+| vertices with **no** truthless tracks | **97.56%** | 87.56% |
+| non-empty Fakes | 303 | 135 |
+| **of those, truth-majority split over ≥2 PVs (mislabelled)** | **5** (1.7%) | 100 (74.1%) |
+| median truth-track fraction among Fakes | **0.000** | 0.667 |
+| Clean rate at the 0.70 purity cut | **0.8888** | 0.4072 |
+
+**Five peaks out of 193,945** — 0.0026% of peaks, 0.027% of the all-peaks fake
+rate. The chain's Fakes have a median truth-track fraction of exactly 0.000,
+i.e. they are genuine junk, not merges in disguise. At t=0.98 the associator
+assigns a median of 4 tracks per peak and assigns them purely, so its peaks
+rarely accumulate the truthless minority needed to steal a plurality. **By this
+measure our peaks are cleaner than AMVF's vertices, not dirtier.** The artefact
+is real and large *for AMVF* (74% of its Fakes), but AMVF's Fake population is
+so small that it moves nothing.
+
+The accounting closes exactly, which is the check that matters:
+175,492 non-empty + 18,453 empty = 193,945 peaks;
+all-peaks fake = (303+18,453)/193,945 = **0.09671**;
+drop-empty fake = 303/175,492 = **0.00173**. Both match `chain_scan`.
+**So the factor of 56 between the conventions is 18,453 peaks the associator
+declined to populate at a strict threshold — not contaminated assignments.**
 
 > **Independent corroboration.** A separate finder-side study measured **4.17
 > surplus peaks/event on real nTrk=1 truth vertices** above a 5.3% accidental
@@ -443,15 +525,80 @@ AMVF fake rate reverses direction.
 
 ### Bounds on this slice
 
-| Bound | clean/truth |
-|---|---|
-| Finder cap, 0.5 mm greedy match | 0.7809 |
-| Oracle association on the found peaks | 0.7280 |
-| GNN on truth vertices, t=0.95 (arm B) | 0.7691 |
+| Bound | value | convention |
+|---|---|---|
+| Finder cap | **0.7809** | positional, **strict 1-to-1** greedy match, 0.5 mm window |
+| Oracle association on the found peaks | **0.7280** | track-purity (`classify_assignments`, 0.70 cut) |
+| GNN on truth vertices, t=0.95 (arm B) | **0.7691** | track-purity |
 
-<!-- RESULTS: arm A pending; arm B rows below are final -->
+> ⚠ **These ceilings are not comparable with the finder's published efficiency
+> of 0.8648.** That number is positional at a 0.2200 mm window under a
+> "merged counts as found" rule where **one reco vertex may claim several
+> truth vertices**; the [fairness audit](amvf_fairness_audit.md) measures that
+> convention as worth **+11.5 points** over a strict one-to-one count (PV-Finder
+> 0.7501 → 0.8648, AMVF 0.7161 → 0.8349). The finder cap above is strict
+> one-to-one, which is why 0.7809 at a *wider* 0.5 mm window sits sensibly
+> between the audit's strict 0.7501 and the published 0.8648. A reader who has
+> seen 0.8648 and not this note will think these ceilings are impossibly low.
+>
+> The audit also supplies the number that never existed before: **AMVF's own
+> efficiency is 0.8349 against PV-Finder's 0.8648, a margin of +2.99 points**,
+> not an open-ended comparison. The finder margin holds at +3.0 to +3.7 points
+> under every convention and window tested, but the absolute values move a lot,
+> so always state the convention and the window.
 
-### Arm B — pristine truth graphs, no augmentation (control)
+### A/B result: augmentation does NOT help on the v6 chain
+
+Both arms trained on identical events, shard boundaries, seeds, architecture and
+schedule (108 epochs, cosine 1e-3→1e-5, fully annealed); the only difference is
+chain-like augmentation at p=0.7. Both peak at **t = 0.98**.
+
+| | clean/truth | **frac. of oracle** | fake_rate (drop-empty) | clean_rate | trkF1 | truth ceiling (t=0.95) |
+|---|---|---|---|---|---|---|
+| **arm B — no augmentation** | **0.6843** | **94.0%** | 0.00173 | 0.8335 | 0.650 | **0.7691** |
+| arm A — augmented | 0.6501 | 89.3% | 0.00117 | 0.8587 | 0.645 | 0.7575 |
+| AMVF | 0.3094 | 42.5% | 0.00072 | 0.3518 | — | — |
+
+**arm B − arm A = +0.0342 ± 0.0014 (24σ on 213,738 truth PVs).** Arm B is ahead
+at *every* threshold, on the truth-graph ceiling, and on the shared pristine
+validation loss (0.3385 vs 0.3510). **The no-augmentation control is the
+production checkpoint:**
+`model_weights/ttva_gnn_hllhc_v4_noaug/ttva_gat_alleta_k20_v4_noaug180k_epoch_107.pyt`
+
+**What augmentation did instead: it moved the operating curve toward lower
+fakes.** Arm A has a lower fake rate at every threshold and purer vertices. Under
+a fake-rate budget the ordering flips (actual operating points, no
+interpolation — both curves fold back above t=0.99, so interpolating there
+manufactures nonsense):
+
+| fake budget | arm A best | arm B best | A − B |
+|---|---|---|---|
+| ≤ 0.0014 | **0.6501** (t=0.98) | 0.2899 (t=0.999) | **+0.360** |
+| ≤ 0.0016 | 0.6501 | **0.6694** (t=0.99) | −0.019 |
+| ≥ 0.0018 | 0.6501 | **0.6843** (t=0.98) | −0.034 |
+
+So arm A is the right choice *only* if a fake rate below ~0.0015 is required;
+arm B cannot reach that without collapsing to 0.29.
+
+**Why augmentation stopped paying.** It trains abstention — junk PV nodes carry
+no true edges, and dropped vertices turn their tracks' labels to 0. On the v6
+chain that conservatism costs more clean vertices than its junk-rejection buys,
+because there is very little transfer gap left: arm B already reaches **94.0% of
+the oracle**. Two things changed since v3 made the opposite finding:
+
+1. **v3 bundled two fixes.** The double-`Z_MIN` height fix and augmentation
+   landed in the same campaign, so augmentation was plausibly credited with part
+   of the height fix.
+2. **The half-width-3 estimator shrank the gap augmentation exists to bridge**,
+   tightening σ_vtx-vtx from 0.30 to 0.219 mm.
+
+> **Caveat.** This is 6 dataset passes against v3's 18. The augmented
+> distribution is harder (arm A train loss 0.3524 vs 0.3387), so it is possible
+> augmentation needs longer to pay off. What is established is that **at equal
+> and fully-annealed budget, augmentation does not help and slightly hurts.**
+> It is not established that it could never help.
+
+### Arm B — pristine truth graphs, no augmentation (production)
 
 `ttva_gat_alleta_k20_v4_noaug180k`, epoch 107 of 108, fully annealed.
 Chain, drop-empty convention:
@@ -472,9 +619,32 @@ all-peaks fake rate is 9.67% against the finder's 9.13% oracle floor, so the
 associator contributes ~0.5 points and the rest is the finder's junk peaks. See
 consequences (b) and (c) above, which must be quoted together.
 
-**HS-ID: 94.4% at t=0.95** against AMVF's **80.7%** on the same events. As at
-v3, the HS-ID and vertex-classification working points differ; here HS-ID
-prefers t=0.95 (t=0.5 gives 82.0%), so quote the working point with the number.
+**Hard-scatter identification** (leading sum-pT² vertex is the true HS vertex):
+
+| t | arm B | arm A | AMVF |
+|---|---|---|---|
+| 0.5 | 0.8203 | 0.8219 | **0.8068** |
+| **0.95** | **0.9443** | 0.9349 | 0.8068 |
+| 0.995 | 0.9375 | 0.9167 | 0.8068 |
+
+**94.4% against AMVF's 80.7%** on the same events, arm B ahead of arm A again.
+As at v3 the HS-ID and vertex-classification working points differ — here HS-ID
+prefers t=0.95 while vertex classification prefers t=0.98 — so quote the working
+point with the number. Both come from the same forward pass.
+
+Note AMVF's HS-ID is much lower here than the 97.5% quoted at v3, for the same
+extended-|η| reason as everything else on this page: the leading vertex's
+plurality truth is more often not the HS vertex once forward tracks join its
+track list.
+
+**Checkpoint robustness.** Arm B at epoch 101 gives **0.6821** against the
+production epoch 107's **0.6843** — a spread of **0.0022**, and the ordering of
+every threshold is unchanged (`chain_scan_v4noaug_e101/`). v3's analogous check
+was e150 0.715 vs e156 0.716.
+
+This matters for the A/B: **the arm B − arm A gap of 0.0342 is 16× the
+checkpoint-to-checkpoint variation**, so the augmentation result is not an
+artefact of which epoch happened to be picked.
 
 ## Run 3 real data (truth-free, 2026-07-13)
 
