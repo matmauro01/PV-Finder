@@ -4243,3 +4243,215 @@ the efficiency denominator to nTrk ≥ 1 for its corrected truth definition, whi
 this page holds the denominator at nTrk ≥ 2 and changes only what counts as a
 fake, so the efficiency column stays comparable with the ATLAS convention across
 all four cells. Both are defensible and they should not be compared cell by cell.
+
+---
+
+## 2026-08-05 — TTVA v4: extended-|eta| retrain on the PV-Finder v6 chain
+
+Rebuilt the track-to-vertex associator on `data/run4_all_etas` (the July-2026
+extended-|eta| re-production) on top of PV-Finder v6, as a controlled A/B
+between chain-like augmentation (arm A) and no augmentation (arm B).
+Everything in `outputs/08_05_2026_output/gnn_ttva_v4/`.
+
+### The bug that would have quietly spoiled the campaign
+
+`centroid_halfwidth` was not plumbed through **any** of the Run-4 chain path.
+`gnn.data.pu200_chain_graphs`, `gnn.diagnostics.chain_gap_decomposition` and
+`gnn.evaluation.verify_fast_paths` all called `pv_locations_updated_res` with
+positional arguments only, so all three silently took the library default 0 —
+the historical full-region weighted mean — while the v6 operating point is the
+local centroid at half-width 3.
+
+This is not cosmetic. The position estimator sets PV-node z, and PV z feeds all
+three edge features (longitudinal significance, horizontal significance, |dz|),
+so the whole graph shifts. Training graphs built at one half-width and
+evaluation graphs at another degrade the result in a way that looks like a
+modelling problem rather than a configuration error.
+
+Each entry point now takes an explicit `--centroid-halfwidth`, defaulting to
+`LEGACY_CENTROID_HALFWIDTH` (0) so v3-era checkpoints keep reproducing. The
+2026-08-04 entry left the library default at 0 pending "its own A/B"; this
+campaign is that A/B, so opting in per call site rather than moving the default
+is consistent with that decision.
+
+Two independent confirmations the point is now live:
+
+- the chain build reports **101.01 peaks/event** against the **101.0** reco
+  vertices/event `run_eval_pvf_run3.py` measures on the same events through a
+  different code path;
+- the chain graphs' minimum PV height is exactly **0.030067**, the `min_height`
+  floor.
+
+Fast-path re-verification at the new operating point: `bit_exact=True`, 0/300
+events differ, 84.07 -> 0.073 ms (1157x). The previous verification predated the
+peak change and so said nothing about half-width 3.
+
+### The AMVF number moved, and it is not AMVF's fault
+
+AMVF's clean/truth on this slice is **0.3094**, against **0.573** in the v3
+campaign. Measured rather than argued, with a new diagnostic
+(`gnn.diagnostics.amvf_convention_check`):
+
+- Truth density rises 98.8 -> 111.32 PVs/event, but a 12.6% denominator change
+  cannot produce a 46% relative drop.
+- The dominant-truth purity of AMVF vertices has **median 0.6316** (quartiles
+  0.462 / 0.632 / 0.812), straddling the 0.70 `PURITY_THRESHOLD`. Scanning the
+  cut: Clean 0.7372 at 0.5, 0.5613 at 0.6, **0.4072 at 0.7**, 0.2798 at 0.8.
+
+At extended |eta| AMVF puts vertices at about the right z but their track lists
+absorb forward tracks from neighbours, so the median vertex is 63% pure and
+falls on the wrong side of a 70% cut. The two conventions partition the
+*identical* collection: 97.90 vs 97.87 reco/event, 111.32 truth/event.
+
+**A wrong definition was caught before it was published.** The docstring at
+`classification.py:145` said a reco PV is Fake "if no truth PV matches any of
+its tracks". The code does something else: truthless tracks accumulate under
+one dict key `"Fake"` alongside the per-truth-PV keys and `max()` takes a
+**plurality** over all of them, so 3 truthless + 1 truth-associated is Fake.
+And because truth tracks split across many buckets while truthless tracks share
+one, the truthless bucket only has to beat the largest *single* truth PV: 40%
+truthless / 30% PV-A / 30% PV-B is Fake despite being 60% truth-associated.
+Docstring, `amvf_convention_check` and the wiki all carried the wrong reading;
+all three are fixed.
+
+**The fake-rate comparison reverses, for a measured reason.** AMVF's
+track-convention fake rate is 0.00072 here against 0.91% on v3 data. Over all
+187,960 AMVF vertices (median 11 tracks) the truthless-track fraction has
+**median 0.0000, mean 0.0114**, and **87.56% of vertices contain no truthless
+track at all**. AMVF fits vertices *from* tracks, so under a plurality rule a
+1.1%-mean minority essentially never wins: the truthless bucket wins outright
+in only **27** vertices, and 27 + 108 of the 679 ties (16%, broken by
+first-encountered-track order) = **135**, exactly the Fake count
+`classify_assignments` reports. So the chain makes *more* track-convention
+fakes than AMVF, where v3 reported 18x fewer. **"18x fewer fakes than AMVF"
+must not be repeated for extended-|eta| results, and no fake rate should be
+quoted without its convention** — the same arm at t=0.98 gives 9.67% under
+`all_peaks` and 0.173% under `drop_empty`, a factor of 56 of pure bookkeeping,
+with clean/truth identical between them by construction.
+
+**But the chain's fakes are the finder's, not the associator's.** The oracle
+still books 17,701/193,945 peaks (9.13%) as Fake under the all-peaks
+convention; arm B at t=0.98 gives 9.67%. The GNN adds about half a point above
+what the finder makes unavoidable. And of the 13.94% junk rate (27,028 peaks
+with no nTrk>=2 truth PV within 0.5 mm), the 4.81% difference from the oracle
+floor is a truth-convention artefact: `chain_gap_decomposition` matches against
+truth filtered to nTrk>=2 while the oracle's per-track truth applies no nTrk
+cut, so a peak on a real single-track interaction has truth tracks but no
+eligible truth vertex. A separate finder-side study independently measured 4.17
+surplus peaks/event on nTrk=1 truth vertices, 4.13% of peaks, against 4.81%
+here — two analyses, different code paths, same population.
+**The irreducible junk floor is 9.13%, not 13.94%.**
+
+### Results
+
+
+Slice: r16443, 1920 events, **213,738 truth PVs (nTrk>=2)**, 111.32/event,
+mu 192.5. Chain: **101.01 peaks/event**.
+
+Bounds, **each with its convention**, because they are not interchangeable:
+- **finder cap 0.7809** — positional, *strict one-to-one* greedy match, 0.5 mm.
+- **oracle 0.7280** — track-purity (`classify_assignments`, 0.70 cut).
+
+Neither is comparable with the finder's published efficiency of 0.8648, which
+is positional at 0.2200 mm under a "merged counts as found" rule where one reco
+may claim several truth vertices. The fairness audit (`25f499c`) measures that
+convention as worth +11.5 points, which is why the strict-but-wider 0.7809 sits
+sensibly between the audit's strict 0.7501 and the published 0.8648.
+
+| chain, drop-empty, each arm at its own best t=0.98 | clean/truth | frac. oracle | fake_rate | clean_rate | trkF1 | truth ceiling | HS-ID |
+|---|---|---|---|---|---|---|---|
+| **arm B, NO augmentation** | **0.6843** | **94.0%** | 0.00173 | 0.8335 | 0.650 | **0.7690** | **0.9443** |
+| arm A, augmented | 0.6501 | 89.3% | 0.00117 | 0.8587 | 0.645 | 0.7575 | 0.9349 |
+| AMVF, same events | 0.3094 | 42.5% | 0.00072 | 0.3518 | -- | -- | 0.8068 |
+
+**AUGMENTATION DOES NOT HELP. The no-augmentation control wins by
++0.0342 +- 0.0014, 24 sigma on 213,738 truth PVs**, and wins at every
+threshold, on the truth-graph ceiling, on HS-ID, and on the shared pristine
+validation loss (0.3385 vs 0.3510). Production checkpoint:
+`ttva_gnn_hllhc_v4_noaug/ttva_gat_alleta_k20_v4_noaug180k_epoch_107.pyt`.
+
+What augmentation did instead was move the operating curve toward lower fakes.
+Under a fake-rate budget the ordering flips (actual operating points; both
+curves fold back above t=0.99, so interpolating there manufactures nonsense):
+
+| fake budget | arm A best | arm B best | A - B |
+|---|---|---|---|
+| <= 0.0014 | **0.6501** (t=0.98) | 0.2899 (t=0.999) | **+0.360** |
+| <= 0.0016 | 0.6501 | **0.6694** (t=0.99) | -0.019 |
+| >= 0.0018 | 0.6501 | **0.6843** (t=0.98) | -0.034 |
+
+So arm A is preferable *only* under a fake budget below ~0.0015, which arm B
+cannot reach without collapsing to 0.29.
+
+**Why augmentation stopped paying.** It trains abstention: junk PV nodes carry
+no true edges and dropped vertices turn their tracks' labels to 0. On the v6
+chain that conservatism costs more clean vertices than its junk-rejection buys,
+because there is very little transfer gap left -- arm B already reaches 94.0% of
+the oracle. Two things changed since v3 found the opposite: v3 bundled the
+double-Z_MIN height fix with augmentation in one campaign, so augmentation was
+plausibly credited with part of the height fix; and the half-width-3 estimator
+has since tightened sigma_vtx-vtx from 0.30 to 0.219 mm, shrinking the very gap
+augmentation exists to bridge.
+
+**Caveat, stated rather than buried.** This is 6 dataset passes against v3's 18,
+and the augmented distribution is harder (arm A train loss 0.3524 vs 0.3387), so
+augmentation might need longer to pay off. What is established is that at equal
+and fully-annealed budget it does not help and slightly hurts. It is not
+established that it could never help.
+
+**Is the plurality rule mislabelling merged peaks as Fake? Measured: no.** A
+peak straddling several truth PVs splits its truth tracks across buckets, so a
+modest truthless minority can steal the plurality and book a genuinely Merged
+vertex as Fake. Chain peaks were the natural place to worry. At t=0.98 over all
+193,945 peaks: truthless-track fraction mean **0.0034**, **97.56% of peaks carry
+no truthless track at all**, 303 non-empty Fakes, and of those only **5** are
+truth-majority split over >=2 truth PVs -- 0.0026% of peaks. The median
+truth-track fraction among Fakes is exactly **0.000**, i.e. genuine junk. By
+this measure our peaks are *cleaner* than AMVF's vertices (mean truthless
+fraction 0.0114, 87.56% with none), and the artefact is large for AMVF (74% of
+its 135 Fakes) but on a population too small to matter.
+
+The accounting closes exactly: 175,492 non-empty + 18,453 empty = 193,945 peaks;
+all-peaks fake = (303+18,453)/193,945 = 0.09671; drop-empty = 303/175,492 =
+0.00173. Both match `chain_scan`. **So the factor of 56 between the two fake
+conventions is 18,453 peaks the associator declined to populate at a strict
+threshold, not contaminated assignments** -- which independently confirms the
+attribution drawn from the oracle floor.
+
+**Checkpoint robustness.** Arm B at epoch 101 gives 0.6821 against the
+production epoch 107's 0.6843 -- a spread of 0.0022, with every threshold's
+ordering unchanged. **The arm B - arm A gap of 0.0342 is 16x that spread**, so
+the augmentation result is not an artefact of which epoch was picked.
+
+### What was cut, and why
+
+108 epochs, not the designed 324. 324 was 18 dataset passes to match v3's
+graph-presentation count; the campaign had a hard 4-5 h training budget and
+sneezy ran at load 296-439 all morning, where an epoch costs 50-165 s rather
+than the ~28 s it costs on a quiet box. **108 is the largest multiple of 18
+whose cosine anneal completes inside that window.**
+
+The multiple-of-18 constraint is not cosmetic: `ShardCyclingLoader` advances one
+shard per epoch round-robin, so any other count shows some shards one more time
+than others — an uncontrolled variable in an A/B whose point is that the arms
+differ only in augmentation. And shortening a schedule beats truncating a long
+one: with cosine annealing to 1e-5, an early-stopped checkpoint has not
+annealed and does not represent the recipe.
+
+**This is a third of v3's data exposure.** The arms are a like-for-like A/B
+against each other, not against v3's absolute numbers.
+
+### Things worth keeping
+
+- Shard builds were verified before training on them. Augmented shards: 1366.4
+  tracks/event (identical to pristine), 132.3 PV nodes/event against 132.4
+  predicted from the measured miss and junk rates, 27,327 edges (identical),
+  positive-edge fraction 0.0455 vs 0.0490, zero-height fraction 0.0000. A
+  three-hour run on a silently broken shard set is the expensive failure mode.
+- `scripts/ttva_v4_phase3_eval.sh` now runs stage-by-stage across all models
+  rather than model-by-model, so a run cut short still leaves the headline
+  comparison on disk.
+- `scripts/ttva_v4_deadline_guard.sh` enforces a wall-clock budget with SIGTERM.
+  Never SIGKILL: this box still carries nine unkillable `evaluate_amvf_ttva`
+  processes from 23 days ago, burning seven cores between them. Those entry
+  points now warn in their docstrings to use the runpy form.
