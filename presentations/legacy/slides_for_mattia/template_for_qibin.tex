@@ -1,0 +1,1335 @@
+\documentclass[xcolor=table,aspectratio=169]{beamer}
+
+%\usepackage[english]{babel} % English language/hyphenation
+
+\usepackage[defaultsans,scale=0.95]{opensans}
+\usepackage{FiraMono}
+\usepackage{fourier} % Use the Adobe Utopia font for the document - comment this line to return to the LaTeX default
+\usefonttheme{professionalfonts} % https://tex.stackexchange.com/a/330700/235983
+\DeclareMathAlphabet{\mathcal}{OMS}{cmsy}{m}{n}
+\newcommand\bmmax{2} % used to fix issues with bbm and e.g. esint
+\usepackage{bm} % for vec/mat
+\usepackage[T1]{fontenc}
+
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+\usepackage{subcaption}
+\usepackage{multicol}
+
+\usepackage{tikz}
+\usetikzlibrary{decorations.pathreplacing}
+\usepackage{wrapfig}
+
+% COLORS
+\usepackage{xcolor}
+\colorlet{myred}{red!80!black}
+\colorlet{myblue}{blue!80!black}
+\colorlet{mygreen}{green!60!black}
+\colorlet{myorange}{orange!70!red!60!black}
+\colorlet{mydarkred}{red!30!black}
+\colorlet{mydarkblue}{blue!40!black}
+\colorlet{mydarkgreen}{green!30!black}
+
+\colorlet{mylightblue}{blue!60!white}
+\colorlet{mydarkyellow}{yellow!70!black}
+\colorlet{myyellowred}{yellow!70!red}
+
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\addbibresource{template_for_qibin_bib.bib}
+
+%\usepackage{tabu}  % \(\)-able tabulars
+\usepackage{float} % H placement
+\usepackage{hyperref}
+
+\usepackage{amsmath, amsthm, amssymb, amsfonts}
+% \usepackage{mbboard} % requires manual installation in texmf
+\usepackage{esint}
+\usepackage{mathtools} % boxed aligns, delimiters
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily}
+
+\usepackage{physics} % http://mirrors.ibiblio.org/CTAN/macros/latex/contrib/physics/physics.pdf
+\usepackage[makeroom]{cancel}
+% \usepackage{slashed}
+\usepackage{siunitx}
+\sisetup{inter-unit-product=\ensuremath{{}\cdot{}}}
+\DeclareSIUnit\eVperc{\eV\per\clight}
+\AtBeginDocument{\RenewCommandCopy\qty\SI}
+\usepackage[version=4]{mhchem}
+%\usepackage{hepnames}
+\usepackage[italic]{heppennames}
+\usepackage{xpatch} % https://tex.stackexchange.com/a/541095
+\makeatletter
+\xpatchcmd\@HepConStyle
+{\edef\@upcode{\updefault}}
+{\ifdefined\shapedefault\edef\@upcode{\shapedefault}\else\edef\@upcode{\updefault}\fi}
+{}{}
+\makeatother
+\usepackage{tensor}
+\usepackage{feynmp-auto}
+\usepackage{listofitems}
+\usetikzlibrary{arrows.meta} % for arrow size
+\usepackage[outline]{contour} % glow around text
+
+\addtobeamertemplate{frametitle}{}{\vspace{-15.5pt}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\fixme}{\text{{\Huge \(\mathbb{FIXME}\)}}}
+\newcommand{\todo}{\text{{\huge \(\mathbb{TODO}\)}}}
+\newcommand{\lboxed}[1]{\begin{array}{|l}
+		\hline\raisebox{3pt}{\(\displaystyle\vphantom{#1}\)}
+		\displaystyle#1\!\!\!\!\!
+		\raisebox{-3pt}{\(\displaystyle\vphantom{#1}\)}\\\hline
+	\end{array}
+}
+\newcommand{\rboxed}[1]{\begin{array}{r|}
+		\hline\raisebox{3pt}{\(\displaystyle\vphantom{#1}\)}
+		\!\!\!\!\!\displaystyle#1
+		\raisebox{-3pt}{\(\displaystyle\vphantom{#1}\)}\\\hline
+	\end{array}
+}
+\newcommand{\numberthis}{\addtocounter{equation}{1}\tag{\theequation}}% https://tex.stackexchange.com/a/42728
+
+\newcommand{\Lagr}{\mathcal{L}}
+
+\setlength\arrayrulewidth{1.0pt}
+
+\usepackage{booktabs}
+\usepackage{subcaption}
+%\newcommand\blfootnote[1]{%
+%	\begingroup
+%	\renewcommand\thefootnote{}\footnote{#1}%
+%	\addtocounter{footnote}{-1}%
+%	\endgroup
+%}
+% Macro to skip item in enum
+% https://tex.stackexchange.com/a/201162/235983
+\newcommand{\skipitems}[1]{%
+	\addtocounter{\@enumctr}{#1}%
+}
+% Macros to start and end Backup section with unnumbered slides
+\newcommand{\backupbegin}{
+    \newcounter{finalframe}
+    \setcounter{finalframe}{\value{framenumber}}
+    \setbeamertemplate{footline}{} % Remove the footline for Backup section
+    \frame{\usebeamertemplate*{backup page}}
+}
+
+\newcommand{\backupend}{
+    \setcounter{framenumber}{\value{finalframe}}
+    \setbeamertemplate{footline}[frame number] % Restore original slide numbering
+}
+% Macro to add TOC entry for starred section
+% https://tex.stackexchange.com/a/611664/235983
+\makeatletter
+\newcommand{\nonumsec}{%
+	\addtocontents{toc}{\protect\beamer@sectionintoc{\the\c@section}{\secname}{\the\c@page}{\the\c@part}{0}}%
+}
+\makeatother
+
+\def\thisframelogos{}
+
+\newcommand{\framelogo}[1]{\def\thisframelogos{#1}}
+
+\addtobeamertemplate{frametitle}{}{%
+\begin{tikzpicture}[remember picture,overlay]
+\node[anchor=north east,yshift=3.5pt] at (current page.north east) {%
+    \foreach \img in \thisframelogos {%
+        \hspace{.5ex}%
+        \includegraphics[height=0.8cm, keepaspectratio]{\img}%
+    }%
+};
+\end{tikzpicture}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usetheme{Philadelphia}
+%\usefonttheme[onlymath]{serif}
+\hypersetup{colorlinks,allcolors=pennred}
+
+\title[ACAT 2025]{Deep Learning for Primary Vertex Identification \\ in the ATLAS Experiment}
+
+\author[Qi Bin Lei]{\href{https://www.linkedin.com/in/qibinlei/}{Qi Bin~Lei}, Rocky B. Garg, Lauren Tompkins}
+
+\institute[]{Stanford University}
+
+\date{September 11th, 2025}
+
+% Replace these with the path to the logos
+\titlegraphic{
+    \hspace{5pt}
+	\href{https://stanford.edu/group/stanford_atlas/}{\includegraphics[height=1cm]{logo-Stanford/Block_S_2_color.png}}
+	\href{https://atlas.cern/}{\includegraphics[trim={0 11.5cm 0 11.5cm},clip,height=1cm]{logo-ATLAS/ATLAS-Logo-Ref-Pantone.pdf}}
+    \href{https://iris-hep.org/}{\includegraphics[height=1cm]{logo-iris-hep/Iris-hep-4-no-long-name.png}}
+}
+
+\begin{document}
+
+% \begin{frame}{Title}
+% 	\begin{itemize}
+% 		\item An item
+% 	\end{itemize}
+% 	\begin{columns}
+% 		\column{0.5\linewidth}
+% 		Hello
+% 		\column{0.5\linewidth}
+% 		World
+% 	\end{columns}
+% \end{frame}
+% \section{Section 1}
+% \frame{\sectionpage}
+
+\framelogo{"logo-ATLAS/ATLAS-Logo-White-transparent.png"}
+
+\begin{frame}[plain]
+    \titlepage
+\end{frame}
+
+\begin{frame}{Current Primary Vertex Algorithm: AVMF}
+    % Talk about innate challenges that comes with using AVMF
+    \begin{columns}
+        % Text
+        \column{0.4\linewidth}
+        \begin{itemize}
+            \item Global approach to vertex finding and fitting
+            \item Finds and fits tracks based on compatibility to different primary vertices
+            \item Limitations
+            \begin{enumerate}
+                \item Parallelization
+                \item Time scale increases non linearly with number of PVs
+            \end{enumerate}
+        \end{itemize}
+
+        % Text
+        \column{0.6\linewidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=0.9\linewidth]{oct25th/AVMF.png}
+            \label{fig:AVMF}
+            \caption{\href{https://cds.cern.ch/record/2670380/files/ATL-PHYS-PUB-2019-015.pdf}{[ATL-PHYS-PUB-2019-015]}}
+        \end{figure}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{PV-Finder Before}
+    \vspace{5pt}
+    \centering
+    This network performs nicely but is limited by execution time
+    \vspace{25pt}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{APS2025/analyticalkde_pv.png}
+        \label{fig:oldPVFinderArchitecture}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{PV-Finder After}
+    \centering
+    TVPD presentation on PV-Finder results has more details! (\href{https://indico.cern.ch/event/1534661/}{TVPD, April 4th})
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{april4th/updated_tracks_to_pv.png}
+        \label{fig:oldPVFinderArchitecture}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Example End-to-end tracks-to-hist Output}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{june25th/example_end_to_end_with_class.png}
+        \label{fig:example_Hists_output_1}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{\(\Delta z\) Resolution and \(\sigma_{\text{vtx-vtx}}\) Calculation}
+    \begin{columns}
+        \begin{column}{0.6\linewidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=0.9\linewidth]{april4th/deltaz(2).png}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.4\linewidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{april4th/sigma_vtx_vtx_dropout.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{UNet vs UNet++ Efficiency and FPR with MLP}
+    \centering
+    UNet and UNet++ perform basically identically!
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{april4th/droput_unet_unetplusplus_eff.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Intermission}
+    \begin{itemize}
+        \item Great that PV-Finder can reconstruct more clean/merged PV!
+        \item Tracks to Vertex Association?
+        \begin{itemize}
+            \item Necessary for hard-scatter vertex calculations
+            \item Allows for proper comparison with AMVF
+        \end{itemize}
+        \item \textbf{GNN for TTVA}
+        \begin{itemize}
+            \item Graph Construction
+            \item AMVF-Stype Vertex Classification
+            \item Preliminary Performance
+            \item Case Study
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{PV-Finder + GNN Fitter}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.55\linewidth]{april4th/pipeline_pvfinder_gnn.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{GNN Concept}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.55\linewidth]{april4th/gnn_concept.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Forming Graphs}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.6\linewidth]{april4th/forming_edges_gnn.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Scoring Edges in Graphs}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.6\linewidth]{april4th/scoring_edges_gnn.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Choosing Edges in Graphs}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.6\linewidth]{april4th/choosing_edges_gnn.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{GNN Pipeline}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.9\linewidth]{april15th/endtoend_gnn_pipeline.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}[plain]
+    \centering
+    AMVF-Style Vertex Classification
+\end{frame}
+
+\begin{frame}{Vertex Classification (1)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june20th/reco_vertex_classification_1.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Classification (2)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june20th/reco_vertex_classification_2.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Classification (3)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june20th/reco_vertex_classification_3.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Classification (4)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june20th/reco_vertex_classification_4.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Classification (5)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june20th/reco_vertex_classification_5.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Classification (6)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june20th/reco_vertex_classification_6.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Classification (7)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june20th/reco_vertex_classification_7.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Classification (8)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{june25th/reco_vertex_classification_8.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}[plain]
+    \centering
+    Evaluating Reco Vertices with AMVF-Style Vertex Classification
+\end{frame}
+
+\begin{frame}{Steps Outlined}
+    \begin{itemize}
+        \item Train PV-Finder
+        \begin{itemize}
+            \item Using current best PV-Finder run (UNet with Dropout Model)
+            \item (Old Metrics) Efficiency: 94.56\%
+            \item (Old Metrics) FPR/Average Number of Fake Reco PV: 0.72
+        \end{itemize}
+        \item Calculate predicted primary vertex location
+        \item Construct graphs from reconstructed PV information
+        \item Evaluate using GNN model trained on truth information
+        \begin{itemize}
+            \item Using current best GNN run (GraphConv Model)
+            \item Achieves results shown in prior slides
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+% \begin{frame}{Re: Changes and Methods for Evaluation}
+%     \begin{itemize}
+%         \item Every track will now have a potential edge with every PV
+%         \begin{itemize}
+%             \item \textbf{No more} \( \abs{z_{0, \text{track}} - z_{\text{pv}}} <= 5\text{mm} \text{ or } 10\text{mm}\)
+%         \end{itemize}
+%         \item Outputs of the GNN can be interpreted as weights and evaluated in many ways
+%         \item Method 1 (Threshold): Threshold of having a score be greater than 0.7, 0.85, or 0.9
+%         \item Method 2 (MaxScore): Highest scoring edge for each track is 1, rest is 0
+%     \end{itemize}
+% \end{frame}
+
+\begin{frame}{Reco Vertices with Classification at \(\left< \mu \right> =60\) (Thr=0.95)}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Total Reconstructed PVs: 62457
+                \item Total Truth PVs: 80498
+                \item Total Clean: 42880, Rate: 68.66\%
+                \item Total Merged: 13437, Rate: 21.51\%
+                \item Total Split: 3838, Rate: 9.83\%
+                \item Total Fake: 3, Rate: 0\%
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/reco_pv_avg_bar_chart_95thr_recovertex.png}
+                \caption{Number of reco vertices at \(\left< \mu\right> = 60\)}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% \begin{frame}{Reco Vertices with Classification at \(\left< \mu \right> =60\) MaxScore}
+%     \begin{columns}
+%         \begin{column}{0.55\textwidth}
+%             \begin{itemize}
+%                 \item Total Reconstructed PVs: 62457
+%                 \item Total Clean: 49500, Rate: 0.7925
+%                 \item Total Merged: 8243, Rate: 0.1320
+%                 \item Total Split: 3838, Rate: 0.0615
+%                 \item Total Fake: 876, Rate: 0.0140
+%             \end{itemize}
+%         \end{column}
+
+%         \begin{column}{0.45\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{example-image-a}
+%             \end{figure}
+%         \end{column}
+%     \end{columns}
+% \end{frame}
+
+\begin{frame}{Comparison of Reco Vertex Classification: Thresholds (1)}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/stacked_pv_classification_5_80_85thr_recovertex.png}
+                \caption{Thr = 0.85}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/stacked_pv_classification_5_80_95thr_recovertex.png}
+                \caption{Thr = 0.95}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Comparison of Reco Vertex Classification: Thresholds (2)}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june5th/Screenshot 2025-06-10 at 11.33.19 PM.png}
+                \caption{AMVF Pub Note: \href{https://cds.cern.ch/record/2670380/files/ATL-PHYS-PUB-2019-015.pdf}{Link}}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/stacked_pv_classification_5_80_95thr_recovertex.png}
+                \caption{Thr = 0.95}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% \begin{frame}{Comparison of Reco Vertex Classification: MaxScore}
+%     \begin{columns}
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{example-image-a}
+%                 \caption{MaxScore}
+%             \end{figure}
+%         \end{column}
+
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/stacked_pv_classification_5_80_thr95_recovertex.png}
+%                 \caption{Thr = 0.95}
+%             \end{figure}
+%         \end{column}
+%     \end{columns}
+% \end{frame}
+
+\begin{frame}{A Look into GNN Associations and Thresholds}
+    \begin{itemize}
+        \item Classification rates skew less clean with AMVF-style definition but are similar
+        \item How do the track-vertex associations look?
+        \item What is causing the increase in merged vertices?
+        \item Are there tracks that are not being used due to threshold?
+        \item Lets look at test cases!
+    \end{itemize}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.4\linewidth]{this_is_fine.jpg}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Case Study: Looking at Merged/Split Reco PVs}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Total Reco PVs: 42
+                \item Total Truth PVs: 59
+                \item Thr=0.85
+                \begin{itemize}
+                    \item Num Clean: 22
+                    \item Num Merged: 12
+                    \item Num Split: 8
+                    \item Num Fake: 0
+                \end{itemize}
+                \item Thr=0.95
+                \begin{itemize}
+                    \item Num Clean: 30
+                    \item Num Merged: 7
+                    \item Num Split: 5
+                    \item Num Fake: 0
+                \end{itemize}
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/casestudy_example_reco_truth_hist_dist_31_38_51.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Case Study: Three Nearby Vertices Thr=0.85 (1)}
+    \begin{columns}
+        \begin{column}{0.4\textwidth}
+            \begin{itemize}
+                \item Reco PV 24: 33 Assoc tracks
+                \begin{itemize}
+                    \item Old Class: Merged
+                    \item \(W_{\text{reco},24} = 33\)
+                    \item \(\sum p_T^2 = 4e7\) (GeV\(^2\))
+                \end{itemize}
+                \item Truth PV 31: 13 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},31} = 12\)
+                    \item \(W_{\text{truth},31}/W_{\text{reco},24} = 0.4\)
+                \end{itemize}
+                \item Truth PV 38: 10 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},38} = 10\)
+                    \item \(W_{\text{truth},38}/W_{\text{reco},24} = 0.3\)
+                \end{itemize}
+                \item Truth PV 51: 6 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},51} = 5\)
+                    \item \(W_{\text{truth},51}/W_{\text{reco},24} = 0.15\)
+                \end{itemize}
+                \item AMVF-style Class: \textbf{Split}
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/casestudy_example_reco_truth_hist_dist_24.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Case Study: Three Nearby Vertices Thr=0.85 (2)}
+    \begin{columns}
+        \begin{column}{0.4\textwidth}
+            \begin{itemize}
+                \item Reco PV 25: 42 Assoc tracks
+                \begin{itemize}
+                    \item Old Class: Clean
+                    \item \(\sum p_T^2 = 6e7\) (GeV\(^2\))
+                    \item \(W_{\text{reco},25} = 42\)
+                \end{itemize}
+                \item Truth PV 31: 13 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},31} = 12\)
+                    \item \(W_{\text{truth},31}/W_{\text{reco},25} = 0.4\)
+                \end{itemize}
+                \item Truth PV 38: 10 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},38} = 10\)
+                    \item \(W_{\text{truth},38}/W_{\text{reco},25} = 0.3\)
+                \end{itemize}
+                \item Truth PV 51: 6 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},51} = 5\)
+                    \item \(W_{\text{truth},51}/W_{\text{reco},25} = 0.15\)
+                \end{itemize}
+                \item AMVF-style Class: \textbf{Merged}
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/casestudy_example_reco_truth_hist_dist_25.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Case Study: Three Nearby Vertices Thr=0.95 (1)}
+    \begin{columns}
+        \begin{column}{0.4\textwidth}
+            \begin{itemize}
+                \item Reco PV 24: 24 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{reco},24} = 24\)
+                    \item \(\sum p_T^2 = 4e7\) (GeV\(^2\))
+                \end{itemize}
+                \item Truth PV 31: 13 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},31} = 12\)
+                    \item \(W_{\text{truth},31}/W_{\text{reco},24} = 0.5\)
+                \end{itemize}
+                \item Truth PV 38: 10 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},38} = 6\)
+                    \item \(W_{\text{truth},38}/W_{\text{reco},24} = 0.25\)
+                \end{itemize}
+                \item Truth PV 51: 6 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},51} = 5\)
+                    \item \(W_{\text{truth},51}/W_{\text{reco},24} = 0.21\)
+                \end{itemize}
+                \item AMVF-style Class: \textbf{Merged}
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/casestudy_example_reco_truth_hist_dist_24.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Case Study: Three Nearby Vertices Thr=0.95 (2)}
+    \begin{columns}
+        \begin{column}{0.4\textwidth}
+            \begin{itemize}
+                \item Reco PV 25: 22 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{reco},25} = 22\)
+                    \item \(\sum p_T^2 = 3e7\) (GeV\(^2\))
+                \end{itemize}
+                \item Truth PV 31: 13 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},31} = 9\)
+                    \item \(W_{\text{truth},31}/W_{\text{reco},25} = 0.4\)
+                \end{itemize}
+                \item Truth PV 38: 10 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},38} = 9\)
+                    \item \(W_{\text{truth},38}/W_{\text{reco},25} = 0.4\)
+                \end{itemize}
+                \item Truth PV 51: 6 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{\text{truth},51} = 0\)
+                \end{itemize}
+                \item AMVF-style Class: \textbf{Merged}
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/casestudy_example_reco_truth_hist_dist_25.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Number of Associations Per Tracks Varying Threshold}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/redo_casestudy_num_track_assocs_thr85.png}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/redo_casestudy_num_track_assocs_thr95.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Re: A Look into GNN Associations and Thresholds}
+    \begin{itemize}
+        \item What is causing the increase in merged/split vertices?
+        \begin{itemize}
+            \item Seems to be that distinguishing tracks for nearby vertices are tough
+        \end{itemize}
+        \item Are there tracks that are not being used due to threshold?
+        \begin{itemize}
+            \item Tracks are being used even in high thresholds
+        \end{itemize}
+        \item Are there other ways on evaluating performance?
+        \begin{itemize}
+            \item \textbf{Hard Scatter Vertex Classification}
+        \end{itemize}
+    \end{itemize}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.4\linewidth]{this_is_fine.jpg}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Concluding Remarks}
+    \begin{itemize}
+        \item Presented a ML tool to find and fit primary vertices
+        \item How to continue improving performance...? What is the next direction...?
+        \begin{itemize}
+            \item \textbf{Modifying Graphs}
+            \begin{itemize}
+                \item Edge Attributes
+                \item Binary Cross Entropy to Cross Entropy
+            \end{itemize}
+            \item Start applying cuts to the output of GNN
+            \item Limit 1 edge per track
+            \item \textbf{Using Reco PVs to train GNN}
+        \end{itemize}
+        \item Developing tools to continue analyzing PV-Finder + GNN outputs
+        \begin{itemize}
+            \item \textbf{HS Vertex Quality Metrics}
+        \end{itemize}
+        \item Abstract accepted for ACAT 2025!
+    \end{itemize}
+\end{frame}
+
+%%%%% Backup %%%%%%
+\section*{Backup}
+\nonumsec
+\backupbegin
+% \begin{frame}{Network Structure Readout}
+% 	\begin{wrapfig}{r}{0.5\textwidth}
+% 	    \centering
+% 	    \includegraphics[width=.6\textwidth]{graphs/DenseLayers.png}
+%         \caption*{Dense Layers}
+% 	\end{wrapfig}
+% \end{frame}
+
+\begin{frame}{Relevant Links and Directories}
+    \begin{itemize}
+        \item LHCb PV-Finder
+        \begin{itemize}
+            \item \href{https://gitlab.cern.ch/sakar/pv-finder_v2/-/tree/master}{Link to Gitlab}
+        \end{itemize}
+        \item ATLAS PV-Finder
+        \begin{itemize}
+            \item \href{https://gitlab.cern.ch/qlei/atlas_pvfinder}{Link to Gitlab}
+        \end{itemize}
+        \item Prior Internal/Conference Presentations:
+        \begin{itemize}
+            \item TVPD Oct 2024: \href{https://drive.google.com/file/d/17qCnL57fT7LCKyQ1Rz-soJySaNCVeMRV/view?usp=sharing}{Slides}
+            \item US LUA 2024: \href{https://drive.google.com/file/d/1HbAjlKBw6nej-oqOksUL_HOfKY8xsd2r/view?usp=sharing}{Slides}
+            \item APS Joint Meeting March 2025: \href{https://drive.google.com/file/d/1j6pnqzuXcP0OWXoUXkwElH8lAbv9GtRq/view?usp=drive_link}{Slides}
+            \item TVPD April 2025: \href{https://indico.cern.ch/event/1534661/}{Slides}
+            \item TVPD June 2025: \href{https://indico.cern.ch/event/1557481/}{Slides}
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+    \centering
+    PV-Finder More
+\end{frame}
+
+\begin{frame}{A Brief Review of UNet}
+    \begin{columns}
+        \begin{column}{0.4\linewidth}
+            \begin{itemize}
+                \item Effective for feature extraction
+                \item Downsampling reduces dimensionality, helping emphasize important data features
+                \item Skip connections propogate prior information
+                \item \(\sim 279,000\) Parameters
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\linewidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{april4th/UNet.png}
+                \label{fig:pipeline_kdetohist}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{A Brief Review of UNet++}
+    \begin{columns}
+        \begin{column}{0.4\linewidth}
+            \begin{itemize}
+                \item Just more skip connections and upsamplings
+                \item \(\sim 796,000\) Parameters
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\linewidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{april4th/unetplusplus_figure.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Comparison with AVMF: Vertex Classification Scheme}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.75\linewidth]{APS2025/vertex_classification_aps2025.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Number of Primary Vertives vs \(\mu\)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{APS2025/npv_compare_Total.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Vertex Resolution vs Tracks}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{APS2025/vertex_resolution_tracks.pdf}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{AMVF CPU Time Per Event}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{APS2025/acts_pvfinder_timing.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}[plain]
+    \centering
+    GNN Pipeline Explanation
+\end{frame}
+
+\begin{frame}{GNN Pipeline}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{april15th/gnn_architecture.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{MLP Embedding Layer}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{april15th/mlp_embedding_layer_32.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{GNN Pipeline After Embedding}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{april15th/gnn_architecture_after_embedding.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{GraphConv Layer}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{april15th/graphconv_example.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{GraphConv Layer with Embedding}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{april15th/embedding_gcn_pv.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Heterogeneous GraphConv Layer with Embedding}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{april15th/heterogeneousgraphconv_embedding.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{GNN Pipeline After GCN}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{april15th/gnn_architecture_after_gcn(1).png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{MLP Edge Predictor Layer}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{april15th/mlp_edge_predictor_layer.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}[plain]
+    \centering
+    Case Study: Two Overlapping Vertices
+\end{frame}
+
+\begin{frame}{Case Study: Two Overlapping Vertices}
+    \begin{columns}
+        \begin{column}{0.4\textwidth}
+            \begin{itemize}
+                \item Thr=0.85
+                \item Reco PV 26: 59 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{sum} = 59\)
+                    \item Missing Track 168
+                    \item Output Probs: 0.834
+                \end{itemize}
+                \item Truth PV 16: 15 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{1} = 14\)
+                    \item \(W_{1}/W_{sum} = 0.69\)
+                \end{itemize}
+                \item Truth PV 39: 45 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{2} = 41\)
+                    \item \(W_{2}/W_{sum} = 0.24\)
+                \end{itemize}
+                \item Classification: Merged
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june5th/casestudy_example_reco_truth_hist_dist_16_39.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Case Study: Two Overlapping Vertices}
+    \begin{columns}
+        \begin{column}{0.4\textwidth}
+            \begin{itemize}
+                \item Thr=0.95
+                \item Reco PV 26: 51 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{sum} = 51\)
+                \end{itemize}
+                \item Truth PV 16: 15 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{1} = 13\)
+                    \item \(W_{1}/W_{sum} = 0.25\)
+                \end{itemize}
+                \item Truth PV 39: 45 Assoc tracks
+                \begin{itemize}
+                    \item \(W_{2} = 38\)
+                    \item \(W_{2}/W_{sum} = 0.74\)
+                \end{itemize}
+                \item Classification: Clean
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.6\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june5th/casestudy_example_reco_truth_hist_dist_16_39.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% \begin{frame}{Overview}
+%     \centering
+%     \textit{Putting it all together!}
+%     \begin{itemize}
+%         \item PV-Finder Current Studies:
+%         \begin{itemize}
+%             \item GNN Trained on Truth Vertices
+%             \begin{itemize}
+%                 \item Nominal/Tight Cuts on Reco Vertex Evaluations
+%                 \item Cuts Across Different Thresholds
+%             \end{itemize}
+%             \item (In Progress) GNN Trained on Reco Vertices
+%             \item Hard Scatter Vertex Classification
+%             \begin{itemize}
+%                 \item Fraction of Events vs Event Type
+%                 \item Reco Efficiency vs Local pile-up density
+%                 \item TTVA Efficiency and Impurity
+%             \end{itemize}
+%         \end{itemize}
+%         \item Muon Collider Current Studies:
+%         \begin{itemize}
+%             \item Track Selection Studies
+%         \end{itemize}
+%     \end{itemize}
+% \end{frame}
+
+% \begin{frame}[plain]
+%     \centering
+%     Training GNN on Truth Vertices
+% \end{frame}
+
+% \begin{frame}{Applying Cuts to Track Associations}
+
+% \end{frame}
+
+\begin{frame}[plain]
+    \centering
+    Training GNN on Reco Vertices
+\end{frame}
+
+\begin{frame}{Recap: Steps Outlined}
+    \begin{itemize}
+        \item Train PV-Finder
+        \begin{itemize}
+            \item Using current best PV-Finder run (UNet with Dropout Model)
+        \end{itemize}
+        \item Calculate predicted primary vertex location
+        \item Construct graphs from reconstructed PV information
+        \item \textbf{Current:} Evaluate using GNN model trained on truth information
+        \begin{itemize}
+            \item Using current best GNN run (GraphConv Model)
+        \end{itemize}
+        \item \textbf{New:} Train a GNN model using reco vertices matched to truth vertices
+        \begin{itemize}
+            \item Allows GNN to learn directly from PV-Finder outputs and associations
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Constructing Trainable Data from Reco Vertices}
+    \begin{itemize}
+        \item Based on Original PV-Finder Classification:
+        \begin{itemize}
+            \item Clean: Reco tracks (from matched truth vertex) \(\rightarrow\) reco vertex
+            \item Merged: Reco tracks (from both matched truth vertex) \(\rightarrow\) reco vertex
+            \item Fake: No reco tracks \(\rightarrow\) reco vertex
+            \item Split: Remove reco vertices from training
+            \begin{itemize}
+                \item Don't want GNN to learn features of doubly associating reco tracks
+            \end{itemize}
+        \end{itemize}
+        \item Then you would do vertex classification on test data comparing to truth vertex
+        \item \textbf{Work in Progress: Currently training!}
+    \end{itemize}
+\end{frame}
+
+% \begin{frame}{Reco Vertices with Classification at \(\left< \mu \right> =60\) (Thr=0.95)}
+%     \begin{columns}
+%         \begin{column}{0.55\textwidth}
+%             \begin{itemize}
+%                 \item Total Reconstructed PVs:
+%                 \item Total Clean: , Rate:
+%                 \item Total Merged: , Rate:
+%                 \item Total Split: , Rate:
+%                 \item Total Fake: , Rate:
+%             \end{itemize}
+%         \end{column}
+
+%         \begin{column}{0.45\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/reco_pv_avg_bar_chart_thr95_recovertex.png}
+%             \end{figure}
+%         \end{column}
+%     \end{columns}
+% \end{frame}
+
+% \begin{frame}{Comparison of Reco Vertex Classification: Thresholds (1)}
+%     \begin{columns}
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/stacked_pv_classification_5_80_thr9_recovertex.png}
+%                 \caption{Thr = 0.9}
+%             \end{figure}
+%         \end{column}
+
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/stacked_pv_classification_5_80_thr85_recovertex.png}
+%                 \caption{Thr = 0.85}
+%             \end{figure}
+%         \end{column}
+%     \end{columns}
+% \end{frame}
+
+% \begin{frame}{Comparison of Reco Vertex Classification: Thresholds (2)}
+%     \begin{columns}
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/stacked_pv_classification_5_80_thr7_recovertex.png}
+%                 \caption{Thr = 0.7}
+%             \end{figure}
+%         \end{column}
+
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/stacked_pv_classification_5_80_thr95_recovertex.png}
+%                 \caption{Thr = 0.95}
+%             \end{figure}
+%         \end{column}
+%     \end{columns}
+% \end{frame}
+
+% \begin{frame}{Number of Associations Per Track vs \( \mu \) Varying Threshold}
+%     \begin{columns}
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/num_track_assoc_vs_mu_thr85.png}
+%                 \caption{Thr = 0.85}
+%             \end{figure}
+%         \end{column}
+
+%         \begin{column}{0.5\textwidth}
+%             \begin{figure}
+%                 \centering
+%                 \includegraphics[width=1\linewidth]{june5th/num_track_assoc_vs_mu_thr95.png}
+%                 \caption{Thr = 0.95}
+%             \end{figure}
+%         \end{column}
+%     \end{columns}
+% \end{frame}
+
+\begin{frame}[plain]
+    \centering
+    Hard Scatter Vertex Classification
+\end{frame}
+
+\begin{frame}{Methods for Hard Scatter Vertex Classification}
+    \begin{itemize}
+        \item Usually, primary vertex with highest track \( \sum p_T^2 \) is defined to be HS vertex, \textbf{BUT differs per analysis}
+        \begin{itemize}
+            \item \( \sum p_T^2 \) methods works for this dataset composed of \(t \bar{t}\) decaying semi-leptonically
+        \end{itemize}
+        \item Classification Scheme:
+        \begin{itemize}
+            \item \textbf{Clean/Matched}: \textbf{CLEAN} reco vertex matching true HS interaction AND \textbf{track weights don't contribute \(> 50 \%\) to other vertices}
+            \item \textbf{LowPU}: \textbf{MERGED} reco vertex with \textbf{at least 50\%} of the accumulated \textbf{track weight} coming \textbf{from the simulated HS interaction}
+            \item \textbf{HighPU}: \textbf{MERGED} reco vertex the HS interaction contributing between \textbf{1\% and 50\% of the accumulated track weight}"
+            \item \textbf{PurePU}: No reco vertex with at least 1\% accumulated track weight from HS interaction"
+        \end{itemize}
+        \item Other ongoing works of interest:
+        \begin{itemize}
+            \item BDT/GNN-based HS selection: \href{https://indico.cern.ch/event/1374927/contributions/5942568/attachments/2882952/5052279/20240624_hsgnn.pdf}{"Primary vertex selection studies"}
+            \begin{itemize}
+                \item Related: \href{https://arxiv.org/pdf/2505.19689}{Transformer Jet Flavor Tagging at ATLAS (May 2025)}
+            \end{itemize}
+            \item \href{https://cds.cern.ch/record/2801638/files/CR2022_018.pdf?version=1}{CMS NN-based PV Reconstruction for L1 Trigger}
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+% \begin{frame}{HS Classification: Fraction of Events vs Event Type}
+
+% \end{frame}
+
+% \begin{frame}{HS Classification: Reco Efficiency vs Local pile-up density}
+
+% \end{frame}
+
+% \begin{frame}{Recap: TTVA Efficiency and Impurity}
+%     \begin{itemize}
+%         \item \textbf{Efficiency: } (\# reco tracks from true HS vertex correctly associated to reco HS vertex) / (\# reco tracks from true HS vertex)
+%         \item \textbf{Impurity: } (\# reco tracks from true HS vertex incorrectly associated to reco HS vertex) / (\# reco tracks from reco HS vertex)
+%         \item Borrowed from \href{https://indico.cern.ch/event/1025152/contributions/4304219/attachments/2220591/3761247/210406_Basso_ATLAS-Weekly_TTVA-for-Run3.pdf}{Link 1} and \href{https://indico.cern.ch/event/684384/contributions/2805796/attachments/1568829/2473713/uchida_171201.pdf}{Link 2}
+%     \end{itemize}
+% \end{frame}
+
+% \begin{frame}{HS Vertex: Efficiency and Impurity vs \(\eta\) Thr=0.85}
+
+% \end{frame}
+
+% \begin{frame}{HS Vertex: Efficiency and Impurity vs \(\eta\) Thr=0.95}
+
+% \end{frame}
+
+\begin{frame}{HS Vertex Quality Category Plot}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/fig_07_amvf.png}
+                \caption{AMVF Pub Note: \href{https://cds.cern.ch/record/2670380/files/ATL-PHYS-PUB-2019-015.pdf}{Link}}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/rhs_vertex_quality_category.png}
+                \caption{Thr = 0.95}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{HS Vertex Reconstruction Efficiency}
+    \begin{columns}
+        \begin{column}{0.3\textwidth}
+            \begin{itemize}
+                \item Fraction of events which the HS vertex is reconstructed and classified as Clean/Matched, LowPU, or HighPu
+                \item Local pile-up density is the number of vertices within a \(\pm\) 2mm window of a HS vertex
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.7\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=0.85\linewidth]{june25th/vertex_reconstruction_efficiency_vs_local_pu_density.png}
+                \caption{Thr = 0.95}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Comparison: HS Vertex Reconstruction Efficiency}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/fig_08a_amvf_reco.png}
+                \caption{AMVF Pub Note (Fig. 8): \href{https://cds.cern.ch/record/2670380/files/ATL-PHYS-PUB-2019-015.pdf}{Link}}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/vertex_reconstruction_efficiency_vs_local_pu_density.png}
+                \caption{Thr = 0.95}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{HS Vertex Selection Efficiency}
+    \begin{columns}
+        \begin{column}{0.3\textwidth}
+            \begin{itemize}
+                \item Fraction of events where the reconstructed vertex with highest \(\sum p_T^2\) is the one contianing the largest total weight from true HS tracks
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.7\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=0.85\linewidth]{june25th/vertex_selection_efficiency_vs_local_pu_density.png}
+                \caption{Thr = 0.95}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Comparison: HS Vertex Selection Efficiency}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/fig_09a_amvf_selection.png}
+                \caption{AMVF Pub Note (Fig. 9): \href{https://cds.cern.ch/record/2670380/files/ATL-PHYS-PUB-2019-015.pdf}{Link}}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1\linewidth]{june25th/vertex_selection_efficiency_vs_local_pu_density.png}
+                \caption{Thr = 0.95}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\backupend
+
+\end{document}

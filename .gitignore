@@ -49,8 +49,13 @@ Thumbs.db
 # Stray logs
 *.log
 
-# Local material, kept on disk but not part of the codebase
-presentations/
+# Local material, kept on disk but not part of the codebase.
+# Presentations: the LaTeX source IS versioned (it is the only copy that
+# exists anywhere -- there is no Overleaf mirror). Built PDFs, images and
+# latexmk artefacts are not.
+presentations/**
+!presentations/**/
+!presentations/**/*.tex
 final_paper/
 gnn_info/
 temp/
