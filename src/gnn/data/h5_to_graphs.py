@@ -5,6 +5,11 @@ associations in HDF5 form (e.g. recoTracks_incamvfassoc.h5).
 For ROOT ntuples (HL-LHC PU200) use gnn.data.root_to_graphs instead.
 
 Split out of graph_construction.py to respect the 500-line file limit.
+
+Run this via ``runpy``, not ``python -m``: on sneezy the ``-m`` form with h5 +
+indices arguments can hang at 100% CPU in a process that survives SIGKILL.
+``scripts/build_mu60_v2_shards.sh`` shows the wrapper. See
+docs/evaluation/vertex_association.md, "Known quirk".
 """
 
 from __future__ import annotations

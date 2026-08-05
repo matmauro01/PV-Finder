@@ -11,7 +11,11 @@ Figures: (a) Clean/Merged/Split/Fake grouped bars with binomial errors,
 truth-PV track multiplicity (PVF+GNN vs AMVF), (d) edge-score
 distributions (from gnn.evaluation.edge_metrics output).
 
-Usage:
+Run this via ``runpy``, not ``python -m``: it takes the same h5 + indices
+arguments that trigger the sneezy hang, and the hung process survives SIGKILL.
+See docs/evaluation/vertex_association.md, "Known quirk".
+
+Usage (wrap the argv below in runpy.run_module, as in that doc):
     python -m gnn.diagnostics.plot_ttva_performance \\
         --pvf-results outputs/<date>_ttva_metrics/t_star \\
         --amvf-results outputs/07_12_2026_ttva_reproduction/amvf \\

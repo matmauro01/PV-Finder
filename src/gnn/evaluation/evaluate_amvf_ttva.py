@@ -6,11 +6,29 @@ assignments taken from AMVF's own output (reco_pv_assoc_tracks in the MC HDF5)
 instead of GNN edge scores. This compares the full chains:
 AMVF finding+association vs PVF finding + GNN association.
 
+!!! DO NOT RUN THIS WITH ``python -m``. USE THE runpy FORM BELOW. !!!
+
+On sneezy, ``python -m gnn.evaluation.evaluate_amvf_ttva`` with data arguments
+hangs at 100% CPU before producing any output, and the resulting process
+survives SIGKILL (4.15 kernel zombie bug) — it cannot be cleaned up without a
+reboot. Nine such processes from this module are currently burning seven cores
+permanently. ``--help`` and a plain import are fine; it is the combination of
+``-m`` with the h5 + indices arguments that triggers it. The identical module
+under ``runpy.run_module`` completes in about a minute. See
+docs/evaluation/vertex_association.md, "Known quirk".
+
 Usage:
-    python -m gnn.evaluation.evaluate_amvf_ttva \\
-        -f /share/lazy/qibinlei/recoTracks_incamvfassoc.h5 \\
-        -i configs/qibin_test_main_indices_v2.p \\
-        -o outputs/<date>/amvf/
+    python -u -c "
+    import sys, runpy
+    sys.argv = ['x', '-f', '/share/lazy/qibinlei/recoTracks_incamvfassoc.h5',
+                '-i', 'configs/qibin_test_main_indices_v2.p',
+                '-o', 'outputs/<date>/amvf/']
+    runpy.run_module('gnn.evaluation.evaluate_amvf_ttva', run_name='__main__')
+    "
+
+For Run-4 PU200 the AMVF baseline is produced without this module at all:
+gnn.data.pu200_chain_graphs computes it from RecoVertex_assocTracks in the same
+ROOT pass, through the identical classify_assignments core.
 """
 
 from __future__ import annotations
