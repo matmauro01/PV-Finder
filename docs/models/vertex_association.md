@@ -106,9 +106,26 @@ earlier builds.
 
 PV resolution model for truth-graph heights and edge significances:
 `σ_PV(N) = A·N^(−B) + C` with presets from
-`pv_finder/data/resolution_presets.py` — `run3` (0.238, 0.495, −0.0008,
-default in `create_training_graph`) and `hllhc` (0.179, 0.727, 0; default in
-`root_to_graphs`).
+`pv_finder/data/resolution_presets.py`:
+
+| preset | (A, B, C) | use for |
+|---|---|---|
+| `run3` | 0.238, 0.495, −0.0008 | Run 3; default in `create_training_graph` |
+| `hllhc` | 0.179, 0.727, 0 | HL-LHC **\|η\|<2.5 only** (superseded) |
+| `hllhc_alleta` | 0.14318, 0.362, −0.01797 | **`data/run4_all_etas`** (extended \|η\|) |
+
+`root_to_graphs` **requires** `--resolution-preset` — there is no default any
+more. The preset sets PV-node heights and edge significances, i.e. features the
+GAT trains on, so choosing the wrong one does not crash; it silently trains on
+mis-scaled inputs.
+
+**Peak position estimator.** For inference/chain graphs the PV-node z comes from
+`pv_locations_updated_res`, whose `centroid_halfwidth` argument selects the
+estimator: `0` is the historical full-region weighted mean and remains the
+**library default** so v3-era checkpoints keep reproducing; `3` is the local
+centroid at the v6 operating point. Because PV z feeds all three edge features,
+this must match between the graphs a checkpoint trains on and the graphs it is
+evaluated on. Every peak-finding CLI takes `--centroid-halfwidth`; pass it.
 
 ## Data
 

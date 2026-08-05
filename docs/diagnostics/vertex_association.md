@@ -35,6 +35,24 @@ Plotting scripts (each reads the JSON/npz written by the matching eval):
   technical note (`final_paper/.../figures/pu200_*.png`).
 - `gnn.diagnostics.hgtd_timing_coverage` — valid-HGTD-time fraction vs
   η on the withTiming samples (PU200: 3.95% overall, 44.6% at |η|>2.3).
+- `gnn.diagnostics.amvf_convention_check` (2026-08-05) — reconciles the two
+  AMVF Clean rates. The PV-finder evaluation reports AMVF at 60.9% Clean and
+  the TTVA evaluation at 35.2% on the *same* vertices, which looks like a bug
+  and is not: one asks whether a vertex sits within the resolution window of a
+  truth vertex, the other whether ≥70% of its tracks come from one truth
+  vertex. This measures the dominant-truth purity distribution that drives the
+  difference (median 0.6316 on r16443, straddling the 0.70 cut) and scans
+  Clean rate against the cut. Run it before quoting any AMVF number from a new
+  production. Full table in
+  [evaluation](../evaluation/vertex_association.md#two-conventions-one-vertex-collection--read-this-before-comparing-numbers).
+
+**Peak operating point.** Every diagnostic that peak-finds
+(`chain_gap_decomposition`, `verify_fast_paths`, and the chain builder
+`gnn.data.pu200_chain_graphs`) takes `--centroid-halfwidth`, and it defaults to
+the **legacy 0**, not the v6 operating point of 3. That default exists so
+v3-era checkpoints keep reproducing; it means every new-campaign invocation must
+pass 3 explicitly. A mismatch does not crash — it moves PV-node z, hence all
+three edge features, and shows up only as unexplained model underperformance.
 
 ## Run3 Track Probability Distribution
 

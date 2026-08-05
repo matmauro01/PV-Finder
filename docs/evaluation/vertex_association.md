@@ -13,6 +13,111 @@ Each reconstructed PV is classified as one of:
 | **Split** | Another reco PV already claimed the same truth PV with higher sum(pT²) |
 | **Fake** | No matched tracks have truth associations |
 
+### Two conventions, one vertex collection — read this before comparing numbers
+
+The project classifies vertices two different ways, and **the same AMVF vertices
+score very differently under them**. Neither is wrong; they ask different
+questions. Always say which one a number came from.
+
+| | **Track-purity** (this page) | **Positional** (PV-finder page) |
+|---|---|---|
+| Code | `gnn.evaluation.classification.classify_assignments` | `efficiency_res_optimized_atlas.compare_res_reco` |
+| Question | do ≥70% of this vertex's *tracks* come from one truth vertex? | does this vertex sit within the resolution *window* of a truth vertex? |
+| Inspects | track lists only (never z) | z only (never tracks) |
+| **Fake** means | none of its tracks has any truth vertex | no truth vertex inside its window |
+
+On the r16443 held-out slice (1920 events) they partition the *identical*
+collection — 97.90 vs 97.87 AMVF vertices/event, 111.32 truth PVs/event — into
+very different categories:
+
+| AMVF | Clean | Merged | Split | Fake | clean/truth |
+|---|---|---|---|---|---|
+| Positional | 60.9% | 10.7% | 0.3% | 16.0% | 0.609 |
+| Track-purity | 35.2% | 42.6% | 22.1% | 0.07% | 0.3094 |
+
+**Why**, measured by `gnn.diagnostics.amvf_convention_check` rather than argued:
+the dominant-truth purity of AMVF vertices has **median 0.6316** (quartiles
+0.462 / 0.632 / 0.812), i.e. the distribution straddles the 0.70
+`PURITY_THRESHOLD`. Scanning the cut gives Clean 0.7372 at 0.5, 0.5613 at 0.6,
+0.4072 at 0.7, 0.2798 at 0.8. At extended |η| AMVF puts vertices at
+approximately the right z, but their track lists absorb forward tracks from
+neighbours, so the median vertex is 63% pure and falls on the wrong side of a
+70% cut. The fake rates show the same thing from the other side: 16.0%
+positional against 0.07% track-based, because an AMVF vertex essentially always
+contains at least one track with truth.
+
+```bash
+python -u -m gnn.diagnostics.amvf_convention_check \
+    --root data/run4_all_etas/Run4_MC21_ITk_LatestJuly2026/ATLAS_PVFinderData_601229_e8481_s4494_r16443_PU200.root \
+    --entry-indices outputs/<date>/gnn_ttva_v4/chain_test/entry_indices.npy \
+    -o outputs/<date>/gnn_ttva_v4/amvf_convention/
+```
+
+#### Three consequences for anyone reusing v3-era claims
+
+The extended-|η| re-production changes what the categories *mean*, so two
+familiar v3 numbers move — in opposite directions — and the fake rate needs
+re-attributing. **All three must be quoted together**, because a reader who
+sees one without the others draws the wrong conclusion.
+
+**(a) AMVF's clean/truth falls, 0.573 → 0.3094.** Same algorithm, same
+classification core, different truth definition. Truth density rises from 98.8
+to 111.32 PVs/event, but that 12.6% denominator change cannot produce a 46%
+relative drop; the purity migration above does most of it.
+
+**(b) AMVF's fake rate collapses, 0.91% → 0.072%, and the GNN comparison
+REVERSES.** In the track convention a Fake needs a vertex whose tracks have *no*
+truth association at all. At extended |η| an AMVF vertex essentially always
+picks up at least one truth-associated track, so its fake rate goes to near
+zero for definitional reasons — not because AMVF improved. The PV-Finder chain
+still books junk peaks that collect few or no tracks, so on this data the chain
+makes **more** track-convention fakes than AMVF, where on v3 data it made ~18×
+fewer.
+
+> ⚠ **"18× fewer fakes than AMVF" is a v3-data statement and must not be
+> repeated for extended-|η| results.** Quote the measured fake rates from the
+> run in hand.
+
+**(c) The chain's fakes are the finder's, not the associator's — and a third of
+them are not fakes at all.** Read this together with (b); the reversal is
+meaningless without it.
+
+Under the all-peaks convention on the v4 slice:
+
+| | peaks | % of 193,945 |
+|---|---|---|
+| Oracle Fake floor — peak has **no truth tracks at all** | 17,701 | **9.13%** |
+| Junk — peak has **no nTrk≥2 truth PV within 0.5 mm** | 27,028 | **13.94%** |
+| Difference — truth *tracks* but no nearby truth *vertex* | 9,327 | **4.81%** |
+
+Arm B at t=0.98 gives an all-peaks fake rate of **9.67%** against that 9.13%
+oracle floor. **The GNN adds ~0.5 points of fakes above what the finder makes
+unavoidable; essentially every fake in the chain is a peak the finder
+produced.** The lever for chain fake rate is finder-side fake suppression, not
+the associator.
+
+The 4.81% difference is a *truth-convention* artefact, not reconstruction
+failure. `chain_gap_decomposition` matches peaks against truth filtered to
+nTrk≥2 (line ~265), while the oracle's per-track truth comes from
+`pu200_chain_graphs.truth_arrays`, which applies **no** nTrk cut. So a peak
+sitting on a real single-track interaction has truth tracks (not oracle-Fake)
+but no eligible truth vertex (counted junk).
+
+> **Independent corroboration.** A separate finder-side study measured **4.17
+> surplus peaks/event on real nTrk=1 truth vertices** above a 5.3% accidental
+> floor. At 101.01 peaks/event that is **4.13% of peaks**, against the 4.81%
+> (4.86 peaks/event) derived here from the oracle/junk difference. Two
+> analyses, different code paths, same population — agreeing to about 0.7
+> peaks/event, with the residual explained by the different matching windows
+> and the accidental floor.
+
+**So the genuinely irreducible junk floor is 9.13%, not 13.94%.**
+
+**Quote fraction-of-oracle as the headline, absolute clean/truth as secondary.**
+The absolute number is not portable across truth definitions; the ratio divides
+the definitional change out. v3 at 95.7% of its oracle and v4 at 94.0% of its
+oracle is a comparison a reader can trust. 0.716 versus 0.6843 is not.
+
 ## Evaluation Methods
 
 - **MaxScore**: For each track, keep only the top-1 highest-scoring PV edge (if above threshold). Each track assigned to at most one PV.
@@ -320,6 +425,56 @@ t=0.5 (they trained with the dead zero-height input), while v3 reaches
 0.823. Smooth convergence over 162 shard-epochs (18 passes / 3.2 h).
 Verification: v3 t-scans share the machinery verified against the
 2026-07-13 rows; ΣtruthPV = 148,133 exact in every run.
+
+## v4 (2026-08-05): extended-|η| on the PV-Finder v6 chain
+
+Evaluation slice: **r16443, 1920 events, 213,738 truth PVs (nTrk≥2), 111.32
+truth PVs/event**, ⟨μ⟩ = 192.5 in the [185, 215] window — the same slice as the
+PV-Finder v6 held-out evaluation. All numbers in
+`outputs/08_05_2026_output/gnn_ttva_v4/`. Chain graphs built at the full v6
+operating point (threshold 0.01 / integral 0.30 / width 3 / floor 0.03 /
+**centroid half-width 3**), giving **101.01 peaks/event** against the 101.0
+reco vertices/event `run_eval_pvf_run3.py` measures on the same events through
+an independent code path.
+
+**Read the "two conventions" section above before comparing any of this to v3.**
+The truth definition changed; absolute clean/truth is not portable, and the
+AMVF fake rate reverses direction.
+
+### Bounds on this slice
+
+| Bound | clean/truth |
+|---|---|
+| Finder cap, 0.5 mm greedy match | 0.7809 |
+| Oracle association on the found peaks | 0.7280 |
+| GNN on truth vertices, t=0.95 (arm B) | 0.7691 |
+
+<!-- RESULTS: arm A pending; arm B rows below are final -->
+
+### Arm B — pristine truth graphs, no augmentation (control)
+
+`ttva_gat_alleta_k20_v4_noaug180k`, epoch 107 of 108, fully annealed.
+Chain, drop-empty convention:
+
+| t | clean/truth | **frac. of oracle** | fake_rate | clean_rate | trkEff | trkPur | trkF1 |
+|---|---|---|---|---|---|---|---|
+| 0.90 | 0.5600 | 0.769 | 0.00195 | 0.6344 | 0.672 | 0.752 | 0.710 |
+| 0.95 | 0.6411 | 0.881 | 0.00192 | 0.7396 | 0.617 | 0.818 | 0.703 |
+| **0.98** | **0.6843** | **0.940** | 0.00173 | 0.8335 | 0.512 | 0.890 | 0.650 |
+| 0.99 | 0.6694 | 0.920 | 0.00153 | 0.8767 | 0.427 | 0.921 | 0.584 |
+| 0.995 | 0.6101 | 0.838 | 0.00142 | 0.9065 | 0.341 | 0.938 | 0.500 |
+
+Best at **t = 0.98**, the same working point v3 chose. Against AMVF on the
+identical events: **0.6843 vs 0.3094**, i.e. **94.0% of the oracle vs AMVF's
+42.5%**. Fake rate 0.173% against AMVF's 0.072% — the chain makes *more*
+track-convention fakes here. **Do not read that as a GNN weakness**: arm B's
+all-peaks fake rate is 9.67% against the finder's 9.13% oracle floor, so the
+associator contributes ~0.5 points and the rest is the finder's junk peaks. See
+consequences (b) and (c) above, which must be quoted together.
+
+**HS-ID: 94.4% at t=0.95** against AMVF's **80.7%** on the same events. As at
+v3, the HS-ID and vertex-classification working points differ; here HS-ID
+prefers t=0.95 (t=0.5 gives 82.0%), so quote the working point with the number.
 
 ## Run 3 real data (truth-free, 2026-07-13)
 
