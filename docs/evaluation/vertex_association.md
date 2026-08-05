@@ -566,9 +566,24 @@ production checkpoint:**
 `model_weights/ttva_gnn_hllhc_v4_noaug/ttva_gat_alleta_k20_v4_noaug180k_epoch_107.pyt`
 
 **What augmentation did instead: it moved the operating curve toward lower
-fakes.** Arm A has a lower fake rate at every threshold and purer vertices. Under
-a fake-rate budget the ordering flips (actual operating points, no
-interpolation — both curves fold back above t=0.99, so interpolating there
+fakes — but only under the drop-empty convention.** Arm A has a lower
+drop-empty fake rate and purer vertices at every one of the nine thresholds.
+Under all-peaks the ordering is reversed at every one of the nine, because
+augmentation trains abstention and arm A therefore leaves 1.7 to 2.6 times more
+vertices entirely unpopulated, and empty vertices are booked Fake:
+
+| t | fake drop-empty, B / A | fake all-peaks, B / A | empty vertices, B / A |
+|---|---|---|---|
+| 0.90 | 0.00195 / **0.00164** | **0.02914** / 0.07766 | 5 284 / 14 769 |
+| 0.98 | 0.00173 / **0.00117** | **0.09671** / 0.16657 | 18 454 / 32 116 |
+| 0.999 | 0.00098 / **0.00069** | **0.66419** / 0.86588 | 128 753 / 167 915 |
+
+So "augmentation buys a lower fake rate" is a drop-empty statement only; under
+all-peaks it raises the fake rate by roughly 70 % at the working point. This is
+the warning above applied to our own result.
+
+Under a drop-empty fake-rate budget the ordering flips (actual operating points,
+no interpolation — both curves fold back above t=0.99, so interpolating there
 manufactures nonsense):
 
 | fake budget | arm A best | arm B best | A − B |
