@@ -31,7 +31,7 @@ HALFWIDTH=${HALFWIDTH:-3}
 
 CKPT=model_weights/hllhc_alleta_v6_mse_2ep_phase2_epoch_2_fullstate.pth
 SRC=data/run4_all_etas/Run4_MC21_ITk_LatestJuly2026
-OUT=outputs/08_04_2026_output/eval_v6_operating_point
+OUT=${OUT:-outputs/08_05_2026_output/eval_v6_operating_point}
 
 for tag in r16443 r16638; do
     root="$SRC/ATLAS_PVFinderData_601229_e8481_s4494_${tag}_PU200.root"
@@ -51,7 +51,7 @@ for tag in r16443 r16638; do
          --integral-threshold "$INTEGRAL"
          --min-height "$MIN_HEIGHT"
          --centroid-halfwidth "$HALFWIDTH"
-         --pairwise-bins 240
+         --pairwise-bins 300
          --output-dir "$outdir"
          --device "$DEVICE"
          --dataset-name "HL-LHC PU200 held-out ($tag)")

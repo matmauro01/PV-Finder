@@ -14,6 +14,11 @@ from plots_categories import (  # noqa: E402,F401  (re-exported)
     plot_category_counts_both,
 )
 
+from pv_finder.utils.pairwise_dz import (  # noqa: E402
+    DEFAULT_PAIRWISE_BINS,
+    PAIRWISE_RANGE_MM,
+)
+
 # Consistent styling
 _COLORS = {
     "clean": "#1f77b4",
@@ -45,15 +50,20 @@ def plot_resolution(
     mode_label: str,
     output_dir: Path,
     title: str = "",
-    n_bins: int = 240,
+    n_bins: int = DEFAULT_PAIRWISE_BINS,
 ) -> None:
     """Pairwise Δz distribution (points + Poisson errors) with sigmoid fit.
 
     ``n_bins`` MUST match the binning ``popt`` was fitted to: the sigmoid is
     fitted to bin *counts*, so a mismatch offsets the curve by the ratio of
     the two bin counts (factor 4 for a 240-bin fit drawn over 60 bins).
+
+    It must also keep the bin width an integer multiple of the model's 0.04 mm
+    grid — reco positions are combed at that pitch, so an incommensurate width
+    beats against it and fills the plateau with a spurious sawtooth.  See
+    ``pv_finder.utils.pairwise_dz``.
     """
-    bins_res = np.linspace(-6.0, 6.0, n_bins + 1)
+    bins_res = np.linspace(-PAIRWISE_RANGE_MM, PAIRWISE_RANGE_MM, n_bins + 1)
     bin_ctrs = 0.5 * (bins_res[:-1] + bins_res[1:])
     counts, _ = np.histogram(dz_arr, bins=bins_res)
     errors = np.sqrt(counts.astype(float))
@@ -62,7 +72,7 @@ def plot_resolution(
     ax.errorbar(bin_ctrs, counts, yerr=errors, fmt="ko", ms=3, capsize=1.5,
                 elinewidth=0.8, label="Reconstructed PV pairs")  # fmt: skip
     if popt is not None:
-        xf = np.linspace(-6, 6, 2000)
+        xf = np.linspace(-PAIRWISE_RANGE_MM, PAIRWISE_RANGE_MM, 2000)
         ax.plot(
             xf,
             sigmoid_fit(xf, *popt),

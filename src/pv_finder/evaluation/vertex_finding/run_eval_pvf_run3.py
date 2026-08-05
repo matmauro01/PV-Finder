@@ -30,6 +30,11 @@ from pv_finder.models.autoencoder_models import (  # noqa: E402
     trackstoHists_UNet_1000,
 )
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2  # noqa: E402
+from pv_finder.utils.pairwise_dz import (  # noqa: E402
+    DEFAULT_PAIRWISE_BINS,
+    PAIRWISE_RANGE_MM,
+    is_commensurate,
+)
 from pv_finder.utils.peak_finding import (  # noqa: E402
     RECOMMENDED_CENTROID_HALFWIDTH,
 )
@@ -388,12 +393,22 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     # --- Resolution (sigma_vtx_vtx) ---
     print("\n--- Resolution (sigma_vtx_vtx) ---")
     dz_arr = np.array(pairwise_dz, dtype=np.float64)
-    # 240 bins (0.05 mm), not the historical 60. The PVF dip is box-shaped with
+    # Fine binning, not the historical 60. The PVF dip is box-shaped with
     # near-vertical walls, so at 60 bins only ~2 points sit inside it and the fit
     # lands at 0.29 mm; 120 does not converge; 240/480/960 are stable at 0.223 mm
     # (JOURNAL 2026-07-20). Not cosmetic: sigma is fed back as the matching window,
     # so the coarse fit inflated efficiency by ~2 pts.
-    bins_r = np.linspace(-6.0, 6.0, args.pairwise_bins + 1)
+    #
+    # The bin width must also be an integer multiple of the model's 0.04 mm grid.
+    # Reco positions are combed at that pitch, so the 0.05 mm bins used until
+    # 2026-08-05 beat against it with a 0.20 mm period and put a 3.9 % sawtooth
+    # in the plateau (see pv_finder.utils.pairwise_dz).
+    if not is_commensurate(args.pairwise_bins):
+        print(f"  WARNING: --pairwise-bins {args.pairwise_bins} gives "
+              f"{2 * PAIRWISE_RANGE_MM / args.pairwise_bins:.4f} mm bins, which is not "
+              f"a multiple of the {BIN_WIDTH:.2f} mm model grid. The plateau will "
+              f"show a spurious comb; use {DEFAULT_PAIRWISE_BINS}.")  # fmt: skip
+    bins_r = np.linspace(-PAIRWISE_RANGE_MM, PAIRWISE_RANGE_MM, args.pairwise_bins + 1)
     ctrs = 0.5 * (bins_r[:-1] + bins_r[1:])
     cnts, _ = np.histogram(dz_arr, bins=bins_r)
     sigma, popt = 0.5, None
@@ -603,10 +618,13 @@ def _cli() -> argparse.Namespace:
     a.add_argument("--peak-threshold", type=float, default=THRESHOLD)
     a.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
     a.add_argument("--integral-threshold-res", type=float, default=0.5)
-    a.add_argument("--pairwise-bins", type=int, default=240,
+    a.add_argument("--pairwise-bins", type=int, default=DEFAULT_PAIRWISE_BINS,
                    help="bins across the +-6 mm pairwise-dz range for the "
                         "sigma_vtx_vtx sigmoid fit; 60 (pre-2026-07-31) biases "
-                        "sigma high, 240+ is stable")  # fmt: skip
+                        "sigma high, 240+ is stable. Keep the bin width an "
+                        "integer multiple of the 0.04 mm model grid (300, 150, "
+                        "100, 75...) or the plateau beats against the position "
+                        "quantisation; 240 (0.05 mm, pre-2026-08-05) does")  # fmt: skip
     a.add_argument("--centroid-halfwidth", type=int,
                    default=RECOMMENDED_CENTROID_HALFWIDTH,
                    dest="centroid_halfwidth",
