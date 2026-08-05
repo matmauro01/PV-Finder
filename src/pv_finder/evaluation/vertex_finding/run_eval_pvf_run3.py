@@ -455,11 +455,15 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         )
         sel_label = f"mu in [{args.mu_min},{args.mu_max}], {n_win} events"
     else:
-        dz_arr, n_win = dz_all, len(pairwise_dz_by_event)
-        sel_label = f"all {n_win} events read"
-        if has_mu and n_win:
+        if has_mu and n_win == 0 and pairwise_dz_by_event:
+            print(f"  WARNING: mu in [{args.mu_min},{args.mu_max}] selects no "
+                  "event; falling back to every event read. sigma and the "
+                  "summary do NOT describe the same population.")  # fmt: skip
+        elif has_mu and n_win:
             print("  NOTE: the mu window selects every event; sigma and the "
                   "summary already share one population.")  # fmt: skip
+        dz_arr, n_win = dz_all, len(pairwise_dz_by_event)
+        sel_label = f"all {n_win} events read"
 
     sigma, serr, popt = fit_dz(dz_arr)
     print(f"  sigma_vtx_vtx = {sigma:.4f} +/- {serr:.4f} mm "
