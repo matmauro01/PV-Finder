@@ -65,6 +65,8 @@
     pvflow/.style   ={-{Latex[length=2.4mm,width=1.9mm]}, line width=0.9pt, draw=black!55},
     pvpoint/.style  ={-{Latex[length=2.0mm,width=1.6mm]}, line width=0.9pt},
     pvaxis/.style   ={-{Latex[length=1.9mm,width=1.5mm]}, line width=0.7pt, draw=black!60},
+    pvdim/.style    ={{Latex[length=1.7mm,width=1.4mm]}-{Latex[length=1.7mm,width=1.4mm]},
+                      line width=0.7pt},
     pvcurve/.style  ={line width=1.0pt, line join=round, line cap=round},
     pvthresh/.style ={dash pattern=on 2.6pt off 2.2pt, line width=0.8pt,
                       draw=myorange!85!black},
@@ -339,10 +341,8 @@
         \draw[pvsplit] (10.66,0.02) -- (10.66,2.00);
         \node[above, font=\scriptsize, text=pennred] at (10.66,2.00) {split at the local minimum};
         \filldraw[pennred!80!black] (10.66,0.73) circle (2.0pt);
-        \draw[<->, black!40, line width=0.6pt] (10.66,0.32) -- (10.66,0.69);
-        \node[anchor=east, font=\scriptsize, text=black!55] at (10.52,0.50) {stays above $\tau$};
         \draw[<->, pennred!40, line width=0.7pt] (8.21,-0.45) -- (13.21,-0.45);
-        \node[below, font=\scriptsize, text=pennred!65] at (10.71,-0.50) {one run, two vertices};
+        \node[below, font=\scriptsize, text=pennred!65] at (10.71,-0.50) {one run above $\tau$, two vertices};
     \end{tikzpicture}}\par}
 
     \vspace{0.35em}
@@ -670,15 +670,15 @@
             \centering
             \resizebox{\linewidth}{!}{%
             \begin{tikzpicture}[x=1.2cm, y=1.6cm]
-                \fill[pennred!6] (-1,0) rectangle (1,1.03);
+                \fill[pennred!8] (-1,0) rectangle (1,1.02);
                 \fill[mydarkblue!12] (-3.50,0) -- plot[smooth] coordinates {
                     (-3.50,1.000)(-3.15,0.999)(-2.80,0.996)(-2.45,0.989)(-2.10,0.969)
                     (-1.75,0.918)(-1.40,0.801)(-1.05,0.602)(-1.00,0.570)(-0.70,0.389)
                     (-0.35,0.247)(0.00,0.181)(0.35,0.247)(0.70,0.389)(1.00,0.570)
                     (1.05,0.602)(1.40,0.801)(1.75,0.918)(2.10,0.969)(2.45,0.989)
                     (2.80,0.996)(3.15,0.999)(3.50,1.000)} -- (3.50,0) -- cycle;
-                \draw[dashed, black!25, line width=0.5pt] (-3.62,1.0) -- (3.78,1.0);
-                \draw[dashed, black!25, line width=0.5pt] (-3.62,0.14) -- (3.78,0.14);
+                \draw[dashed, black!25, line width=0.5pt] (-3.50,1.0) -- (3.78,1.0);
+                \draw[dashed, black!25, line width=0.5pt] (-3.50,0.14) -- (3.78,0.14);
                 \node[anchor=west, font=\scriptsize, text=black!45] at (3.82,1.0) {$a{+}c$};
                 \node[anchor=west, font=\scriptsize, text=black!45] at (3.82,0.14) {$c$};
                 \draw[pvcurve, draw=mydarkblue!80!black] plot[smooth] coordinates {
@@ -687,22 +687,24 @@
                     (-0.35,0.247)(0.00,0.181)(0.35,0.247)(0.70,0.389)(1.00,0.570)
                     (1.05,0.602)(1.40,0.801)(1.75,0.918)(2.10,0.969)(2.45,0.989)
                     (2.80,0.996)(3.15,0.999)(3.50,1.000)};
-                \draw[pvaxis] (-3.75,0) -- (3.75,0);
-                \draw[pvaxis] (-3.75,0) -- (-3.75,1.30) node[above, font=\scriptsize] {count};
+                \draw[pvaxis] (-3.50,0) -- (3.80,0);
+                \draw[pvaxis] (-3.50,0) -- (-3.50,1.30) node[above, font=\scriptsize] {count};
                 \foreach \x in {-3,-2,-1,1,2,3} {
                     \draw[black!55, line width=0.5pt] (\x,0.03) -- (\x,-0.03);
                     \node[below, font=\scriptsize, text=black!55, inner sep=2pt] at (\x,0) {\x};
                 }
-                \node[anchor=north east, font=\scriptsize, text=black!65] at (3.75,-0.30)
+                \node[anchor=north east, font=\scriptsize, text=black!65] at (3.80,-0.30)
                     {$\Delta z$ (mm)};
-                \draw[pvsplit] (-1,0) -- (-1,1.04) node[above, font=\scriptsize, text=pennred] {$-\sigma$};
-                \draw[pvsplit] ( 1,0) -- ( 1,1.04) node[above, font=\scriptsize, text=pennred] {$+\sigma$};
+                \draw[pvsplit] (-1,0) -- (-1,1.04);
+                \draw[pvsplit] ( 1,0) -- ( 1,1.04);
+                \node[anchor=south east, font=\scriptsize, text=pennred] at (-1.05,1.02) {$-\sigma$};
+                \node[anchor=south west, font=\scriptsize, text=pennred] at ( 1.05,1.02) {$+\sigma$};
                 \filldraw[pennred] (-1,0.570) circle (2.4pt);
                 \filldraw[pennred] ( 1,0.570) circle (2.4pt);
-                \node[anchor=south, align=center, font=\scriptsize, text=black!55] at (0,0.50)
-                    {pairs too close\\to resolve\\are merged};
-                \draw[->, black!35, line width=0.6pt] (0,0.46) -- (0,0.25);
-                \draw[<->, pennred!55, line width=0.9pt] (-1,-0.40) -- (1,-0.40);
+                \node[anchor=south, font=\scriptsize, text=black!55] at (0,1.44)
+                    {pairs too close to resolve are merged};
+                \draw[->, black!35, line width=0.6pt] (0,1.40) -- (0,1.09);
+                \draw[pvdim, draw=pennred!60, line width=0.8pt] (-1,-0.40) -- (1,-0.40);
                 \node[below, font=\scriptsize, text=pennred] at (0,-0.44)
                     {$2\sigma_{\text{vtx-vtx}}$};
             \end{tikzpicture}}
