@@ -1446,32 +1446,6 @@
     \end{columns}
 \end{frame}
 
-\begin{frame}{TTVA Results at \(\langle\mu\rangle\!\approx\!60\) (MC, 2550 events)}
-    \begin{columns}[c]
-        \begin{column}{0.5\linewidth}
-            \centering
-            \includegraphics[width=\linewidth, height=0.46\textheight, keepaspectratio]{images/category_rates.png}
-        \end{column}
-        \begin{column}{0.5\linewidth}
-            \centering
-            \includegraphics[width=\linewidth, height=0.46\textheight, keepaspectratio]{images/clean_efficiency_vs_ntracks.png}
-        \end{column}
-    \end{columns}
-    \vspace{0.2em}
-    \centering
-    \footnotesize
-    \begin{tabular}{lcccc}
-        \toprule
-        \textbf{Chain} & Clean & Merged & Fake & \textbf{Clean/truth} \\
-        \midrule
-        PV-Finder peaks + GNN (\(t=0.99\)) & 90.4\% & 7.4\% & 0.02\% & \textbf{77.4\%} \\
-        AMVF & 76.7\% & 20.0\% & 0.7\% & 60.9\% \\
-        GNN on truth vertices (bound) & 88.8\% & 7.4\% & ${\sim}0$ & 89.2\% \\
-        \bottomrule
-    \end{tabular}\\[2pt]
-    {\scriptsize Above AMVF in every multiplicity bin; track-level \(F_1\) 0.874 vs 0.849; hard-scatter ID 99.0\% vs 98.8\%. Drop-empty convention.}
-\end{frame}
-
 \begin{frame}{TTVA at PU200: Where the Headroom Is}
     \begin{columns}[c]
         \begin{column}{0.45\linewidth}
@@ -1930,6 +1904,39 @@
             count as fakes.
         \end{column}
     \end{columns}
+\end{frame}
+
+\begin{frame}{Backup: TTVA at \(\langle\mu\rangle\!\approx\!60\) (MC, 2550 events)}
+    \begin{columns}[c]
+        \begin{column}{0.5\linewidth}
+            \centering
+            \includegraphics[width=\linewidth, height=0.40\textheight, keepaspectratio]{images/category_rates.png}
+        \end{column}
+        \begin{column}{0.5\linewidth}
+            \centering
+            \includegraphics[width=\linewidth, height=0.40\textheight, keepaspectratio]{images/clean_efficiency_vs_ntracks.png}
+        \end{column}
+    \end{columns}
+    \vspace{0.3em}
+    \centering
+    \footnotesize
+    \begin{tabular}{l ccc c}
+        \toprule
+        & \multicolumn{3}{c}{\textcolor{black!55}{share of \emph{reconstructed} vertices}}
+        & \textcolor{black!55}{share of \emph{truth}} \\
+        \cmidrule(lr){2-4}\cmidrule(lr){5-5}
+        \textbf{Chain} & Clean & Merged & Fake & \textbf{Clean / truth} \\
+        \midrule
+        PV-Finder peaks $+$ GNN (\(t=0.99\)) & 90.4\% & 7.4\% & 0.02\% & \textbf{77.4\%} \\
+        AMVF & 76.7\% & 20.0\% & 0.7\% & 60.9\% \\
+        GNN on truth vertices (bound) & 88.8\% & 7.4\% & ${\sim}0$ & 89.2\% \\
+        \bottomrule
+    \end{tabular}\\[3pt]
+    {\scriptsize\textcolor{black!55}{\textbf{The first three columns and the last have
+    different denominators.} The chain reconstructs fewer vertices than truth has, and
+    the ones it finds are the easier ones, so a higher \emph{share} of its vertices are
+    clean than of the truth-vertex bound, while recovering fewer truth vertices overall.
+    Only the last column is bounded by $89.2\%$. Drop-empty convention.}}
 \end{frame}
 
 \begin{frame}{Backup: The Train-on-Truth, Deploy-on-Peaks Gap}
