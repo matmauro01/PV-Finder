@@ -4455,3 +4455,66 @@ against each other, not against v3's absolute numbers.
   Never SIGKILL: this box still carries nine unkillable `evaluate_amvf_ttva`
   processes from 23 days ago, burning seven cores between them. Those entry
   points now warn in their docstrings to use the runpy form.
+
+## 2026-08-06 -- 7 August deck, rebuilt from the approved 24 July version
+
+`presentations/mattia/08_07_2026/`. A new deck, not an edit of the July one.
+
+The starting point is the **professor-approved 24 July source**
+(`07_24_2026/backups/slides_00_original_0724.tex`), with the 5 August
+measurement updates ported in one frame at a time. The 5 August working copy was
+not used as the base: it had grown a large defensive apparatus (withdrawal
+boxes, convention warnings, referee-style caveats) that belongs in the docs, not
+in a talk. Both starting points are kept in `08_07_2026/backups/`.
+
+### Structure
+
+**Model history is gone.** The three "Model history" slides and the
+before/after greedy-matching comparison described what the project used to do.
+The deck now describes only what the algorithm does today. The v1-to-v6 capacity
+table moved to backup, where it reads as a finding rather than a chronology.
+
+**The "Update:" section at the end is gone**, folded into Part III. The
+extended-|eta| sample is now simply *the* PU200 sample and the held-out v6
+numbers are the headline. Loss re-weighting moved to backup as a standalone
+negative result.
+
+**Two new slides on the peak finder**, which previously had one slide describing
+an algorithm that has since changed twice: the scan / conjoined-split / quality
+cuts in order, then where the position comes from (local centroid against
+whole-region mean, with the measured comparison from
+`docs/research/peak_position_estimator.md`).
+
+**New performance slide** `PU200: Yield across the Pileup Range`, from
+`reco_vs_mu` in the v6 held-out eval, plus the category-counts bars promoted
+into the main flow. A Part V divider, a divider template carrying a numeral
+badge and a one-line summary, and the `athena.png` screenshot redrawn as a TikZ
+package diagram.
+
+### Two errors found while porting
+
+1. The efficiency row of the position-estimator table had whole-region and
+   local-centroid **the wrong way round**. The local centroid *costs* 0.34
+   efficiency points (0.8811 -> 0.8777) and buys a 13% better separation scale.
+2. sigma_vtx-vtx appears as 0.218 mm on the window-fairness slide and 0.229 mm
+   on the results slides. Both are correct: 0.218/0.305 is the fairness audit's
+   own matcher, paired so the 1.40 ratio is internally consistent, while 0.229
+   is the production fit after the mu-window and commensurate-binning fixes. The
+   slide now says so.
+
+No measurement changed otherwise. Everything traces to
+`outputs/08_05_2026_output/eval_v6_mu_window/` and the fairness audit.
+
+### Timing
+
+The 4.5 +- 1.2 ms/event inference benchmark is quoted again with its plot, and
+"re-run the inference benchmark on the current model under the HEPScore
+protocol" is listed under next steps. The 5 August copy had withdrawn the number
+because no producing code sits in this repository; that is a provenance gap, not
+evidence the measurement is wrong, and a withdrawal box reads as a defect report
+in a talk.
+
+### Build
+
+54 pages, **zero overfull and zero underfull boxes**, no `[shrink=N]` anywhere.
+American spelling throughout, no em dashes.
