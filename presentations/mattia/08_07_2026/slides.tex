@@ -1225,7 +1225,7 @@
     direction. The effect is real, but it must never be quoted one-sided.}}
 \end{frame}
 
-\begin{frame}{Fake Suppression: The Post-hoc Levers Are Exhausted}
+\begin{frame}{Where the Peak-Finder Thresholds Come From}
     \begin{columns}[c]
         \begin{column}{0.46\linewidth}
             \centering
@@ -1235,30 +1235,30 @@
         \end{column}
         \begin{column}{0.54\linewidth}
             \footnotesize
-            \textbf{Real and fake peaks are separable.} A boosted tree on 23 per-peak
-            features reaches \textbf{AUC 0.965}. Histogram features alone give $0.959$
-            and track features alone $0.957$, so the two sets say the \textbf{same
-            thing}: the network has already used the tracks.
+            \textbf{What we run.} Three cuts on every candidate peak: at least
+            $\mathbf{3}$ \textbf{bins wide}, \textbf{integral} $\mathbf{\geq 0.30}$,
+            \textbf{height} $\mathbf{\geq 0.03}$.
             \vspace{0.55em}
 
-            \textbf{But no post-hoc gate is worth deploying.}
-            \begin{itemize}\setlength\itemsep{0.3em}
-                \item \textbf{817 configurations} (smoothing, notch, prominence,
-                    non-maximum suppression, minimum separation, peakiness, two
-                    thresholds each), chosen on one half of the sample and reported on
-                    the other: \textcolor{pennred}{\textbf{none beat the deployed
-                    operating point}}
-                \item Losing one real peak costs $0.90$ efficiency points, so a filter
-                    has to remove \textbf{at least $4.5$ fakes for every real peak} it
-                    kills. The \textbf{height floor at $0.03$ gets $4.9$ to $1$}, and is
-                    the only one we run
-            \end{itemize}
+            \textbf{How we picked it.} Split the held-out sample in half with a fixed
+            seed, scan a $120$-point grid over the three cuts on \textbf{half A}, then
+            report the winner on \textbf{half B}, which was never used to choose
+            anything. Half B gives $87.0\%$ efficiency at $16.2$ fakes/event.
+            \vspace{0.55em}
+
+            \textbf{Why not add a classifier on top?} A boosted tree does tell real
+            peaks from fake ones, \textbf{AUC 0.965}, and histogram features alone do as
+            well as track features, so the network has already used the tracks.
+            \textcolor{pennred}{\textbf{But separable is not the same as filterable.}}
+            These three cuts have already removed the easy fakes. What survives sits
+            where the two populations overlap, so any further filter takes real peaks
+            along with it.
         \end{column}
     \end{columns}
-    \vspace{0.4em}
+    \vspace{0.3em}
     \centering
-    {\small\textcolor{black!65}{\textbf{The remaining gains have to come from training,
-    not from filtering afterwards.}}}
+    {\small\textcolor{black!65}{\textbf{817 further filters were tried and scored the
+    same way. None beat these three cuts.} \textcolor{black!50}{(backup)}}}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
