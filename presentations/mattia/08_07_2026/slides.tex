@@ -1509,9 +1509,10 @@
 \end{frame}
 
 \begin{frame}{TTVA at PU200: The Full Chain against AMVF}
+    \vfill
     \small
-    Identical 1920 held-out events, 213{,}738 truth PVs, $t=0.98$, drop-empty convention.
-    \vspace{0.5em}
+    Same 1920 held-out events as the finder results, 213{,}738 truth PVs, $t=0.98$.
+    \vspace{0.8em}
 
     \begin{center}
     \setlength{\tabcolsep}{9pt}
@@ -1526,58 +1527,26 @@
         \bottomrule
     \end{tabular}
     \end{center}
+    \vspace{0.9em}
+
+    \begin{columns}[t]
+        \begin{column}{0.5\linewidth}
+            \textbf{The associator is nearly done.} It reaches $94\%$ of what a perfect
+            assignment of tracks to \emph{these} peaks could achieve, against $42.5\%$
+            for AMVF.
+        \end{column}
+        \begin{column}{0.5\linewidth}
+            \textbf{The rest belongs to the finder.} Only $4.4$ points separate the
+            chain from that perfect assignment. $21.9$ points are truth vertices the
+            finder never found at all.
+        \end{column}
+    \end{columns}
     \vspace{0.5em}
 
-    \begin{columns}[t]
-        \begin{column}{0.5\linewidth}
-            \footnotesize
-            \textbf{Quote the fraction of oracle.} The absolute clean-over-truth is not
-            portable across truth definitions; the ratio to the campaign's own ceiling
-            is. Bounds here: finder cap $0.781$, oracle $0.728$, GNN on truth graphs
-            $0.769$.
-            \vspace{0.5em}
-
-            \textbf{The chain is finder-limited.} Truth $1.0$ $\to$ finder cap $0.781$
-            $\to$ oracle $0.728$ $\to$ GNN $0.684$. Only about 6 points of associator
-            headroom remain.
-        \end{column}
-        \begin{column}{0.5\linewidth}
-            \footnotesize
-            \textbf{Training-graph augmentation: a $24\sigma$ negative result.}
-            Resampling the training vertex nodes to look like reconstructed peaks was
-            expected to help. The unaugmented control wins at every threshold, $0.684$
-            against $0.650$, and the checkpoint-to-checkpoint spread is $0.002$, so the
-            effect is $16\times$ the epoch noise.
-            \vspace{0.5em}
-
-            \textcolor{pennred}{\textbf{Always name the fake convention.}} The same
-            model is $0.17\%$ fake under drop-empty and $9.7\%$ if empty vertices are
-            booked as fakes, a factor of $56$ from bookkeeping alone.
-        \end{column}
-    \end{columns}
-\end{frame}
-
-\begin{frame}{TTVA: Run 3 Collision Data (truth-free check)}
-    \begin{columns}[t]
-        \begin{column}{0.55\linewidth}
-            No truth on data \(\to\) use AMVF as a reference, not as truth:
-            \begin{itemize}
-                \setlength\itemsep{0.5em}
-                \item \textbf{95.7\%} of tracks assigned by both methods land on the \textbf{same vertex} (83.7\% of all AMVF-assigned)
-                \item Leading-\(\sum p_T^2\) (hard-scatter proxy) vertex agrees in \textbf{88.7\%} of events
-                \item The GNN assigns \textbf{83\%} of tracks on data vs AMVF's 95\%: it \textbf{abstains more} on the harder, unlabelled environment
-            \end{itemize}
-        \end{column}
-        \begin{column}{0.45\linewidth}
-            \begin{itemize}
-                \setlength\itemsep{0.5em}
-                \item Score distributions on data closely track MC, with somewhat more tracks at intermediate scores, a mild but visible domain shift
-                \item The full chain runs \textbf{unchanged} on data
-            \end{itemize}
-            \vspace{0.4em}
-            {\footnotesize\textcolor{black!55}{Agreement rates, not efficiencies: an unmatched AMVF track is not necessarily a GNN error.}}
-        \end{column}
-    \end{columns}
+    \centering
+    {\scriptsize\textcolor{black!55}{The absolute clean-over-truth is not comparable
+    across campaigns, because the truth definition changes. The fraction of oracle is.}}
+    \vfill
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1906,6 +1875,29 @@
     \end{columns}
 \end{frame}
 
+\begin{frame}{Backup: TTVA on Run 3 Collision Data}
+    \begin{columns}[t]
+        \begin{column}{0.55\linewidth}
+            No truth on data \(\to\) use AMVF as a reference, not as truth:
+            \begin{itemize}
+                \setlength\itemsep{0.5em}
+                \item \textbf{95.7\%} of tracks assigned by both methods land on the \textbf{same vertex} (83.7\% of all AMVF-assigned)
+                \item Leading-\(\sum p_T^2\) (hard-scatter proxy) vertex agrees in \textbf{88.7\%} of events
+                \item The GNN assigns \textbf{83\%} of tracks on data vs AMVF's 95\%: it \textbf{abstains more} on the harder, unlabelled environment
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.45\linewidth}
+            \begin{itemize}
+                \setlength\itemsep{0.5em}
+                \item Score distributions on data closely track MC, with somewhat more tracks at intermediate scores, a mild but visible domain shift
+                \item The full chain runs \textbf{unchanged} on data
+            \end{itemize}
+            \vspace{0.4em}
+            {\footnotesize\textcolor{black!55}{Agreement rates, not efficiencies: an unmatched AMVF track is not necessarily a GNN error.}}
+        \end{column}
+    \end{columns}
+\end{frame}
+
 \begin{frame}{Backup: TTVA at \(\langle\mu\rangle\!\approx\!60\) (MC, 2550 events)}
     \begin{columns}[c]
         \begin{column}{0.5\linewidth}
@@ -1963,9 +1955,17 @@
             has truth \emph{tracks} but no eligible truth \emph{vertex}.
             \vspace{0.6em}
 
-            {\footnotesize\textcolor{black!55}{Resampling the training vertex nodes to
-            match the measured peak distributions was the obvious fix. It was tested and
-            it does not work at equal training budget, see Part IV.}}
+            \vspace{0.2em}
+            \textbf{The obvious fix does not work.} Resampling the training vertex nodes
+            to look like reconstructed peaks was expected to close the gap. The
+            \emph{unaugmented} control wins at every threshold, $0.684$ against $0.650$,
+            and the checkpoint-to-checkpoint spread is only $0.002$, so the effect is
+            $16\times$ the epoch noise.
+            \vspace{0.5em}
+
+            {\footnotesize\textcolor{black!55}{Caveat: 6 dataset passes against the
+            earlier campaign's 18, so this says augmentation does not help at equal
+            training budget, not that it never helps.}}
         \end{column}
     \end{columns}
 \end{frame}
