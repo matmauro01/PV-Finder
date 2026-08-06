@@ -1424,14 +1424,17 @@
             so the useful range is \(t\geq0.9\)).
             \vspace{0.5em}
 
-            \textbf{Two conventions that must always be named:}
+            \textbf{Two bookkeeping choices, and both move the numbers:}
             \begin{itemize}
-                \setlength\itemsep{0.25em}
-                \item \textbf{Drop-empty}: vertices that end up with no track are
-                    dropped rather than booked Fake. Clean-over-truth is unchanged and
-                    higher thresholds become usable
-                \item The purity cut is $\mathbf{70\%}$, and it is load-bearing: the
-                    AMVF vertex-purity distribution has median $0.63$ and straddles it
+                \setlength\itemsep{0.3em}
+                \item A vertex that ends up with \textbf{no tracks} is dropped from the
+                    list rather than counted as a fake. It could not have been clean
+                    either way, so efficiency does not change, but the \emph{fake rate}
+                    depends strongly on this choice
+                \item A vertex counts as \textbf{clean} when $\mathbf{\geq70\%}$ of its
+                    tracks come from one truth vertex. AMVF's typical vertex is $63\%$
+                    pure, so it sits right at that cut, and moving the cut moves AMVF
+                    more than it moves us
             \end{itemize}
         \end{column}
         \begin{column}{0.44\linewidth}
