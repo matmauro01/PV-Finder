@@ -827,9 +827,10 @@
     \setlength{\fboxsep}{6pt}
     \colorbox{black!4}{\parbox{0.93\linewidth}{\footnotesize
     \textbf{The full chain, measured separately:} finder $+$ peak finding $+$
-    association, ${\sim}\mathbf{11}$\,\textbf{ms/event}. Peak finding
-    $61 \to 0.07$\,ms after JIT compilation, bit-exact against the reference
-    implementation; the association GNN forward pass is $3.8$\,ms and is never the
+    association, ${\sim}\mathbf{11}$\,\textbf{ms/event}. The peak-finding scan took
+    $61$\,ms in plain Python; compiling that loop to machine code brings it to
+    $\mathbf{0.07}$\,\textbf{ms}, and the compiled version returns exactly the same
+    peaks as the original. The association network takes $3.8$\,ms and is never the
     bottleneck.}}
 \end{frame}
 
@@ -904,8 +905,9 @@
             locates a vertex of a given multiplicity ($8.5\times10^{6}$ matched pairs),
             and fit $\sigma(\ntrk) = A\,\ntrk^{-B} + C$.
             \begin{itemize}\setlength\itemsep{0.4em}
-                \item Each bin is fit with a Gaussian core on a flat background, so
-                    wrong matches do not widen the answer
+                \item In each bin, correct matches form a narrow peak and
+                    \emph{wrong} matches spread out flat. We fit both at once and keep
+                    only the narrow part
                 \item On this sample $A{=}0.143$, $B{=}0.362$. \ntrk\ now includes
                     forward tracks, which say little about $z$, so peaks come out wider
                     at the same \ntrk
@@ -1028,68 +1030,47 @@
 \end{frame}
 
 \begin{frame}{Choosing a Matching Window That Favors Neither Algorithm}
+    \small
+    To say a truth vertex was \emph{found}, we need a distance: how close does a
+    reconstructed vertex have to be? Two different measurements could set it.
+    \vspace{0.5em}
+
     \begin{columns}[t]
         \begin{column}{0.5\linewidth}
-            \small
-            \textbf{$\sigma_{\text{vtx-vtx}}$ is the wrong quantity to build a window
-            from.} It measures how far apart two vertices must be to be resolved
-            \emph{separately}. ``Did the algorithm find this vertex'' is set by the
-            \textbf{core position resolution}.
-            \par\vspace{0.55em}
-            \centering
-            \footnotesize
-            \setlength{\tabcolsep}{5pt}
-            \begin{tabular}{l rr r}
-                \toprule
-                & PV-Finder & AMVF & ratio \\
-                \midrule
-                $\sigma_{\text{vtx-vtx}}$ \textcolor{black!55}{[mm]}
-                    & 0.218 & 0.305 & \textcolor{myred}{\textbf{1.40}} \\
-                core position res.\ \textcolor{black!55}{[$\mu$m]}
-                    & 55.1 & 56.5 & \textcolor{mygreen!70!black}{\textbf{1.03}} \\
-                \bottomrule
-            \end{tabular}
-            \par\vspace{0.4em}
-            \raggedright
-            {\scriptsize\textcolor{black!55}{This pair is the audit's own measurement on
-            these events; the production fit quoted elsewhere gives $0.229$\,mm. The
-            window is built on the ratio, not the absolute.}}
-            \par\vspace{0.5em}
-
-            The two algorithms locate a vertex to within $3\%$ of each other, so a
-            window built on that scale is even-handed by construction. Hence
-            \(\mathbf{3\times 56.5\,\mu m = 0.17}\)\,\textbf{mm}, three times the poorer
-            of the two, fixed before any comparison was read.
+            \textbf{\textcolor{mygreen!60!black}{Position resolution}} answers
+            \emph{how precisely does the algorithm place a vertex it has already
+            found}. Take vertices that truth and the algorithm agree on, and measure
+            how far off the reconstructed $z$ is. That spread is the position
+            resolution. \textbf{This is the right question here.}
         \end{column}
         \begin{column}{0.5\linewidth}
-            \small
-            \textbf{And a round $0.5$\,mm is measurably too loose.} At PU200 the truth
-            density is ${\sim}0.9$ vertices/mm, so a reco vertex lands near \emph{some}
-            truth vertex regardless. Displace the reco list by $3$\,mm and re-match:
-            what survives is pure coincidence.
-            \par\vspace{0.55em}
-            \centering
-            \footnotesize
-            \setlength{\tabcolsep}{4.6pt}
-            \begin{tabular}{l rrrr}
-                \toprule
-                common window \textcolor{black!55}{[mm]}
-                    & 0.10 & \textbf{0.17} & \textbf{0.50} & 1.00 \\
-                \midrule
-                accidental eff.\ \textcolor{black!55}{[\%]}
-                    & 11.1 & \textbf{18.6} & \textcolor{pennred}{\textbf{45.4}} & 68.1 \\
-                \bottomrule
-            \end{tabular}
-            \par\vspace{0.7em}
-            \raggedright
-
-            \textbf{At $0.5$\,mm nearly half the measured efficiency is coincidence};
-            at $0.17$\,mm it is under a fifth. The floor is the same for both
-            algorithms to within $0.3$ points, so it does not bias the
-            \emph{comparison}, but it does destroy the meaning of any \emph{absolute}
-            number quoted at a loose window.
+            \textbf{\textcolor{myred}{$\sigma_{\text{vtx-vtx}}$}} answers a
+            \emph{different} question: how far apart two vertices must be before the
+            algorithm reports two instead of one. That is about separating neighbors,
+            not about locating one vertex, so it is the wrong basis for a window.
         \end{column}
     \end{columns}
+
+    \vspace{0.7em}
+    \centering
+    \setlength{\tabcolsep}{9pt}
+    \begin{tabular}{l rr r}
+        \toprule
+        & PV-Finder & AMVF & ratio \\
+        \midrule
+        \textcolor{mygreen!60!black}{position resolution} \textcolor{black!55}{[$\mu$m]}
+            & 55.1 & 56.5 & \textcolor{mygreen!70!black}{\textbf{1.03}} \\
+        \textcolor{myred}{$\sigma_{\text{vtx-vtx}}$} \textcolor{black!55}{[mm]}
+            & 0.218 & 0.305 & \textcolor{myred}{\textbf{1.40}} \\
+        \bottomrule
+    \end{tabular}
+
+    \vspace{0.7em}
+    The two algorithms place a vertex equally well, to within $3\%$, so a window built
+    on that number is fair to both. Built on $\sigma_{\text{vtx-vtx}}$ it would not be:
+    those differ by $40\%$.\\[0.3em]
+    \textcolor{pennred}{\textbf{Common window $= 3 \times 56.5\,\mu$m $= 0.17$\,mm}},
+    three times the worse of the two, fixed before any comparison was read.
 \end{frame}
 
 \begin{frame}{PV-Finder vs AMVF, Apples to Apples}
@@ -1097,8 +1078,9 @@
     \centering
     \scriptsize
     Same 1920 held-out events, same $0.17$\,mm window, same truth list, same
-    classifier. Errors are bootstrap over events; every difference is a
-    \textbf{paired} bootstrap.
+    classifier. The $\pm$ values say how much each number would move on a different
+    sample of the same size. The difference row is measured event by event, which is
+    why it is more precise than the two rows above it.
     \vspace{0.35em}
 
     \setlength{\tabcolsep}{7pt}
@@ -1125,29 +1107,27 @@
         \begin{column}{0.5\linewidth}
             \footnotesize
             \textbf{The result is the margin, not the absolute:}
-            \begin{itemize}\setlength\itemsep{0.15em}
+            \begin{itemize}\setlength\itemsep{0.25em}
                 \item \textcolor{pennred}{$\mathbf{+3.4 \pm 0.1}$ \textbf{efficiency
-                    points}} and $\mathbf{0.60 \pm 0.09}$ fewer surplus vertices/event
-                \item Robust across windows $0.1$ to $1.0$\,mm, both truth definitions
-                    and both matching conventions
-                \item Survives at \textbf{equal candidate yield}
-                    ($+2.90\pm0.06$ points, $-3.23\pm0.09$ surplus/event)
+                    points}}, and $\mathbf{0.60 \pm 0.09}$ fewer surplus vertices per
+                    event
+                \item The lead holds for every window we tried, and under both ways of
+                    counting a merge
+                \item It also holds if we tune PV-Finder to produce the \textbf{same
+                    number of vertices} as AMVF ($+2.90 \pm 0.06$ points)
             \end{itemize}
         \end{column}
         \begin{column}{0.5\linewidth}
             \footnotesize
             \textbf{What the absolute number is worth:}
-            \begin{itemize}\setlength\itemsep{0.15em}
-                \item The $86.9\%$ on the earlier slide is $9.7$ points of merge
-                    convention above a strict count, at a window taken from the wrong
-                    quantity
-                \item No crossing anywhere between $0.1$ and $1.0$\,mm for efficiency,
-                    fake, or fake corrected for single-track truth; fake\,$+$\,split
-                    crosses at $0.596$\,mm
+            \begin{itemize}\setlength\itemsep{0.25em}
+                \item The $86.9\%$ quoted earlier sits $9.7$ points above a strict
+                    one-to-one count, and uses a window taken from PV-Finder's own
+                    resolution. \textbf{Quote the margin, not that number}
+                \item PV-Finder leads on efficiency and on fakes at every window. The
+                    one place AMVF catches up is fake plus split, and only for windows
+                    looser than $0.60$\,mm
             \end{itemize}
-            \vspace{0.2em}
-            {\scriptsize\textcolor{black!55}{Two independent derivations, separate
-            matchers, agreeing on ten quantities.}}
         \end{column}
     \end{columns}
 \end{frame}
@@ -1171,24 +1151,18 @@
             single peak.}}
         \end{column}
         \begin{column}{0.4\linewidth}
-            \footnotesize
-            The residual modes have different origins:
-            \begin{itemize}\setlength\itemsep{0.25em}
-                \item \textbf{Merged}: close pairs below $0.5$\,mm, limited by resolution
-                \item \textbf{Missed}: low multiplicity, little track signal
-                \item \textbf{Fake}: small peaks at sparse-track locations
+            \small
+            The vertices we do not get right fail in three different ways:
+            \begin{itemize}\setlength\itemsep{0.3em}
+                \item \textbf{Merged}: two close vertices, one peak
+                \item \textbf{Missed}: too few tracks to make a peak at all
+                \item \textbf{Fake}: a peak where no vertex is
             \end{itemize}
-            \vspace{0.5em}
-            \textbf{A hard ceiling.} The median adjacent-vertex spacing is
-            $\mathbf{1.16}$\,mm, yet \textbf{$17.2\%$ of adjacent pairs sit
-            $<0.3$\,mm} apart, below any peak finder's resolution at this granularity,
-            and $10.1\%$ of all truth vertices have a neighbor inside the matching
-            window.
-            \vspace{0.4em}
-
-            {\scriptsize\textcolor{black!55}{Greedy closest-first matching puts the
-            genuine merge loss near $11\%$; a per-reco rule that lets several vertices
-            claim the same truth reports $22\%$.}}
+            \vspace{0.6em}
+            \textbf{Some of this is physics, not the algorithm.} Vertices sit
+            $\mathbf{1.16}$\,mm apart on average, but \textbf{$17.2\%$ of neighboring
+            pairs are closer than $0.3$\,mm}. At $0.04$\,mm bins, no peak finder
+            separates those.
         \end{column}
     \end{columns}
 \end{frame}
@@ -1837,6 +1811,86 @@
             loss exactly; what differs is the training pool and the target-width preset.}}
         \end{column}
     \end{columns}
+\end{frame}
+
+\begin{frame}{Backup: Why the Split Rule Is Not Smarter}
+    \small
+    The rule splits a run as soon as the histogram starts rising again, even by one
+    bin. The obvious fix is a \textbf{prominence gate}: split only if the valley between
+    the two peaks is deep enough.
+    \vspace{0.5em}
+
+    \begin{columns}[t]
+        \begin{column}{0.42\linewidth}
+            \centering
+            \scriptsize
+            \setlength{\tabcolsep}{5pt}
+            \begin{tabular}{l rr}
+                \toprule
+                gate & fakes cut & real lost \\
+                \midrule
+                none \textcolor{black!55}{(deployed)} & 0 & 0 \\
+                $0.005$ & 3.37 & 1.70 \\
+                $0.010$ & 4.58 & 2.07 \\
+                $0.020$ & 6.85 & 2.76 \\
+                \bottomrule
+            \end{tabular}\\[0.3em]
+            {\scriptsize\textcolor{black!55}{peaks per event}}
+        \end{column}
+        \begin{column}{0.58\linewidth}
+            \footnotesize
+            \begin{itemize}\setlength\itemsep{0.35em}
+                \item \textbf{The arithmetic fails.} One real peak lost per event costs
+                    $0.90$ efficiency points, one fake removed is worth $0.20$. A filter
+                    needs \textbf{$4.5$ fakes per real peak}; these manage $1.3$ to
+                    $2.0$
+                \item \textbf{It breaks what the rule is for.}
+                    $\sigma_{\text{vtx-vtx}}$ degrades $0.214 \to 0.246$\,mm: it also
+                    removes peaks that were correctly resolving close pairs
+                \item \textbf{Nothing is left to catch.} Surviving surplus peaks have
+                    median prominence $0.068$, and $0.89$ relative to their own height:
+                    standalone low peaks, not ripple
+            \end{itemize}
+        \end{column}
+    \end{columns}
+
+    \vspace{0.4em}
+    \centering
+    {\footnotesize\textcolor{black!65}{\textbf{817 configurations} were swept in all,
+    chosen on one half of the sample and scored on the other.
+    \textbf{None beat what we run.}}}
+\end{frame}
+
+\begin{frame}{Backup: Why Not a Looser Matching Window}
+    \vfill
+    \small
+    A round number like $0.5$\,mm looks safely generous. It is not. At PU200 there are
+    about $0.9$ truth vertices per mm, so a reconstructed vertex lands near \emph{some}
+    truth vertex whether or not it found anything.
+    \vspace{0.6em}
+
+    \centering
+    To measure that, displace the whole reconstructed list by $3$\,mm, destroying every
+    real association, and match again. Whatever survives is coincidence:
+    \vspace{0.6em}
+
+    \footnotesize
+    \setlength{\tabcolsep}{9pt}
+    \begin{tabular}{l rrrr}
+        \toprule
+        window \textcolor{black!55}{[mm]} & 0.10 & \textbf{0.17} & 0.50 & 1.00 \\
+        \midrule
+        efficiency from coincidence \textcolor{black!55}{[\%]}
+            & 11.1 & \textbf{18.6} & \textcolor{pennred}{\textbf{45.4}} & 68.1 \\
+        \bottomrule
+    \end{tabular}
+
+    \vspace{0.8em}
+    \raggedright\small
+    At $0.5$\,mm nearly \textbf{half} the measured efficiency is coincidence; at
+    $0.17$\,mm it is under a fifth. The floor is the same for both algorithms to within
+    $0.3$ points, so it does not bias the \emph{comparison}, but it does destroy the
+    meaning of any \emph{absolute} efficiency quoted at a loose window.
 \end{frame}
 
 \begin{frame}{Backup: The Shoulder in the $\Delta z$ Plot}
