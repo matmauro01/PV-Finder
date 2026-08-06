@@ -1553,7 +1553,57 @@
 %%%%% PART V: CONCLUSIONS %%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\partdivider{V}{Conclusions and next steps}{Where the remaining headroom is, and the path into Athena}
+\partdivider{V}{Integration and conclusions}{The path into Athena, and where the remaining headroom is}
+
+\begin{frame}{Athena Integration Plan}
+    \centering
+    \resizebox{0.88\linewidth}{!}{%
+    \begin{tikzpicture}[x=1cm, y=1cm, >=Latex, font=\small]
+        \tikzstyle{pkg}=[draw=black!35, rounded corners=7pt, fill=black!3,
+                         line width=0.9pt, align=left, inner sep=8pt, text width=6.6cm,
+                         font=\footnotesize]
+        \tikzstyle{tools}=[draw=mydarkblue!55, rounded corners=7pt, fill=mydarkblue!8,
+                           line width=0.9pt, align=left, inner sep=8pt, text width=6.6cm]
+        \tikzstyle{onnx}=[draw=myorange!70!black, rounded corners=7pt, fill=myorange!12,
+                          line width=0.9pt, align=center, inner sep=7pt]
+        % header
+        \node[draw=pennred!55, fill=pennred!8, rounded corners=7pt, line width=1.0pt,
+              inner sep=7pt, font=\small] (root) at (7.6,6.6)
+              {\texttt{InnerDetector/InDetRecTools}};
+        % package cards
+        \node[pkg, anchor=north west] (pa) at (0,5.3)
+            {\textbf{\texttt{InDetNNPriVxFinderTool}}\\[2pt]
+             \scriptsize\textcolor{black!60}{\texttt{src/}\ \ \texttt{Root/}\ \ \texttt{data/}\ \ \texttt{CMakeLists.txt}}\\[2pt]
+             \scriptsize primary-vertex finding};
+        \node[pkg, anchor=north east] (pb) at (15.2,5.3)
+            {\textbf{\texttt{InDetGNNTrackVertexAssociationTool}}\\[2pt]
+             \scriptsize\textcolor{black!60}{\texttt{src/}\ \ \texttt{Root/}\ \ \texttt{data/}\ \ \texttt{CMakeLists.txt}}\\[2pt]
+             \scriptsize track-to-vertex association};
+        \draw[black!45, line width=0.9pt] (root.south) -- (7.6,5.75);
+        \draw[black!45, line width=0.9pt] (3.3,5.75) -- (11.9,5.75);
+        \draw[->, black!45, line width=0.9pt] (3.3,5.75) -- (3.3,5.32);
+        \draw[->, black!45, line width=0.9pt] (11.9,5.75) -- (11.9,5.32);
+        % tools inside package A
+        \node[tools, anchor=north west] (ta) at (0,2.85)
+            {\textbf{\footnotesize Tools inside the package}\\[3pt]
+             \scriptsize\texttt{TrackSelectionTool}\\
+             \scriptsize\texttt{ONNXInferenceTool}\\
+             \scriptsize\texttt{PeakFinderTool}\\
+             \scriptsize\texttt{VertexBuilderTool}};
+        \draw[->, mydarkblue!55, line width=0.9pt] (3.3,3.15) -- (3.3,2.88);
+        % data/ callout for package A
+        \node[onnx, anchor=north west, text width=6.6cm, align=left] (ox) at (8.6,2.85)
+            {\scriptsize\texttt{data/} holds the exported \textbf{ONNX} weights,
+             loaded through \texttt{FlavorTagInference/SaltModel}};
+        \draw[->, myorange!70!black, line width=0.9pt] (11.9,3.15) -- (11.9,2.88);
+    \end{tikzpicture}}
+
+    \vspace{0.6em}
+    {\small\textcolor{black!65}{\textbf{Two independent packages}, so the finder and the
+    associator can be validated and deployed separately. The association package mirrors
+    the same layout.}}\\[0.3em]
+    {\scriptsize\textcolor{black!50}{Integration led by Rocky.}}
+\end{frame}
 
 \begin{frame}{Conclusions}
     \begin{columns}[t]
@@ -1630,68 +1680,6 @@
     \centering
     {\small\textcolor{black!60}{Everything on the left needs a retrain; nothing on the
     right does.}}
-\end{frame}
-
-\begin{frame}{Athena Integration Plan}
-    \centering
-    \resizebox{0.88\linewidth}{!}{%
-    \begin{tikzpicture}[x=1cm, y=1cm, >=Latex, font=\small]
-        \tikzstyle{pkg}=[draw=black!35, rounded corners=7pt, fill=black!3,
-                         line width=0.9pt, align=left, inner sep=8pt, text width=6.6cm,
-                         font=\footnotesize]
-        \tikzstyle{tools}=[draw=mydarkblue!55, rounded corners=7pt, fill=mydarkblue!8,
-                           line width=0.9pt, align=left, inner sep=8pt, text width=6.6cm]
-        \tikzstyle{onnx}=[draw=myorange!70!black, rounded corners=7pt, fill=myorange!12,
-                          line width=0.9pt, align=center, inner sep=7pt]
-        % header
-        \node[draw=pennred!55, fill=pennred!8, rounded corners=7pt, line width=1.0pt,
-              inner sep=7pt, font=\small] (root) at (7.6,6.6)
-              {\texttt{InnerDetector/InDetRecTools}};
-        % package cards
-        \node[pkg, anchor=north west] (pa) at (0,5.3)
-            {\textbf{\texttt{InDetNNPriVxFinderTool}}\\[2pt]
-             \scriptsize\textcolor{black!60}{\texttt{src/}\ \ \texttt{Root/}\ \ \texttt{data/}\ \ \texttt{CMakeLists.txt}}\\[2pt]
-             \scriptsize primary-vertex finding};
-        \node[pkg, anchor=north east] (pb) at (15.2,5.3)
-            {\textbf{\texttt{InDetGNNTrackVertexAssociationTool}}\\[2pt]
-             \scriptsize\textcolor{black!60}{\texttt{src/}\ \ \texttt{Root/}\ \ \texttt{data/}\ \ \texttt{CMakeLists.txt}}\\[2pt]
-             \scriptsize track-to-vertex association};
-        \draw[black!45, line width=0.9pt] (root.south) -- (7.6,5.75);
-        \draw[black!45, line width=0.9pt] (3.3,5.75) -- (11.9,5.75);
-        \draw[->, black!45, line width=0.9pt] (3.3,5.75) -- (3.3,5.32);
-        \draw[->, black!45, line width=0.9pt] (11.9,5.75) -- (11.9,5.32);
-        % tools inside package A
-        \node[tools, anchor=north west] (ta) at (0,2.85)
-            {\textbf{\footnotesize Tools inside the package}\\[3pt]
-             \scriptsize\texttt{TrackSelectionTool}\\
-             \scriptsize\texttt{ONNXInferenceTool}\\
-             \scriptsize\texttt{PeakFinderTool}\\
-             \scriptsize\texttt{VertexBuilderTool}};
-        \draw[->, mydarkblue!55, line width=0.9pt] (3.3,3.15) -- (3.3,2.88);
-        % data/ callout for package A
-        \node[onnx, anchor=north west, text width=6.6cm, align=left] (ox) at (8.6,2.85)
-            {\scriptsize\texttt{data/} holds the exported \textbf{ONNX} weights,
-             loaded through \texttt{FlavorTagInference/SaltModel}};
-        \draw[->, myorange!70!black, line width=0.9pt] (11.9,3.15) -- (11.9,2.88);
-    \end{tikzpicture}}
-
-    \vspace{0.6em}
-    {\small\textcolor{black!65}{\textbf{Two independent packages}, so the finder and the
-    associator can be validated and deployed separately. The association package mirrors
-    the same layout.}}\\[0.3em]
-    {\scriptsize\textcolor{black!50}{Integration led by Rocky.}}
-\end{frame}
-
-\begin{frame}[plain]
-    \centering
-    \vfill
-    {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}\\[0.8em]
-    {\Large\textbf{\textcolor{pennred}{Thank you}}}\\[0.5em]
-    {\normalsize\textcolor{black!55}{Questions?}}\\[1.4em]
-    \includegraphics[height=0.85cm]{logo-Stanford/Block_S_2_color.png}\hspace{1.1em}
-    \includegraphics[trim={0 11.5cm 0 11.5cm},clip,height=0.85cm]{logo-ATLAS/ATLAS-Logo-Ref-Pantone.pdf}\hspace{1.1em}
-    \includegraphics[height=0.85cm]{logo-iris-hep/Iris-hep-4-no-long-name.png}
-    \vfill
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
