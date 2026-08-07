@@ -456,6 +456,14 @@ captures 86% of the oracle. Junk peaks = 9.4% of peaks (8.3/event).
 v1 remains marginally better than v2 on chain graphs (0.647 vs 0.636) —
 the genuine residual transfer gap that v3 training attacks.
 
+> ⚠ **"median nTrk 3 vs 7" is a v4b-campaign number and must not be quoted for
+> v6.** The v6 decomposition
+> (`outputs/08_05_2026_output/gnn_ttva_v4/ttva_gap_v6{,_test}/gap_decomposition.json`)
+> gives **median nTrk 3 for a missed truth vertex against 9 for a found one**,
+> and it gives the same pair at both 1500 events (r16638) and 1920 events
+> (r16443), so it is not a sample-size artefact. The 7 was carried into the
+> 24 July and 5 August decks by hand and was corrected on 2026-08-07.
+
 **Hard-scatter ID at PU200** (`gnn.evaluation.hs_id_pu200`,
 `outputs/07_14_2026_ttva_gap/hs_id_v1/`): leading sum-pT² vertex is the
 true HS vertex in **97.5%** of events for the GNN chain at t=0.5 — exactly

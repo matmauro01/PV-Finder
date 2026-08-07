@@ -507,6 +507,29 @@ points of merge convention above a strict count, sits at a window taken from the
 wrong quantity, and at a 0.5 mm window would be nearly half coincidence. **Quote
 the margin, the convention and the window — never the bare efficiency.**
 
+### AMVF σ_vtx-vtx on collision data (2026-08-07)
+
+Previously we quoted PV-Finder's resolution on Run 2 and Run 3 data with no AMVF
+partner, only an "agreement with AMVF" percentage. The partner now exists.
+
+`src/pv_finder/diagnostics/amvf_run3_performance_plots.py`, 2500 events per
+file, same sigmoid-notch fit on the pairwise reco–reco Δz that the evaluation
+uses. AMVF vertices at nTracks ≥ 2. Outputs in
+`outputs/08_07_2026_output/amvf_data_resolution/`.
+
+| sample | PV-Finder | AMVF | ratio |
+|---|---:|---:|---:|
+| Run 2 data (⟨μ⟩ ≈ 47) | 0.37 mm | **0.812 mm** | 2.2 |
+| Run 3 data (⟨μ⟩ ≈ 60) | 0.35 mm | **0.820 mm** | 2.3 |
+
+Pair counts 1,559,294 (Run 2) and 1,800,158 (Run 3). Neither file carries MC
+truth, so only the resolution figure is produced; the category plot is skipped
+by the script, as documented above.
+
+Consistent with the MC ttbar measurement (AMVF 0.793 mm) and with the PU200
+result, where the same fit gives AMVF 0.305 mm against PV-Finder's 0.229 mm. The
+factor of roughly two in favor of PV-Finder holds on simulation and on data.
+
 ### Pairwise-Δz binning (2026-08-05) — `--pairwise-bins` now defaults to 300
 
 The plateau of `resolution_plot.png` used to alternate between two levels by

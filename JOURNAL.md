@@ -4518,3 +4518,70 @@ in a talk.
 
 54 pages, **zero overfull and zero underfull boxes**, no `[shrink=N]` anywhere.
 American spelling throughout, no em dashes.
+
+## 2026-08-07 -- 7 August deck: professor review addressed, two-version build
+
+Review comments from the professor and from Rocky on the 55-page 7 August deck.
+Addressed slide by slide. `presentations/mattia/08_07_2026/`; the pre-review
+state is kept at `backups/slides_02_pre_prof_comments.tex`.
+
+### New measurements
+
+**AMVF sigma_vtx-vtx on real collision data.** The deck quoted PV-Finder's
+resolution on Run 2 and Run 3 data against no AMVF partner. Measured today with
+`diagnostics/amvf_run3_performance_plots.py`, 2500 events per file, the same
+sigmoid fit the evaluation uses: **Run 2 0.812 mm, Run 3 0.820 mm**, against
+PV-Finder's 0.37 and 0.35. A factor of about 2.2 on data, matching the factor
+seen in MC and at PU200. Outputs in
+`outputs/08_07_2026_output/amvf_data_resolution/`.
+
+**Three figures from cached arrays**, no new inference:
+  - `mu_distribution_pu200.png`. Rocky asked whether the sample is really fixed
+    at mu = 200. It is not: the two held-out evaluation files are flat in mu,
+    0 to 200 (measured off r16443 directly, not taken from the data doc, which
+    says 210). The figure shades the mu in [185,215] slice the headline uses.
+  - `position_resolution_pvf_amvf.png`. The plot behind the 55.1 / 56.5 um
+    window basis. First attempt used greedy closest-first matching and produced
+    50.1 / 51.1 um, which would have contradicted the table on the same slide.
+    The fairness audit uses an optimal (Hungarian) assignment, deliberately,
+    because greedy creams off the core and biases the width low. Fixed by
+    importing `matched_residuals_optimal` rather than reimplementing it; the
+    figure now reproduces 55.1 / 56.5 exactly.
+  - `hllhc_resolution_overlay.png`. PV-Finder and AMVF pairwise-Δz dips on one
+    axis. **No sigma is annotated on this figure on purpose:** fitting the
+    cached peak list gives 0.218 mm for PV-Finder while the deck quotes the
+    production 0.229 mm, because the eval computes the resolution on a separate
+    peak list (`p_pvs_r`) from the one it scores efficiency on. Both numbers are
+    right; putting both in front of an audience is not. Worth reconciling.
+
+### Two stale numbers found and fixed
+
+- "Finder cap ... median nTrk 3 against **7**" was a v4b-campaign number
+  (`outputs/07_14_2026_ttva_gap/`) sitting on a slide whose every other figure
+  comes from the v6 decomposition. v6 gives **9**, at both 1500 and 1920 events.
+  Corrected on the slide and warned about in `docs/evaluation/vertex_association.md`.
+- The PU200 sample slide described the flat-mu evaluation files as "0 to 210".
+  Measured: 0 to 200. The mu figure now sits beside that sentence, so the
+  discrepancy would have been visible.
+
+### Corrected framing
+
+The right-hand table on the PU200 sample slide compares two **data productions**,
+not two configurations of AMVF. AMVF always accepted tracks to |eta| < 4.0; the
+old production simply reconstructed none beyond 2.5. That is why its vertex count
+is flat (101.2 to 101.3) while its mean tracks per vertex jumps (8.80 to 13.40):
+it hangs the new forward tracks on vertices it already had. Both reviewers read
+the old wording as a claim about AMVF's seeding.
+
+### Structure
+
+Window scan, failure modes, fake composition and threshold provenance moved to
+the backup behind a single signpost slide that names each topic and gives its
+backup page via `\pageref`. Held-out sample 2 moved to backup with a consistency
+table. The talk is shorter and the material is still there.
+
+### Two versions from one source
+
+`\readingonly{...}` and `\talkonly{...}`, switched by `\talkbuild`. `./build.sh`
+produces `slides.pdf` (reading) and `slides_talk.pdf` (presentation) from the
+same file, so no number can drift between them.
