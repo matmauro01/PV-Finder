@@ -281,17 +281,21 @@
             \footnotesize
             \textbf{What goes in and what comes out}
             \begin{itemize}\setlength\itemsep{0.2em}
-                \item Input is the \textbf{track set}: $7$ features per
-                    track\readingonly{, the impact parameters $d_0$ and $z_0$,
-                    their errors and covariance, and the $z$ extent}
+                \item \readingonly{Input is the \textbf{track set}: $7$ features per
+                    track, the impact parameters $d_0$ and $z_0$,
+                    their errors and covariance, and the $z$ extent}%
+                    \talkonly{Input: \textbf{track set}, $7$ features per track}
                 \item Track selection: \textbf{tight primary} tracks with
                     $p_T > 500$\,MeV
-                \item The \textbf{masked MLP} reads the tracks as a
-                    set\readingonly{, so the output does not depend on their order
-                    or number}
-                \item The \textbf{1-D U-Net} turns the latent map into a vertex
+                \item \readingonly{The \textbf{masked MLP} reads the tracks as a
+                    set, so the output does not depend on their order
+                    or number}%
+                    \talkonly{\textbf{Masked MLP} reads tracks as a set}
+                \item \readingonly{The \textbf{1-D U-Net} turns the latent map into a vertex
                     histogram: $12$ intervals of $40$\,mm, $12{,}000$ bins of
-                    $0.04$\,mm over $|z| < 240$\,mm
+                    $0.04$\,mm over $|z| < 240$\,mm}%
+                    \talkonly{\textbf{1-D U-Net} to the histogram: $12$ intervals of
+                    $40$\,mm, $12{,}000$ bins of $0.04$\,mm, $|z| < 240$\,mm}
             \end{itemize}
         \end{column}
         \begin{column}{0.5\linewidth}
@@ -300,12 +304,15 @@
             \begin{itemize}\setlength\itemsep{0.2em}
                 \item $3.55$M parameters, plain \textbf{MSE} against a target histogram
                     of Gaussian peaks, one per truth vertex
-                \item The target peak \emph{width} says how well a vertex of that
-                    multiplicity can be located\readingonly{, and is measured from
-                    data (Part III)}
-                \item An \textbf{MLP-only warm-up} precedes end-to-end
-                    training\readingonly{. That is what removes the kernel-density
-                    estimate from the pipeline}
+                \item \readingonly{The target peak \emph{width} says how well a vertex of that
+                    multiplicity can be located, and is measured from
+                    data (Part III)}%
+                    \talkonly{Target peak \emph{width}: how well that multiplicity
+                    can be located}
+                \item \readingonly{An \textbf{MLP-only warm-up} precedes end-to-end
+                    training. That is what removes the kernel-density
+                    estimate from the pipeline}%
+                    \talkonly{\textbf{MLP-only warm-up} before end-to-end training}
             \end{itemize}
         \end{column}
     \end{columns}
@@ -314,8 +321,9 @@
 \begin{frame}{Peak Finding: Turning the Histogram into a Vertex List}
     \vspace{-0.35em}
     {\centering\small
-    The histogram is a density, not a list. Converting it is a \textbf{deterministic
-    scan}: no learning, no fitting.\par}
+    \readingonly{The histogram is a density, not a list. Converting it is a \textbf{deterministic
+    scan}: no learning, no fitting.}\talkonly{A density, not a list: a
+    \textbf{deterministic scan}, no learning, no fitting}\par}
     \vspace{0.2em}
 
     {\centering
@@ -373,12 +381,16 @@
         \begin{column}{0.5\linewidth}
             \footnotesize
             \begin{enumerate}\setlength\itemsep{0.3em}
-                \item \textbf{Scan} the $12{,}000$ bins left to right and collect every
-                    contiguous run of bins above $\tau = 0.01$
-                \item \textbf{Split conjoined peaks.} Once the density has passed a
+                \item \readingonly{\textbf{Scan} the $12{,}000$ bins left to right and collect every
+                    contiguous run of bins above $\tau = 0.01$}%
+                    \talkonly{\textbf{Scan} $12{,}000$ bins, collect each contiguous
+                    run above $\tau = 0.01$}
+                \item \readingonly{\textbf{Split conjoined peaks.} Once the density has passed a
                     maximum and starts rising again, the run closes and a new one opens
-                    at that local minimum\readingonly{, so two peaks that overlap
-                    without returning to zero are still separated}
+                    at that local minimum, so two peaks that overlap
+                    without returning to zero are still separated}%
+                    \talkonly{\textbf{Split conjoined peaks.} Rising again past a
+                    maximum: run closes, new one opens at that local minimum}
             \end{enumerate}
         \end{column}
         \begin{column}{0.5\linewidth}
@@ -466,16 +478,22 @@
     \begin{columns}[t]
         \begin{column}{0.52\linewidth}
             \footnotesize
-            When a run is split, what is left is only \textbf{half of a peak}.
-            \readingonly{Averaging over the whole run then lands off center, pulled
-            toward the side the split did not cut.}
+            \readingonly{When a run is split, what is left is only \textbf{half of a peak}.
+            Averaging over the whole run then lands off center, pulled
+            toward the side the split did not cut.
             \vspace{0.45em}
 
             So we average over the \textbf{maximum bin and three bins on each
-            side}\readingonly{, stopping at the edge of the run so we never pick up a
-            neighbor's bins}. We scanned that window from $2$ bins out to the whole
-            run: three is best\readingonly{, and the curve is flat around it}. It
-            costs $0.34$ efficiency points and gives a $13\%$ better separation scale.
+            side}, stopping at the edge of the run so we never pick up a
+            neighbor's bins. We scanned that window from $2$ bins out to the whole
+            run: three is best, and the curve is flat around it. It
+            costs $0.34$ efficiency points and gives a $13\%$ better separation scale.}%
+            \talkonly{\begin{itemize}\setlength\itemsep{0.4em}
+                \item A split run leaves only \textbf{half of a peak}
+                \item Average over the \textbf{maximum bin and three bins on each side}
+                \item Scanned $2$ bins out to the whole run: three is best,
+                    $0.34$ efficiency points for a $13\%$ better separation scale
+            \end{itemize}}
         \end{column}
         \begin{column}{0.48\linewidth}
             \centering
@@ -520,9 +538,10 @@
 \begin{frame}{Matching and Vertex Categories}
     \vspace{-0.35em}
     {\centering\small
-    Reconstructed vertices are matched to truth \textbf{by $z$ position} within a
-    window, greedily and closest-first, one to one. \readingonly{Each reco vertex then
-    gets one of four labels.}\par}
+    \readingonly{Reconstructed vertices are matched to truth \textbf{by $z$ position} within a
+    window, greedily and closest-first, one to one. Each reco vertex then
+    gets one of four labels.}\talkonly{Matched to truth \textbf{by $z$ position}
+    within a window: greedy, closest-first, one to one}\par}
     \vspace{0.3em}
 
     {\centering
@@ -603,19 +622,23 @@
               \qquad (\ntrk\geq2)\]
         \end{column}
         \begin{column}{0.58\linewidth}
-            {\footnotesize\textcolor{black!65}{A matched reco vertex is credited with
-            \emph{every} unclaimed truth vertex left in its window\readingonly{, so one
-            vertex can be credited with several}. This follows the ATLAS ``merged''
+            {\footnotesize\textcolor{black!65}{\readingonly{A matched reco vertex is credited with
+            \emph{every} unclaimed truth vertex left in its window, so one
+            vertex can be credited with several. This follows the ATLAS ``merged''
             definition and is worth $+9.7$ to $+15.2$ points over a strict one-to-one
-            count. \readingonly{It is applied to \textbf{AMVF and PV-Finder alike}
-            throughout this talk.}}}
+            count. It is applied to \textbf{AMVF and PV-Finder alike}
+            throughout this talk.}\talkonly{Matched reco vertex credited with
+            \emph{every} unclaimed truth left in its window: the ATLAS ``merged''
+            definition, worth $+9.7$ to $+15.2$ points over a strict one-to-one
+            count}}}
         \end{column}
     \end{columns}
 \end{frame}
 
 \begin{frame}{Efficiency and Fake Rate Divide by Different Things}
     \small
-    Two labelings of the same event: one over reco vertices, one over truth vertices.
+    \readingonly{Two labelings of the same event: one over reco vertices, one over truth
+    vertices.}\talkonly{Two labelings of one event: one over reco, one over truth}
     \vspace{1.0em}
 
     \begin{columns}[t]
@@ -663,8 +686,9 @@
     \vspace{1.0em}
 
     \centering
-    \textcolor{pennred}{\textbf{Efficiency is a truth-side ratio. Fake rate is a
-    reco-side count per event.}}\readingonly{\\[0.3em]
+    \textcolor{pennred}{\readingonly{\textbf{Efficiency is a truth-side ratio. Fake rate is a
+    reco-side count per event.}}\talkonly{\textbf{Efficiency, a truth-side ratio;
+    fake rate, a reco-side count per event}}}\readingonly{\\[0.3em]
     {\scriptsize\textcolor{black!55}{Different denominators. Counts from the PU200
     working point of Part III.}}}
 \end{frame}
@@ -866,25 +890,31 @@
         \begin{column}{0.49\linewidth}
             \scriptsize
             \vspace{-0.2em}
-            Fully simulated $\sqrt{s}=14$\,TeV $t\bar t$, \texttt{mc21}, \textbf{ITk}
-            layout. Per-event numbers are \textbf{averages}:
+            \readingonly{Fully simulated $\sqrt{s}=14$\,TeV $t\bar t$, \texttt{mc21}, \textbf{ITk}
+            layout. Per-event numbers are \textbf{averages}:}%
+            \talkonly{$\sqrt{s}=14$\,TeV $t\bar t$, \texttt{mc21}, \textbf{ITk} layout.
+            Per-event numbers, \textbf{averages}:}
             \begin{itemize}\setlength\itemsep{0.1em}
                 \item $\mathbf{1361}$ tracks / event, $|\eta|$ out to $4.0$
                 \item $\mathbf{139.4}$ truth PVs / event, $\mathbf{115.7}$ of them with
                     $\ntrk\geq2$\readingonly{: the efficiency denominator}
-                \item Same track cuts everywhere: $p_T\!\ge\!0.9$\,GeV,
+                \item \readingonly{Same track cuts everywhere:}\talkonly{Same cuts
+                    everywhere:} $p_T\!\ge\!0.9$\,GeV,
                     $|d_0|\!\le\!1$\,mm, $\sigma(d_0)\!\le\!0.35$\,mm,
                     $|z_0|\!\le\!200$\,mm
                     \readingonly{\textcolor{black!55}{(arXiv:2412.15090, tables 5 and 6)}}
                 \item $\mathbf{5.17\times10^{6}}$ training events at nominal
                     $\mu=200$, discrete $190$ to $210$
-                \item The two held-out evaluation files are \textbf{flat in
+                \item \readingonly{The two held-out evaluation files are \textbf{flat in
                     $\mu$}\readingonly{, so they are not PU200 files}. We quote their
-                    $\mu\in[185,215]$ slice: $1920$ events, $\langle\mu\rangle=192.5$
+                    $\mu\in[185,215]$ slice: $1920$ events, $\langle\mu\rangle=192.5$}%
+                    \talkonly{Held-out files are \textbf{flat in $\mu$}, not PU200. We
+                    quote the $\mu\in[185,215]$ slice: $1920$ events,
+                    $\langle\mu\rangle=192.5$}
             \end{itemize}
             \vspace{0.1em}
             \centering
-            \includegraphics[width=\linewidth, height=\bnum{0.21}{0.23}\textheight, keepaspectratio]{images/mu_distribution_pu200.png}
+            \includegraphics[width=\linewidth, height=\bnum{0.21}{0.32}\textheight, keepaspectratio]{images/mu_distribution_pu200.png}
         \end{column}
         \begin{column}{0.49\linewidth}
             \centering
@@ -905,17 +935,23 @@
             \vspace{0.55em}
 
             \raggedright
-            Two \textbf{data productions}, not two settings of AMVF. AMVF always took
+            \readingonly{Two \textbf{data productions}, not two settings of AMVF. AMVF always took
             tracks to $|\eta|<4.0$; the old files had none to give it. \readingonly{It
             hangs the new forward tracks on vertices it already had, and finds no new
-            ones.}
+            ones.}}%
+            \talkonly{Two \textbf{data productions}, not two AMVF settings. AMVF always
+            took $|\eta|<4.0$ tracks; old files had none to give}
             \vspace{0.4em}
             \begin{itemize}\setlength\itemsep{0.3em}
-                \item \textbf{Precision: no gain.} They improve the best $z$ its own
+                \item \textbf{Precision: no gain.} \readingonly{They improve the best $z$ its own
                     tracks allow, $(\sum_\text{trk}\sigma_{z_0}^{-2})^{-1/2}$, by $0.1$
                     to $0.2\%$. $\sigma_{z_0}$ runs from $65\,\mu$m at $\eta=0$ to
                     $2.8$\,mm at $|\eta|=3.7$, so a forward track carries ${\sim}1/2000$
-                    the weight of a central one
+                    the weight of a central one}%
+                    \talkonly{Best $z$ its own tracks allow,
+                    $(\sum_\text{trk}\sigma_{z_0}^{-2})^{-1/2}$, improves by $0.1$ to
+                    $0.2\%$. $\sigma_{z_0}$: $65\,\mu$m at $\eta=0$, $2.8$\,mm at
+                    $|\eta|=3.7$; forward track weight ${\sim}1/2000$ of a central one}
                 \item \textbf{Reach: the whole point.} $\mathbf{19.2}$ truth vertices /
                     event, $17.3\%$ of the denominator, reach $\ntrk\ge2$ only through
                     forward tracks. \textbf{AMVF cannot gain those}
@@ -961,9 +997,12 @@
         \end{column}
         \begin{column}{0.45\linewidth}
             \scriptsize
-            \textbf{1920 genuinely held-out events} from a reco tag excluded from
+            \readingonly{\textbf{1920 genuinely held-out events} from a reco tag excluded from
             training, $\mu\in[185,215]$, $\langle\mu\rangle=192.5$, $111.3$ truth PVs
-            per event at $\ntrk\geq2$:
+            per event at $\ntrk\geq2$:}%
+            \talkonly{\textbf{1920 genuinely held-out events}, reco tag excluded from
+            training, $\mu\in[185,215]$, $\langle\mu\rangle=192.5$, $111.3$ truth PVs /
+            event at $\ntrk\geq2$:}
             \vspace{0.6em}
 
             \setlength{\tabcolsep}{3.9pt}
@@ -982,12 +1021,17 @@
             \vspace{0.7em}
 
             \begin{itemize}\setlength\itemsep{0.25em}
-                \item \textbf{More clean vertices and fewer fakes} than AMVF on the
-                    same events
-                \item $\sigma_{\text{vtx-vtx}} = \mathbf{0.229 \pm 0.003}$\,mm against
-                    $0.305$\,mm for AMVF
-                \item The second held-out tag gives $86.95\%$, $16.10$ fake/event,
-                    $0.228$\,mm
+                \item \readingonly{\textbf{More clean vertices and fewer fakes} than AMVF on the
+                    same events}\talkonly{\textbf{More clean, fewer fakes} than AMVF,
+                    same events}
+                \item \readingonly{$\sigma_{\text{vtx-vtx}} = \mathbf{0.229 \pm 0.003}$\,mm against
+                    $0.305$\,mm for AMVF}%
+                    \talkonly{$\sigma_{\text{vtx-vtx}} = \mathbf{0.229 \pm 0.003}$\,mm
+                    vs $0.305$\,mm AMVF}
+                \item \readingonly{The second held-out tag gives $86.95\%$, $16.10$ fake/event,
+                    $0.228$\,mm}%
+                    \talkonly{Second held-out tag: $86.95\%$, $16.10$ fake/event,
+                    $0.228$\,mm}
             \end{itemize}
             \readingonly{\vspace{0.5em}
             {\scriptsize\textcolor{black!55}{Merged credit, at a window taken from
@@ -1082,8 +1126,9 @@
 
 \begin{frame}{Choosing a Matching Window That Favors Neither Algorithm}
     \vspace{-0.2em}
-    {\small To say a truth vertex was \emph{found}, we need a distance.
-    \readingonly{How close does a reconstructed vertex have to be?}\par}
+    {\small \readingonly{To say a truth vertex was \emph{found}, we need a distance.
+    \readingonly{How close does a reconstructed vertex have to be?}}%
+    \talkonly{Calling a truth vertex \emph{found} needs a distance}\par}
     \vspace{0.35em}
 
     \begin{columns}[c]
@@ -1093,11 +1138,14 @@
         \end{column}
         \begin{column}{0.46\linewidth}
             \footnotesize
-            \textbf{\textcolor{mygreen!60!black}{Position resolution}} is how
+            \readingonly{\textbf{\textcolor{mygreen!60!black}{Position resolution}} is how
             precisely an algorithm places a vertex it has already found.
             \readingonly{Take the vertices truth and the algorithm agree on, and measure
             how far off the reconstructed $z$ is.} \textbf{This is the right question
-            for a window.}
+            for a window.}}%
+            \talkonly{\textbf{\textcolor{mygreen!60!black}{Position resolution}}: how
+            precisely an algorithm places a vertex it already found. \textbf{The right
+            question for a window.}}
             \vspace{0.5em}
 
             \setlength{\tabcolsep}{7pt}
@@ -1115,9 +1163,11 @@
             \vspace{0.5em}
 
             \raggedright
-            The two place a vertex equally well, to within $3\%$, so a window built on
+            \readingonly{The two place a vertex equally well, to within $3\%$, so a window built on
             that is fair to both. Built on $\sigma_{\text{vtx-vtx}}$ it would not be:
-            those differ by $40\%$.
+            those differ by $40\%$.}%
+            \talkonly{Equally good at placing a vertex, to $3\%$: a fair window for
+            both. Not $\sigma_{\text{vtx-vtx}}$, those differ by $40\%$}
         \end{column}
     \end{columns}
 
@@ -1165,23 +1215,30 @@
             \textbf{What we gain over AMVF:}
             \begin{itemize}\setlength\itemsep{0.3em}
                 \item \textcolor{pennred}{$\mathbf{+3.4 \pm 0.1}$ \textbf{efficiency
-                    points}}, and $\mathbf{0.60 \pm 0.09}$ fewer surplus vertices per
-                    event
-                \item The lead survives every window we tried\readingonly{, and both
-                    ways of counting a merge}
-                \item Tune PV-Finder down to AMVF's vertex count and it still leads by
-                    $+2.90 \pm 0.06$ points
+                    points}}, \readingonly{and }$\mathbf{0.60 \pm 0.09}$ fewer surplus
+                    vertices \readingonly{per event}\talkonly{/ event}
+                \item \readingonly{The lead survives every window we tried\readingonly{, and both
+                    ways of counting a merge}}\talkonly{Lead survives every window
+                    tried}
+                \item \readingonly{Tune PV-Finder down to AMVF's vertex count and it still leads by
+                    $+2.90 \pm 0.06$ points}%
+                    \talkonly{Tuned down to AMVF's vertex count, still ahead by
+                    $+2.90 \pm 0.06$ points}
             \end{itemize}
         \end{column}
         \begin{column}{0.5\linewidth}
             \footnotesize
             \textbf{Quote the margin, not the absolute:}
             \begin{itemize}\setlength\itemsep{0.3em}
-                \item The $86.9\%$ from earlier sits $9.7$ points above a strict
+                \item \readingonly{The $86.9\%$ from earlier sits $9.7$ points above a strict
                     one-to-one count\readingonly{, on a window set by PV-Finder's own
-                    resolution}
-                \item AMVF only catches up on fake plus split, and only for windows
-                    looser than $0.60$\,mm
+                    resolution}}%
+                    \talkonly{Earlier $86.9\%$ sits $9.7$ points above strict
+                    one-to-one}
+                \item \readingonly{AMVF only catches up on fake plus split, and only for windows
+                    looser than $0.60$\,mm}%
+                    \talkonly{AMVF catches up on fake plus split only, and only above
+                    $0.60$\,mm}
             \end{itemize}
         \end{column}
     \end{columns}
@@ -1194,20 +1251,31 @@
     \vspace{0.9em}
 
     \begin{itemize}\setlength\itemsep{0.85em}
-        \item \textbf{The comparison across every window.} The margin holds from $0.10$
-            to $2.00$\,mm\readingonly{, over an accidental match floor}.
+        \item \readingonly{\textbf{The comparison across every window.} The margin holds from $0.10$
+            to $2.00$\,mm\readingonly{, over an accidental match floor}.}%
+            \talkonly{\textbf{Comparison across every window}, margin holds $0.10$ to
+            $2.00$\,mm}
             \textcolor{black!55}{(backup, slide \pageref{bk:window})}
-        \item \textbf{Failure modes and the physical ceiling.} $17.2\%$ of neighboring
+        \item \readingonly{\textbf{Failure modes and the physical ceiling.} $17.2\%$ of neighboring
             truth pairs sit closer than $0.3$\,mm, which no peak finder on $0.04$\,mm
-            bins can separate.
+            bins can separate.}%
+            \talkonly{\textbf{Failure modes and the physical ceiling}, $17.2\%$ of
+            neighboring truth pairs closer than $0.3$\,mm, unsplittable on $0.04$\,mm
+            bins}
             \textcolor{black!55}{(backup, slide \pageref{bk:failure})}
-        \item \textbf{What the fake count contains.} Peaks on the $23.1$ real
+        \item \readingonly{\textbf{What the fake count contains.} Peaks on the $23.1$ real
             single-track interactions per event are scored fake. AMVF pays the same
-            convention, so the net correction is $0.97 \pm 0.07$ fake/event.
+            convention, so the net correction is $0.97 \pm 0.07$ fake/event.}%
+            \talkonly{\textbf{What the fake count contains}, $23.1$ real single-track
+            interactions / event scored fake; AMVF pays the same, net
+            $0.97 \pm 0.07$ fake/event}
             \textcolor{black!55}{(backup, slide \pageref{bk:fakes})}
-        \item \textbf{Where the peak-finder thresholds come from.} Three cuts chosen on
+        \item \readingonly{\textbf{Where the peak-finder thresholds come from.} Three cuts chosen on
             one half of the held-out sample and reported on the other, plus $817$
-            further filters\readingonly{, none of which beat them}.
+            further filters\readingonly{, none of which beat them}.}%
+            \talkonly{\textbf{Where the peak-finder thresholds come from}, three cuts
+            chosen on one half of the held-out sample, reported on the other, plus
+            $817$ further filters}
             \textcolor{black!55}{(backup, slide \pageref{bk:thresholds})}
     \end{itemize}
 \end{frame}
@@ -1220,7 +1288,7 @@
 \partdivider{IV}{Track-to-vertex association}{A graph network that completes the chain}
 
 \begin{frame}{TTVA: What It Is and Why We Need It}
-    \textbf{Vertex finding tells us \emph{where} the vertices are, but not \emph{which tracks belong to which}.}
+    \readingonly{\textbf{Vertex finding tells us \emph{where} the vertices are, but not \emph{which tracks belong to which}.}}\talkonly{\textbf{Vertex finding gives \emph{where}, not \emph{which tracks belong to which}}}
     \vspace{0.5em}
     \begin{center}
         tracks \(\to\) PV-Finder histogram \(\to\) peak finding \(\to\) candidate vertices
@@ -1232,7 +1300,7 @@
             \textbf{Why analyses need track lists:}
             \begin{itemize}
                 \setlength\itemsep{0.35em}
-                \item Hard-scatter choice $=$ vertex with largest $\sum p_T^2$ of \emph{its} tracks
+                \item \readingonly{Hard-scatter choice $=$ vertex with largest $\sum p_T^2$ of \emph{its} tracks}\talkonly{Hard-scatter $=$ largest $\sum p_T^2$ of \emph{its} tracks}
                 \item Pile-up jet rejection, and any per-vertex quantity \readingonly{(mass, multiplicity, pointing)}
             \end{itemize}
         \end{column}
@@ -1240,8 +1308,8 @@
             \textbf{Why we need it for a fair comparison:}
             \begin{itemize}
                 \setlength\itemsep{0.35em}
-                \item AMVF gets track lists free from its fit; PV-Finder does not
-                \item With TTVA both chains are judged by the \emph{same} track-based purity criteria
+                \item \readingonly{AMVF gets track lists free from its fit; PV-Finder does not}\talkonly{Track lists free from AMVF's fit, none from PV-Finder}
+                \item \readingonly{With TTVA both chains are judged by the \emph{same} track-based purity criteria}\talkonly{With TTVA, \emph{same} track-based purity criteria for both chains}
                 \item Design choice: \textbf{train on MC truth vertices}, \textbf{deploy on PV-Finder peaks}
             \end{itemize}
         \end{column}
@@ -1252,17 +1320,17 @@
     \begin{columns}[c]
         \begin{column}{0.52\linewidth}
             \small
-            Each event is a \textbf{bipartite graph} with two node types:
+            \readingonly{Each event is a \textbf{bipartite graph} with two node types:}\talkonly{Event $=$ \textbf{bipartite graph}, two node types:}
             \begin{itemize}
                 \setlength\itemsep{0.35em}
                 \item \textcolor{mydarkblue}{\textbf{Track nodes}} (8 feat.): $d_0, z_0, \sigma_{d_0}, \sigma_{z_0}, \mathrm{cov}, \theta, \phi, p_T$
                 \item \textcolor{myorange}{\textbf{Vertex nodes}} (2 feat.): $z$ position, peak height
-                \item \textbf{Edges} = (track, vertex) pairs, each carrying 3 physics attributes:
+                \item \textbf{Edges} = (track, vertex) pairs, \readingonly{each carrying 3 physics attributes:}\talkonly{3 physics attributes:}
                 \[
                   \frac{z_0 - z_{PV}}{\sqrt{\sigma_{z_0}^2+\sigma_{PV}^2}},\quad
                   \frac{d_0}{\sigma_{d_0}},\quad |z_0 - z_{PV}|
                 \]
-                \item Label: edge $=1$ iff MC truth links the track to that vertex
+                \item Label: edge $=1$ iff MC truth links \readingonly{the track to that vertex}\talkonly{track to vertex}
             \end{itemize}
         \end{column}
         \begin{column}{0.46\linewidth}
@@ -1284,8 +1352,9 @@
                 \node[font=\tiny, text=black!55] at (0.0,-0.75) {tracks};
                 \node[font=\tiny, text=black!55] at (4.0,-0.75) {candidate vertices};
             \end{tikzpicture}\\[6pt]
-            {\scriptsize At PU200: $\sim$930 tracks $\times$ 128 vertices $\to$ each track keeps its
-            $k{=}20$ nearest vertices in $|\Delta z|$\readingonly{ (retains $99.5\%$ of true edges, $\sim$18.5k edges/event)}.}
+            {\scriptsize \readingonly{At PU200: $\sim$930 tracks $\times$ 128 vertices $\to$ each track keeps its
+            $k{=}20$ nearest vertices in $|\Delta z|$ (retains $99.5\%$ of true edges, $\sim$18.5k edges/event).}\talkonly{At
+            PU200: $\sim$930 tracks $\times$ 128 vertices $\to$ keep the $k{=}20$ nearest in $|\Delta z|$}}
         \end{column}
     \end{columns}
 \end{frame}
@@ -1296,27 +1365,29 @@
             \begin{enumerate}
                 \setlength\itemsep{0.4em}
                 \item Embed track (8) and vertex (2) features into 32 dimensions
-                \item \textbf{2 rounds of heterogeneous graph attention} (4 heads): each node updates from its neighbors, the \textbf{edge attributes steer the attention}
+                \item \textbf{2 rounds of heterogeneous graph attention} (4 heads): \readingonly{each node updates from its neighbors, the \textbf{edge attributes steer the attention}}\talkonly{nodes update from neighbors, \textbf{edge attributes steer the attention}}
                 \readingonly{\item[] {\small\(\Rightarrow\) a vertex that already attracts compatible tracks attracts the next one more strongly, context a per-pair cut cannot express}}
                 \item A 3-layer MLP on each (track, vertex) embedding \(\to\) \textbf{one score per edge}
             \end{enumerate}
             \vspace{0.2em}
-            {\footnotesize\textbf{Size \& training:} \textbf{39{,}521 parameters} ($90\times$
-            smaller than PV-Finder), $3.8$\,ms/event; BCE loss, Adam, trained on 180k PU200 events in 3.2\,h.}
+            {\footnotesize\textbf{Size \& training:} \textbf{39{,}521 parameters} \readingonly{($90\times$
+            smaller than PV-Finder), $3.8$\,ms/event; BCE loss, Adam, trained on 180k PU200 events in 3.2\,h.}\talkonly{($90\times$
+            smaller), $3.8$\,ms/event; BCE, Adam, 180k PU200 events, 3.2\,h}}
         \end{column}
         \begin{column}{0.45\linewidth}
             \centering
             \includegraphics[width=0.98\linewidth, keepaspectratio]{images/edge_score_distributions.png}\\[2pt]
             {\scriptsize\textcolor{black!55}{True vs false edges ($\langle\mu\rangle\!\approx\!60$):
-            the classifier is nearly saturated, with ROC \textbf{AUC 0.998} on $45$M edges.}}
+            \readingonly{the classifier is nearly saturated, with ROC \textbf{AUC 0.998} on $45$M edges.}\talkonly{nearly saturated, ROC \textbf{AUC 0.998} on $45$M edges}}}
         \end{column}
     \end{columns}
 \end{frame}
 
 \begin{frame}{TTVA: The Purity Criterion, in Detail}
     \small
-    Each reconstructed vertex is labeled by the \textbf{true origin of \emph{its} assigned
-    tracks}. \readingonly{AMVF goes through the \emph{same} classifier, and empty vertices are dropped first.}
+    \readingonly{Each reconstructed vertex is labeled by the \textbf{true origin of \emph{its} assigned
+    tracks}.}\talkonly{Each vertex labeled by the \textbf{true origin of \emph{its} assigned tracks}}
+    \readingonly{AMVF goes through the \emph{same} classifier, and empty vertices are dropped first.}
     \vspace{0.1em}
     \begin{center}
     \resizebox{\bnum{0.84}{0.90}\linewidth}{!}{%
@@ -1356,10 +1427,10 @@
     \end{tikzpicture}}
     \end{center}
     \vspace{-0.3em}
-    {\scriptsize \textbf{Clean}: $\mathbf{\geq70\%}$ of the assigned tracks share one truth vertex \;\textbullet\;
-    \textbf{Merged}: no such majority \;\textbullet\;
-    \textbf{Split}: that truth is already owned by a larger-$\sum p_T^2$ vertex \;\textbullet\;
-    \textbf{Fake}: truthless tracks are the \textbf{plurality} bucket.}\readingonly{\\[2pt]
+    {\scriptsize \textbf{Clean}: $\mathbf{\geq70\%}$ \readingonly{of the assigned tracks share one truth vertex}\talkonly{share one truth vertex} \;\textbullet\;
+    \textbf{Merged}: no \readingonly{such }majority \;\textbullet\;
+    \textbf{Split}: \readingonly{that truth is already owned by a larger-$\sum p_T^2$ vertex}\talkonly{truth already owned by a larger-$\sum p_T^2$ vertex} \;\textbullet\;
+    \textbf{Fake}: truthless tracks \readingonly{are the \textbf{plurality} bucket.}\talkonly{the \textbf{plurality}}}\readingonly{\\[2pt]
     {\scriptsize\textcolor{black!55}{Fake is a plurality rule, not an absence of truth: a vertex
     that is $40\%$ truthless and $30\%/30\%$ from two truths is booked Fake, even though it is
     $60\%$ truth-associated.}\\[1pt]
@@ -1453,16 +1524,18 @@
             $0.5$\,mm:
             \begin{itemize}
                 \setlength\itemsep{0.25em}
-                \item \textbf{PVF cap $0.781$}: truth vertices with a peak of their
+                \item \textbf{PVF cap $0.781$}: \readingonly{truth vertices with a peak of their
                     own. The ones we miss have few tracks, median \(\ntrk{=}3\)
-                    against 9
-                \item \textbf{Truth association $0.728$}: give every track to the peak
+                    against 9}\talkonly{truth vertices with their own peak; the misses have
+                    median \(\ntrk{=}3\) against 9}
+                \item \textbf{Truth association $0.728$}: \readingonly{give every track to the peak
                     nearest its \emph{true} vertex, the best any associator could do on
-                    these peaks. \readingonly{The drop is close pairs sharing a peak}
+                    these peaks. The drop is close pairs sharing a peak}\talkonly{every track to the
+                    peak nearest its \emph{true} vertex, the ceiling for any associator}
             \end{itemize}
             \vspace{0.4em}
             \textcolor{pennred}{\textbf{$\mathbf{21.9}$ of the $\mathbf{27.2}$ missing
-            points are PV-Finder's}}, before the associator does anything.
+            points are PV-Finder's}}\readingonly{, before the associator does anything.}\talkonly{, before the associator}
             \readingonly{\vspace{0.3em}
 
             {\scriptsize\textcolor{black!55}{Strict one-to-one throughout: one peak on
@@ -1470,15 +1543,21 @@
             separate them either. The $86.9\%$ quoted earlier is PV-Finder's vertex
             \emph{finding} efficiency, with merged credit; the chain needs strict
             one-to-one, so \textbf{only $78.1\%$ is usable}.}}}
+            \talkonly{\vspace{0.3em}
+
+            {\scriptsize\textcolor{black!55}{Earlier $86.9\%$ is the vertex
+            \emph{finding} efficiency, merged credit; strict one-to-one leaves
+            \textbf{$78.1\%$}}}}
         \end{column}
     \end{columns}
 \end{frame}
 
 \begin{frame}{TTVA at PU200: The Full Chain against AMVF}
     \small
-    Same 1920 held-out events, 213{,}738 truth PVs. \readingonly{Each (track, vertex)
+    \readingonly{Same 1920 held-out events, 213{,}738 truth PVs. Each (track, vertex)
     pair gets a score in $[0,1]$, and a track joins its best vertex only when that score
-    is above \(t\).} We deploy \(t=0.98\).
+    is above \(t\). We deploy \(t=0.98\).}\talkonly{Same 1920 held-out events, 213{,}738
+    truth PVs, deployed at \(t=0.98\)}
     \vspace{0.6em}
 
     \centerline{%
@@ -1498,16 +1577,18 @@
     \begin{columns}[t]
         \begin{column}{0.48\linewidth}
             \footnotesize
-            \textbf{The associator is nearly done.} It reaches $94\%$ of a perfect
-            assignment of tracks to \emph{these} peaks, against $42.5\%$ for AMVF.
+            \textbf{The associator is nearly done.} \readingonly{It reaches $94\%$ of a perfect
+            assignment of tracks to \emph{these} peaks, against $42.5\%$ for AMVF.}\talkonly{$94\%$
+            of a perfect assignment to \emph{these} peaks, against $42.5\%$ for AMVF}
             \readingonly{Clean over truth moves with the truth definition; this fraction
             does not.}
         \end{column}
         \begin{column}{0.48\linewidth}
             \footnotesize
-            \textbf{AMVF is set by the $70\%$ clean cut.} There its clean rate is $0.407$
+            \textbf{AMVF is set by the $70\%$ clean cut.} \readingonly{There its clean rate is $0.407$
             against our $0.889$, and its typical vertex is $63\%$ pure, right on the cut.
-            Read its $0.309$ that way.
+            Read its $0.309$ that way.}\talkonly{Clean rate $0.407$ against our $0.889$, typical
+            vertex $63\%$ pure, right on the cut, hence its $0.309$}
         \end{column}
     \end{columns}
     \vspace{0.5em}
@@ -1591,31 +1672,41 @@
             \textbf{What we have shown}
             \begin{enumerate}
                 \setlength\itemsep{0.5em}
-                \item \small End-to-end trainable, with the kernel-density estimate out
-                    of training, validated on Run 2 and Run 3 data
-                \item \small At low pileup it matches AMVF and \textbf{beats it in
-                    resolution}, $0.42$ against $0.79$\,mm
-                \item \small At \textbf{PU200}, held-out and with a neutral window:
+                \item \small \readingonly{End-to-end trainable, with the kernel-density estimate out
+                    of training, validated on Run 2 and Run 3 data}\talkonly{End-to-end trainable,
+                    no explicit KDE, validated on Run 2 and Run 3 data}
+                \item \small \readingonly{At low pileup it matches AMVF and \textbf{beats it in
+                    resolution}, $0.42$ against $0.79$\,mm}\talkonly{Low pileup: matches AMVF,
+                    \textbf{better resolution}, $0.42$ against $0.79$\,mm}
+                \item \small \readingonly{At \textbf{PU200}, held-out and with a neutral window:
                     \textbf{$+3.4 \pm 0.1$ efficiency points} over AMVF,
                     $0.60 \pm 0.09$ fewer surplus vertices per event,
-                    $\sigma_{\text{vtx-vtx}} = 0.229$ against $0.305$\,mm
-                \item \small \textbf{TTVA completes the chain}: \textbf{94.0\,\%} of
+                    $\sigma_{\text{vtx-vtx}} = 0.229$ against $0.305$\,mm}\talkonly{\textbf{PU200},
+                    held-out, neutral window: \textbf{$+3.4 \pm 0.1$ efficiency points} over AMVF,
+                    $0.60 \pm 0.09$ fewer surplus vertices per event,
+                    $\sigma_{\text{vtx-vtx}} = 0.229$ against $0.305$\,mm}
+                \item \small \readingonly{\textbf{TTVA completes the chain}: \textbf{94.0\,\%} of
                     truth association against AMVF's $42.5\,\%$, at
-                    ${\sim}11$\,ms/event
+                    ${\sim}11$\,ms/event}\talkonly{\textbf{TTVA completes the chain}:
+                    \textbf{94.0\,\%} truth association against AMVF's $42.5\,\%$, ${\sim}11$\,ms/event}
             \end{enumerate}
         \end{column}
         \begin{column}{0.5\linewidth}
             \textbf{Four framing findings}
             \begin{itemize}
                 \setlength\itemsep{0.6em}
-                \item \small Capacity is \textbf{not} the bottleneck: a $5\times$ larger
-                    model and a full sweep reach the same plateau
-                \item \small Part of what is left is \textbf{physical}: ${\sim}17\%$ of
-                    adjacent PU200 vertices are closer than the resolution
-                \item \small \textbf{Post-hoc fake suppression is done}: none of 817
-                    configurations beat the current operating point
-                \item \small The headroom is \textbf{PV-Finder's}: of the $27.2$ points
-                    to truth association, $21.9$ are truth vertices with no peak
+                \item \small \readingonly{Capacity is \textbf{not} the bottleneck: a $5\times$ larger
+                    model and a full sweep reach the same plateau}\talkonly{Capacity \textbf{not} the
+                    bottleneck: $5\times$ larger model, full sweep, same plateau}
+                \item \small \readingonly{Part of what is left is \textbf{physical}: ${\sim}17\%$ of
+                    adjacent PU200 vertices are closer than the resolution}\talkonly{Part of it is
+                    \textbf{physical}: ${\sim}17\%$ of adjacent PU200 vertices closer than the resolution}
+                \item \small \readingonly{\textbf{Post-hoc fake suppression is done}: none of 817
+                    configurations beat the current operating point}\talkonly{\textbf{Post-hoc fake
+                    suppression done}: none of 817 configurations wins}
+                \item \small \readingonly{The headroom is \textbf{PV-Finder's}: of the $27.2$ points
+                    to truth association, $21.9$ are truth vertices with no peak}\talkonly{Headroom is
+                    \textbf{PV-Finder's}: $21.9$ of the $27.2$ points, truth vertices with no peak}
             \end{itemize}
         \end{column}
     \end{columns}
@@ -1627,14 +1718,17 @@
             \textbf{Finder side, all of it needs a retrain}
             \begin{itemize}
                 \setlength\itemsep{0.5em}
-                \item \small \textbf{Replace the nearest-neighbor upsampling} in the
+                \item \small \readingonly{\textbf{Replace the nearest-neighbor upsampling} in the
                     U-Net decoder. Surplus peaks pile up at the upsampling period, a
-                    $35\%$ modulation that real peaks do not show
-                \item \small \textbf{Make the target drawable}. For $31.6\%$ of truth
+                    $35\%$ modulation that real peaks do not show}\talkonly{\textbf{Replace the
+                    nearest-neighbor upsampling} in the U-Net decoder; surplus peaks at the
+                    upsampling period, a $35\%$ modulation}
+                \item \small \readingonly{\textbf{Make the target drawable}. For $31.6\%$ of truth
                     vertices we ask for peaks narrower than one bin. Cap the width at one
-                    bin, or use a finer grid
-                \item \small \textbf{An objectness head, or a fake-aware loss}.
-                    \readingonly{The only idea here that attacks surplus peaks at the
+                    bin, or use a finer grid}\talkonly{\textbf{Make the target drawable}: $31.6\%$
+                    of targets narrower than one bin; cap the width, or a finer grid}
+                \item \small \textbf{An objectness head, or a fake-aware loss}\readingonly{.
+                    The only idea here that attacks surplus peaks at the
                     source}
             \end{itemize}
         \end{column}
@@ -1655,8 +1749,8 @@
     \end{columns}
     \vspace{0.5em}
     \centering
-    {\small\textcolor{black!60}{Everything on the left needs a retrain; nothing on the
-    right does.}}
+    {\small\textcolor{black!60}{\readingonly{Everything on the left needs a retrain; nothing on the
+    right does.}\talkonly{Left needs a retrain, right does not}}}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
