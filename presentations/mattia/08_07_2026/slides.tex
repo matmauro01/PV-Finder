@@ -1386,7 +1386,7 @@
 \begin{frame}{TTVA: The Purity Criterion, in Detail}
     \small
     \readingonly{Each reconstructed vertex is labeled by the \textbf{true origin of \emph{its} assigned
-    tracks}.}\talkonly{Each vertex labeled by the \textbf{true origin of \emph{its} assigned tracks}}
+    tracks}.}\talkonly{Vertex label $=$ \textbf{true origin of \emph{its} assigned tracks}}
     \readingonly{AMVF goes through the \emph{same} classifier, and empty vertices are dropped first.}
     \vspace{0.1em}
     \begin{center}
@@ -1526,7 +1526,7 @@
                 \setlength\itemsep{0.25em}
                 \item \textbf{PVF cap $0.781$}: \readingonly{truth vertices with a peak of their
                     own. The ones we miss have few tracks, median \(\ntrk{=}3\)
-                    against 9}\talkonly{truth vertices with their own peak; the misses have
+                    against 9}\talkonly{truth vertices with their own peak; misses have
                     median \(\ntrk{=}3\) against 9}
                 \item \textbf{Truth association $0.728$}: \readingonly{give every track to the peak
                     nearest its \emph{true} vertex, the best any associator could do on
@@ -1579,7 +1579,7 @@
             \footnotesize
             \textbf{The associator is nearly done.} \readingonly{It reaches $94\%$ of a perfect
             assignment of tracks to \emph{these} peaks, against $42.5\%$ for AMVF.}\talkonly{$94\%$
-            of a perfect assignment to \emph{these} peaks, against $42.5\%$ for AMVF}
+            of a perfect assignment to \emph{these} peaks, AMVF $42.5\%$}
             \readingonly{Clean over truth moves with the truth definition; this fraction
             does not.}
         \end{column}
@@ -1674,7 +1674,7 @@
                 \setlength\itemsep{0.5em}
                 \item \small \readingonly{End-to-end trainable, with the kernel-density estimate out
                     of training, validated on Run 2 and Run 3 data}\talkonly{End-to-end trainable,
-                    no explicit KDE, validated on Run 2 and Run 3 data}
+                    no explicit KDE, validated on Run 2 and Run 3}
                 \item \small \readingonly{At low pileup it matches AMVF and \textbf{beats it in
                     resolution}, $0.42$ against $0.79$\,mm}\talkonly{Low pileup: matches AMVF,
                     \textbf{better resolution}, $0.42$ against $0.79$\,mm}
@@ -1683,12 +1683,12 @@
                     $0.60 \pm 0.09$ fewer surplus vertices per event,
                     $\sigma_{\text{vtx-vtx}} = 0.229$ against $0.305$\,mm}\talkonly{\textbf{PU200},
                     held-out, neutral window: \textbf{$+3.4 \pm 0.1$ efficiency points} over AMVF,
-                    $0.60 \pm 0.09$ fewer surplus vertices per event,
+                    $0.60 \pm 0.09$ fewer surplus vertices/event,
                     $\sigma_{\text{vtx-vtx}} = 0.229$ against $0.305$\,mm}
                 \item \small \readingonly{\textbf{TTVA completes the chain}: \textbf{94.0\,\%} of
                     truth association against AMVF's $42.5\,\%$, at
                     ${\sim}11$\,ms/event}\talkonly{\textbf{TTVA completes the chain}:
-                    \textbf{94.0\,\%} truth association against AMVF's $42.5\,\%$, ${\sim}11$\,ms/event}
+                    \textbf{94.0\,\%} truth association, AMVF $42.5\,\%$, ${\sim}11$\,ms/event}
             \end{enumerate}
         \end{column}
         \begin{column}{0.5\linewidth}
@@ -1699,14 +1699,14 @@
                     model and a full sweep reach the same plateau}\talkonly{Capacity \textbf{not} the
                     bottleneck: $5\times$ larger model, full sweep, same plateau}
                 \item \small \readingonly{Part of what is left is \textbf{physical}: ${\sim}17\%$ of
-                    adjacent PU200 vertices are closer than the resolution}\talkonly{Part of it is
+                    adjacent PU200 vertices are closer than the resolution}\talkonly{Partly
                     \textbf{physical}: ${\sim}17\%$ of adjacent PU200 vertices closer than the resolution}
                 \item \small \readingonly{\textbf{Post-hoc fake suppression is done}: none of 817
                     configurations beat the current operating point}\talkonly{\textbf{Post-hoc fake
                     suppression done}: none of 817 configurations wins}
                 \item \small \readingonly{The headroom is \textbf{PV-Finder's}: of the $27.2$ points
                     to truth association, $21.9$ are truth vertices with no peak}\talkonly{Headroom is
-                    \textbf{PV-Finder's}: $21.9$ of the $27.2$ points, truth vertices with no peak}
+                    \textbf{PV-Finder's}: $21.9$ of $27.2$ points, truth vertices with no peak}
             \end{itemize}
         \end{column}
     \end{columns}
@@ -1720,9 +1720,9 @@
                 \setlength\itemsep{0.5em}
                 \item \small \readingonly{\textbf{Replace the nearest-neighbor upsampling} in the
                     U-Net decoder. Surplus peaks pile up at the upsampling period, a
-                    $35\%$ modulation that real peaks do not show}\talkonly{\textbf{Replace the
-                    nearest-neighbor upsampling} in the U-Net decoder; surplus peaks at the
-                    upsampling period, a $35\%$ modulation}
+                    $35\%$ modulation that real peaks do not show}\talkonly{\textbf{Replace nearest-neighbor
+                    upsampling} in the U-Net decoder; surplus peaks at the upsampling period,
+                    $35\%$ modulation}
                 \item \small \readingonly{\textbf{Make the target drawable}. For $31.6\%$ of truth
                     vertices we ask for peaks narrower than one bin. Cap the width at one
                     bin, or use a finer grid}\talkonly{\textbf{Make the target drawable}: $31.6\%$
