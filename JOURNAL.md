@@ -4658,3 +4658,53 @@ results-settings matrix, three TTVA checkpoints in the checkpoint table, and the
 graph datasets and test slices in the paths list, including the warning about
 zero-height legacy graph files. Appendix B gained a TTVA hyperparameter table
 for the two production models beside the existing finder table.
+
+## 2026-08-20 -- Note ported from v4b/|eta|<2.5 to v6/TTVA-v4
+
+Audit of the note against the 7 August deck and docs/ found the note a full
+campaign behind. Ported it.
+
+### What was stale
+
+The HL-LHC chapter still carried v4b on `r16438` -- a file inside its own
+training pool -- at |eta|<2.5: Eff 91.6%, 15.8 fake/evt, sigma 0.22 mm. The deck
+had moved to v6 on 1920 genuinely held-out events from an excluded reco tag:
+86.9%, 16.3 fake/evt, 0.229 mm. The lower efficiency is the denominator, not a
+regression, and the note said nothing about that.
+
+Chapter 7 credited chain-like augmentation with closing the TTVA transfer gap.
+The v4 all-eta A/B reversed it: the unaugmented arm wins 0.6843 (94.0% of
+oracle) against 0.6501 (89.3%). The note was asserting something a later
+controlled experiment had disproved.
+
+Entirely absent from the note, present in both deck and docs: the extended-eta
+re-production, the fair-comparison window methodology, the merged-credit vs
+strict one-to-one distinction, the satellite-peak mechanism, and the local
+centroid position estimator.
+
+### What was added
+
+New data subsection on the re-production (denominator +17.6%, the old sample's
+contaminated 2.0-2.5 sliver, forward tracks buying reach not precision).
+New `sec:hllhc:fair`: the window comes from core position resolution (55.1 vs
+56.5 um, ratio 1.03) not sigma_vtx-vtx (ratio 1.40), giving 0.17 mm; quote the
++3.36 +- 0.06 margin, not the absolute, which the merge convention alone moves
+by 9.7 to 15.2 points. New `sec:hllhc:satellites`: the dz bump is surplus peaks
+at conjoined-split boundaries, min_height makes the ratio worse, and ~22% of
+surplus peaks sit on real nTrk<2 vertices so the fake rate is overstated by
+about a fifth. Peak position documented as a local centroid of half-width 3.
+
+The HGTD negative result was rewritten rather than deleted. Its original
+argument was 3.9% coverage in a forward sliver, which the new data invalidates
+(28.8%, 20-25 ps). The conclusion survives on corr(z,t) = -0.0102 and a 207 mm
+floor on any time-derived z.
+
+### Pre-v6 material
+
+Kept, but demoted. The settings matrix has a labelled superseded block, the
+iteration table gains a v6 row, and both carry the warning that the older
+efficiencies are numerically higher only because the denominator was smaller.
+Dropped the v3 learning-curve figure, which showed a model that is no longer
+production.
+
+58 pages, builds clean with TL2022, no undefined references.
