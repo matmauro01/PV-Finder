@@ -1,12 +1,62 @@
 # Peak Classification Study — Post-hoc Fake Rejection
 
-**Date**: 2026-05-04
-**Dataset**: HL-LHC PU200 MC, 2500 events, v1 E2E model (epoch 100)
-**Script**: `src/pv_finder/diagnostics/peak_classifier.py`
+**Current section is the v6 one immediately below.** The v4b and v1 sections are
+kept for provenance; both sit on the superseded `|eta|<2.5` pool.
 
 ---
 
-## Update — 2026-06-09 (v4b model, 23 features, deployed gate)
+## Update — 2026-08-20 (v6 model, extended-|eta|, retrained and redeployed)
+
+Re-measured on the production **v6** model and the extended-|eta| samples,
+because the v4b numbers below were trained and validated on files inside the
+old `|eta|<2.5` pool.
+
+- **Training candidates**: 340,541 peaks from 6,000 events of `r16443` at
+  `--min-height 0.0`, **11.6% fake** (39,546 / 340,541). `r16443` is held out
+  from v6 finder training. Artifacts:
+  `outputs/08_20_2026_output/gbt_v6_train_r16443/`.
+- **AUC**: GBT 23-feature **0.9580**, MLP 0.9550, GBT track-only **0.9455**,
+  GBT histogram-only **0.9528**. Model + plots:
+  `outputs/08_20_2026_output/peak_classifier_v6/`.
+- **Ablation holds, and is stronger than on v4b.** Histogram-only beats
+  track-only by 0.007 here (0.9528 vs 0.9455) against 0.002 on v4b, and lands
+  within 0.005 of the full 23-feature model. The fake/real signal is in the
+  histogram; the tracks were already integrated to build it.
+- **Importances**: `local_integral` **0.7368**, `nearest_peak_dz` 0.0638,
+  `peak_height` 0.0523, `n_tracks_2mm` 0.0344.
+- **Operating points** (test split, full GBT): thr 0.3 → keep 99.0% real /
+  remove 30.4% fake; 0.5 → 96.1% / 63.2%; 0.7 → 92.1% / 83.1%. Histogram-only
+  at 0.5 → 95.4% / 62.3%.
+- **Height floor, measured like-for-like on v6** (same model, same 384
+  in-window events of `r16443`, floor 0.0 vs 0.03): the floor removes
+  **1.16 fake/event for 0.06 percentage points** of efficiency
+  (17.115 → 15.956 fake/evt, 87.10% → 87.04%). Cheaper than the v4b-era
+  estimate of "~1 fake/evt for 0.3 pp".
+- **Fakes are not tight sidelobes** (re-checked on v6): only **0.4%** lie within
+  0.3 mm of a real peak, median distance to the nearest real peak **1.06 mm**.
+  But **12.7% are inside 0.6 mm**, and those are the satellites of
+  [pairwise_dz_bump](pairwise_dz_bump.md) — the two findings are consistent, the
+  satellite band sits at ~0.57 mm, not below 0.3 mm.
+- **Deployed** on the second held-out tag `r16638` (independent of both the
+  finder training and the classifier training), gate on top of the v6 operating
+  point at threshold 0.3: see `outputs/08_20_2026_output/v6_r16638_gbt03/`.
+  On the 268 in-window events it removes **1.52 fake/event** (15.993 → 14.478,
+  −9.5%) for **0.15 pp** of efficiency (87.29% → 87.14%). σ_vtx-vtx unchanged
+  within the fit error (0.2325 ± 0.0060 vs 0.2278 ± 0.0032).
+- **The gate adds much less on top of the floor than its ROC suggests.** It
+  removes 30% of fakes from the *raw* candidate set but only 9.5% once the
+  0.03 height floor has run first, because both read peak amplitude/integral
+  and the floor has already taken the easy fakes. Quote the stacked number,
+  not the standalone one.
+- **Neither handle is in the headline v6 numbers**, which are floor-only.
+
+**Conclusion unchanged and now better supported**: a post-hoc gate re-reads the
+histogram the model already produced, so its ceiling is the histogram itself.
+The lever that matters is an in-model objectness head or a fake-aware loss.
+
+---
+
+## Update — 2026-06-09 (v4b model, 23 features, deployed gate) — superseded
 
 The May study below used the v1 model and an 18-feature classifier. It was repeated
 on the current **v4b** model (`peak_classifier_v2.py`, 23 features adding pT/KDE

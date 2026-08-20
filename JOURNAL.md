@@ -4708,3 +4708,59 @@ Dropped the v3 learning-curve figure, which showed a model that is no longer
 production.
 
 58 pages, builds clean with TL2022, no undefined references.
+
+## 2026-08-20 -- GBT fake gate and the height floor, re-measured on v6
+
+Both fake-suppression handles in the note had been characterized on the old
+|eta|<2.5 pool, on files that sat inside the v4b training pool. Redone on v6
+and the extended-eta data, training on one held-out tag and deploying on the
+other so nothing leaks.
+
+### Height floor
+
+Measured like-for-like rather than quoted: the same model run twice over the
+same 384 held-out in-window events of r16443, floor 0 against floor 0.03.
+17.115 to 15.956 fake/event, 87.10% to 87.04% efficiency. So **1.16 fake/event
+for 0.06 percentage points**, cheaper than the "~1 fake/event for 0.3 pp" that
+had been carried over from v4b.
+
+### GBT
+
+Retrained on 340,541 v6 candidates from 6,000 events of r16443 at floor 0,
+11.6% fake. AUC 0.958 (23 features), 0.955 MLP, 0.946 track-only, 0.953
+histogram-only. `local_integral` importance 0.74.
+
+The ablation conclusion not only holds, it is stronger than on v4b: the gap
+between histogram-only and track-only widened from 0.002 to 0.007, and
+histogram-only is within 0.005 of the full model. The fake/real signal is in
+the histogram, and the tracks were already integrated to build it.
+
+### The deployed number is much smaller than the ROC suggests
+
+Applied on top of the v6 operating point on r16638, threshold 0.3 removes
+**1.52 fake/event for 0.15 percentage points** (15.993 to 14.478, 87.29% to
+87.14%), sigma unchanged inside the fit error.
+
+That is 9.5% of fakes, against the 30% the same classifier removes from the raw
+candidate set. The two handles read the same variable, so the floor has already
+taken the easy fakes and the gate works on a harder residual. Worth stating
+explicitly, because quoting the standalone ROC number for a filter stacked
+behind a threshold on the same quantity overstates it. Neither handle is in the
+headline v6 numbers, which are floor-only.
+
+### Also re-checked
+
+"Fakes are not deconvolution sidelobes" survives on v6: 0.4% within 0.3 mm of a
+real peak, median gap 1.06 mm. But 12.7% sit inside 0.6 mm, which is the
+satellite band, so that finding and the satellite one are consistent rather
+than in tension.
+
+### Prose
+
+Removed the em dashes and " -- " parentheticals from the v6 port, per the note's
+style, plus three "it is worth" openers, a triple "campaign" in one paragraph,
+and a garbled sentence in the window section. One of the two |eta|<2.5
+references in the GNN chapter dropped; the other carries the reason the
+augmentation result reversed, so it stays.
+
+58 pages, builds clean with TL2022, PDF pushed to GitLab at 417bc64.
