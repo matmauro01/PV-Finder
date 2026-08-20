@@ -4585,3 +4585,76 @@ table. The talk is shorter and the material is still there.
 `\readingonly{...}` and `\talkonly{...}`, switched by `\talkbuild`. `./build.sh`
 produces `slides.pdf` (reading) and `slides_talk.pdf` (presentation) from the
 same file, so no number can drift between them.
+
+## 2026-08-20 -- ATLAS Fig. 25 cross-check, and the GNN in the note appendices
+
+Two requests: document the GNN alongside everything else in the technical note,
+and check our AMVF Run 3 MC plots against Figure 25(a,b) of the ATLAS ID
+performance paper, as a definition sanity check before tomorrow's meeting.
+
+### The GitLab note was already current
+
+Verified rather than assumed: `git ls-remote` reaches
+`gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/`, and local `main`
+equals `origin/main` at 750d885. Nothing new has been pushed since 20 July, so
+the hard-drive copy is the current version. Reviewer comments live in the text
+as `\lat{}` macros, and exactly two are still open: track selection ("tight
+primary -- Rocky can you confirm?", 02_method.tex:19) and the Run 2 pileup
+figure ("doesn't look like average mu of 25-30, where does that number come
+from?", 05_validation.tex:120).
+
+### Figure 25 is not the resolution plot
+
+Worth recording because the meeting was set up on the opposite assumption.
+Fig. 25(a) is the average number of reconstructed vertices per category vs the
+number of interactions; Fig. 25(b) is the Delta-z between reconstructed
+vertices. The resolution plot is Fig. 26(b). So (a) is exactly the
+per-category yield we expected, and (b) is the pairwise Delta-z distribution --
+the same observable as our sigma_vtx-vtx measurement and the Delta-z bump study.
+
+### The definitions match, and AMVF reproduces their plot
+
+ATLAS Section 6.5 classifies a reconstructed vertex as Matched at >= 70% of the
+total track weight from one interaction, Merged below that, Split by the
+Sum-pT^2 tie-break, Fake when fake tracks outweigh any interaction. Our
+`PURITY_THRESHOLD` is already 0.7 and the Split rule is identical. The single
+difference is weighting: they use vertex-fit track weights, we count tracks
+unweighted, because per-track fit weights are not in these ntuples.
+
+New `pv_finder/diagnostics/amvf_vs_atlas_fig25.py` runs the existing
+`classify_assignments` core over all 51,000 events of the Run 3 MC sample and
+builds both panels, including their two reference lines (the diagonal, and the
+reconstruction acceptance = interactions with >= 2 reconstructed tracks).
+`plot_amvf_vs_atlas_fig25.py` draws ours and stacks the ATLAS PNGs beside them.
+
+Agreement is close: at mu = 60 we get All 32.2 / Matched 23.8 / Merged 7.8
+against their ~32.5 / ~23.5 / ~8.5, and the acceptance line lands on theirs.
+The Delta-z dip has the same shape -- half-recovery at 0.90 mm against their
+~0.75 mm, full recovery by 3 mm. The plateau level differs only through the
+beamspot (35 mm here vs their ~42 mm).
+
+Two categories do not match, both understood. **Fake is structurally zero for
+us**: 99.84% of reconstructed tracks in this ntuple carry a truth association
+and only 0.084% of AMVF-assigned tracks have none, so there is nothing to build
+a fake vertex out of. ATLAS needs R_match < 0.5, which we do not store. Split
+is about half theirs, which follows from the same cause plus unweighted
+counting. We should not quote a Fake rate from this taxonomy as comparable to
+theirs.
+
+### A 50% that should have been 70%
+
+The note's TTVA chapter described Clean as ">= 50% of assigned tracks". The code
+has always used 0.7. Corrected, and the passage now cites IDTR-2021-01 and
+states the one real difference (weighted vs unweighted). Nothing numerical
+changes -- no result was ever produced at 50%.
+
+### GNN in the appendices
+
+Appendix A covered only the vertex finder. Added a Track-to-vertex association
+section with graph building at both pileups, the training commands, the
+chain_scan / evaluate_ttva_graphs / evaluate_amvf_ttva evaluation commands, the
+runpy quirk, and the fast-path and nondeterminism guards; plus TTVA rows in the
+results-settings matrix, three TTVA checkpoints in the checkpoint table, and the
+graph datasets and test slices in the paths list, including the warning about
+zero-height legacy graph files. Appendix B gained a TTVA hyperparameter table
+for the two production models beside the existing finder table.

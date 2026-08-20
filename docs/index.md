@@ -22,7 +22,9 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 
 ## Evaluation
 
+- [**metric_definitions**](evaluation/metric_definitions.md) — **start here.** What every number means: formulas, denominators, code paths, the two taxonomies, and the traps
 - [amvf_fairness_audit](evaluation/amvf_fairness_audit.md) — is the PVF vs AMVF comparison apples-to-apples, and by how much
+- [atlas_fig25_crosscheck](evaluation/atlas_fig25_crosscheck.md) — our vertex categories vs ATLAS IDTR-2021-01 Fig. 25: same 70% rule, AMVF reproduces their plot
 - [vertex_finding](evaluation/vertex_finding.md) — PVF metrics
 - [vertex_association](evaluation/vertex_association.md) — GNN metrics
 
