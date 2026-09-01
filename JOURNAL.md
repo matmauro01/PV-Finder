@@ -4764,3 +4764,52 @@ references in the GNN chapter dropped; the other carries the reason the
 augmentation result reversed, so it stays.
 
 58 pages, builds clean with TL2022, PDF pushed to GitLab at 417bc64.
+
+## 2026-09-01 -- Fact-check pass on the ported note; three real errors found
+
+Checked every quoted figure in the ported sections against docs/ rather than
+against working notes. Three things were wrong.
+
+**The +13.7 % satellite excess was a withdrawn number.** docs/research/
+pairwise_dz_bump.md records it as withdrawn (the evaluation pkl behind it was
+overwritten the same afternoon; re-running the tool gives +12.5 %). Worse, that
+figure describes the *diagnostic* configuration, which uses the historical
+position estimator and no height floor. At the deployed v6 operating point the
+band excess is **+3.6 %**, against +0.4 % for truth and -14.8 % for AMVF. As
+written the note implied the shipped resolution plot carries a 13.7 % artefact
+when it carries about a quarter of that, which is exactly the sort of thing a
+reviewer attacks first.
+
+**The decomposition was fabricated.** "Roughly half below prominence 0.005,
+about 47 % from the position estimator" appears nowhere in the source. What is
+measured: a 0.005 prominence gate removes 75 % of the band excess, and the local
+centroid takes it from +12.5 % to +5.1 %. Those overlap heavily and were never
+an additive split. Replaced with the evidence that actually rules out a
+deconvolution sidelobe (band satellites are ~26x less prominent than real
+vertices, and their amplitude is uncorrelated with their parent's, r = -0.004),
+plus the prominence gate recorded as considered-and-declined with its cost
+(1.70 truth-matched peaks/event, 2.0:1 removal ratio).
+
+**Section 2.1 contradicted the new data chapter.** It still said every sample
+used pT > 500 MeV and |eta| < 2.5, while the data chapter now describes an
+|eta| < 4 production at pT >= 0.9 GeV. Both selections are now stated
+separately.
+
+### Preempting the obvious reviewer questions
+
+Several claims invited a next-step question and now answer it in place. The
+merge-credit convention moves the margin by -2.15 points at 0.5 mm but only
+-0.01 at 0.17 mm, so at the window we use the margin does not depend on the
+convention even though the absolute efficiency does. The accidental-match floor
+is quoted with its convention and with AMVF's near-identical value (18.6 % vs
+18.4 %), so it reads as a property of the vertex density rather than a defect in
+our number. The nTrk<2 fake overstatement is immediately followed by AMVF's
+2.36/event on the same population, so the reader does not have to ask whether it
+biases the comparison.
+
+Also dropped a sentence admitting we had first misread the bump as a physics
+result, reframed the augmentation caveat so it states the scope of the claim
+rather than inviting "then train it longer", and restated "the old sample was
+contaminated" as the non-uniform selection it actually describes.
+
+58 pages, clean build, pushed at b8f560f.
