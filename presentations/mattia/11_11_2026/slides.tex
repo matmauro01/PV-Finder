@@ -28,7 +28,7 @@
 3. Split vertices in efficiency & \textcolor{mygreen}{Done} & Identical efficiency; PV-Finder $+3.36$ points over AMVF \\
 4. HS studies vs $\mu$ & \textcolor{mygreen}{Done} & Clean HS: GNN $96.4\%$, AMVF $92.5\%$ \\
 5. AMVF HS selection vs ITk & \textcolor{mygreen}{Done} & Stored AMVF primary: $92.9\%$, matches ITk \\
-6. ITk HS resolution & \textcolor{mygreen}{Done} & PV-Finder $12.4$~\textmu m, AMVF $10.2$~\textmu m \\
+6. ITk HS resolution & \textcolor{mygreen}{Done} & PV-Finder + GNN $9.3$~\textmu m, AMVF $10.3$~\textmu m \\
 7. Run 2 vs Run 4 gap & \textcolor{mygreen}{Done} & Not methodology; AMVF/PV-Finder ratio $1.93\to1.33$ \\
 8. Data--MC & \textcolor{mygreen}{Done} & MC on all Fig.~6.2 panels; AMVF-reference bias $+2.4$ points \\
 9. $z_0$ baseline in Fig.~7.2 & \textcolor{mygreen}{Done} & Nearest $z_0$ $31.9\%$, AMVF $30.9\%$, GNN $68.4\%$ \\
@@ -134,12 +134,13 @@ s8, packed & 245 & 455 & $1.4\times$ faster \\
 \begin{frame}{6. Longitudinal HS resolution, ITk definition}
 \begin{columns}[T]\begin{column}{.42\linewidth}
 \req{HS longitudinal resolution with the ITk definition.}
-\did{\item Athena iterative RMS, HS matched within $0.1$~mm.}
-\res{\item PV-Finder $12.38\pm0.35$~\textmu m.
-\item AMVF $10.24\pm0.28$~\textmu m (ITk: $\approx10$~\textmu m).
-\item Flat in $\mu$.}
+\did{\item Athena iterative RMS, HS within $0.1$~mm, same 1\,915 events.
+\item Adaptive vertex fit with beam-spot constraint on the GNN-assigned tracks.}
+\res{\item PV-Finder + GNN: $9.27\pm0.25$~\textmu m.
+\item AMVF: $10.25\pm0.30$~\textmu m (ITk: $\approx10$~\textmu m).
+\item $1.0$~\textmu m better than AMVF; histogram peak alone $12.38$~\textmu m.}
 \end{column}\begin{column}{.56\linewidth}\centering
-\plot{hs_resolution_vs_mu.png}
+\plot{hs_resolution_vs_ntrk_adaptive.png}
 \end{column}\end{columns}
 \end{frame}
 
