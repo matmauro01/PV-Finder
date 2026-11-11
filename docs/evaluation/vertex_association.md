@@ -58,15 +58,44 @@ very different categories:
 | Track-purity | 35.2% | 42.6% | 22.1% | 0.07% | 0.3094 |
 
 **Why**, measured by `gnn.diagnostics.amvf_convention_check` rather than argued:
-the dominant-truth purity of AMVF vertices has **median 0.6316** (quartiles
+the largest track-bucket fraction of AMVF vertices has **median 0.6316** (quartiles
 0.462 / 0.632 / 0.812), i.e. the distribution straddles the 0.70
-`PURITY_THRESHOLD`. Scanning the cut gives Clean 0.7372 at 0.5, 0.5613 at 0.6,
-0.4072 at 0.7, 0.2798 at 0.8. At extended |η| AMVF puts vertices at
+`PURITY_THRESHOLD`. Scanning the cut gives threshold-pass fractions of 0.7372
+at 0.5, 0.5613 at 0.6, 0.4072 at 0.7, and 0.2798 at 0.8. These include the
+unlabelled-track bucket and precede Fake/Split classification; they are not
+Clean rates. At extended |η| AMVF puts vertices at
 approximately the right z, but their track lists absorb forward tracks from
 neighbours, so the median vertex is 63% pure and falls on the wrong side of a
 70% cut. The fake rates show the same thing from the other side: 16.0%
 positional against 0.07% track-based — see (b) below for the measured mechanism
 behind that collapse.
+
+**Full 50% purity replay (September 10, 2026).** Reclassifying the same 1,920
+events through `classify_assignments`, including the Fake and Split rules,
+gives:
+
+| AMVF purity cut | ≥50% | ≥70% |
+|---|---:|---:|
+| Clean vertices | 113,088 | 66,127 |
+| Clean/reco | 60.17 ± 0.11% | 35.18 ± 0.10% |
+| Clean/truth | 52.91 ± 0.12% | 30.94 ± 0.11% |
+| Merged/reco | 17.63 ± 0.09% | 42.62 ± 0.12% |
+| Split/reco | 22.13 ± 0.09% | 22.13 ± 0.09% |
+| Fake/reco | 0.072 ± 0.006% | 0.072 ± 0.006% |
+
+The 70% replay reproduces all six saved counts event by event. Lowering the
+cut promotes 46,961 Merged vertices to Clean; Split (41,594), Fake (135),
+reconstructed (187,960) and reference truth (213,738) counts are unchanged.
+The increase is 24.98 ± 0.10 percentage points in Clean/reco and 21.97 ± 0.09
+points in Clean/truth. Errors are one-standard-deviation statistical errors
+from 10,000 paired event-bootstrap resamples (seed 20260910), summing counts
+before forming ratios. No model inference is involved. This is an AMVF
+purity-cut sensitivity check; the main GNN comparison retains 70% for both
+chains. Results and source hashes:
+[`AMVF_PURITY_RESULTS.json`](../../presentations/mattia/09_14_2026/AMVF_PURITY_RESULTS.json).
+The reproduction script is `presentations/mattia/09_14_2026/compute_amvf_purity.py`;
+run it by path inside tmux. Per-event arrays and a vertex-category cache are in
+`outputs/09_10_2026_output/amvf_purity/`.
 
 ```bash
 python -u -m gnn.diagnostics.amvf_convention_check \
@@ -167,7 +196,7 @@ Measured at t=0.98 over all 193,945 peaks:
 | non-empty Fakes | 303 | 135 |
 | **of those, truth-majority split over ≥2 PVs (mislabelled)** | **5** (1.7%) | 100 (74.1%) |
 | median truth-track fraction among Fakes | **0.000** | 0.667 |
-| Clean rate at the 0.70 purity cut | **0.8888** | 0.4072 |
+| Largest-bucket fraction ≥0.70, before Fake/Split classification | **0.8888** | 0.4072 |
 
 **Five peaks out of 193,945** — 0.0026% of peaks, 0.027% of the all-peaks fake
 rate. The chain's Fakes have a median truth-track fraction of exactly 0.000,
@@ -573,6 +602,14 @@ validation loss (0.3385 vs 0.3510). **The no-augmentation control is the
 production checkpoint:**
 `model_weights/ttva_gnn_hllhc_v4_noaug/ttva_gat_alleta_k20_v4_noaug180k_epoch_107.pyt`
 
+**Deck update (25 September 2026).** The 25 September opening deck tables and
+vs-μ plots now use the full-pileup checkpoint
+`model_weights/ttva_gnn_hllhc_fullmu_v1_20260924/ttva_gat_alleta_k20_fullmu_v1_60k_epoch_213.pyt`
+at the no-score-cut / reco\(n_{\mathrm{trk}}\ge2\) working point. See
+[gnn_full_pileup_training_2026-09-24.md](gnn_full_pileup_training_2026-09-24.md).
+The v4 noaug epoch-107 file above remains the historical t=0.98 chain_scan
+production reference on this page.
+
 **What augmentation did instead: it moved the operating curve toward lower
 fakes — but only under the drop-empty convention.** Arm A has a lower
 drop-empty fake rate and purer vertices at every one of the nine thresholds.
@@ -650,7 +687,7 @@ consequences (b) and (c) above, which must be quoted together.
 | **0.95** | **0.9443** | 0.9349 | 0.8068 |
 | 0.995 | 0.9375 | 0.9167 | 0.8068 |
 
-**94.4% against AMVF's 80.7%** on the same events, arm B ahead of arm A again.
+**94.4% against AMVF's 80.7%** on the same events (legacy rule). **Superseded for AMVF (2026-11-09):** 80.7% re-ranks the stored track lists; ATLAS's stored primary under the ITk rule gives 92.9%, and the GNN gives 96.3% (t=0.98) / 94.3% (t=0.95) under the same rule. See [hs_chain_studies_2026-11-09.md](hs_chain_studies_2026-11-09.md), arm B ahead of arm A again.
 As at v3 the HS-ID and vertex-classification working points differ — here HS-ID
 prefers t=0.95 while vertex classification prefers t=0.98 — so quote the working
 point with the number. Both come from the same forward pass.
