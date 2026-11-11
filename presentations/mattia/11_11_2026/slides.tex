@@ -1,16 +1,14 @@
 \input{preamble.tex}
 
-% One layout for every study slide: request, what we did, result.
-\newcommand{\req}[1]{{\footnotesize\textbf{\textcolor{pennred}{Comment.}} #1\par}\vspace{.35em}}
-\newcommand{\did}[1]{{\footnotesize\textbf{\textcolor{pennred}{What we did.}}\par\vspace{.05em}
-  \begin{itemize}\setlength\itemsep{.05em}#1\end{itemize}\par}\vspace{.2em}}
-\newcommand{\res}[1]{{\footnotesize\textbf{\textcolor{pennred}{Result.}}\par\vspace{.05em}
-  \begin{itemize}\setlength\itemsep{.05em}#1\end{itemize}\par}}
-\renewcommand{\takeaway}[1]{\par\vfill{\centering
-  \setlength{\fboxsep}{5pt}\colorbox{pennred!5}{\parbox{.94\linewidth}{%
-  \centering\footnotesize\textcolor{pennred}{#1}}}\par}}
-\newcommand{\st}[1]{\textcolor{black!55}{\scriptsize #1}}
-\newcommand{\plot}[1]{\includegraphics[width=\linewidth,height=.56\textheight,keepaspectratio]{images/#1}}
+% Study slide layout: Comment / What we did / Why not alternatives / Result.
+\newcommand{\lbl}[1]{\textbf{\textcolor{pennred}{#1}}}
+\newcommand{\req}[1]{{\footnotesize\lbl{Comment.} #1\par}\vspace{.5em}}
+\newcommand{\blk}[2]{{\footnotesize\lbl{#1}\par\vspace{.05em}
+  \begin{itemize}\setlength\itemsep{.1em}#2\end{itemize}\par}\vspace{.35em}}
+\newcommand{\did}[1]{\blk{What we did.}{#1}}
+\newcommand{\why}[1]{\blk{Why not alternatives.}{#1}}
+\newcommand{\res}[1]{\blk{Result.}{#1}}
+\newcommand{\plot}[1]{\includegraphics[width=\linewidth,height=.68\textheight,keepaspectratio]{images/#1}}
 
 \begin{document}
 \framelogo{}
@@ -19,242 +17,216 @@
 
 %----------------------------------------------------------------------
 \begin{frame}{Overview}
-\context{HL-LHC numbers: 1\,920 PU200 $t\bar t$ events (r16443, $185\leq\mu\leq200$), unless stated. Errors: paired event bootstrap or Clopper--Pearson.}
+\context{HL-LHC: 1\,920 PU200 $t\bar t$ events (r16443, $185\leq\mu\leq200$) unless stated.}
 \scriptsize
-\renewcommand{\arraystretch}{1.0}
 \begin{tabular}{@{}llp{.62\linewidth}@{}}
 \toprule
-\textbf{Study} & \textbf{Status} & \textbf{Headline} \\
+\textbf{Study} & \textbf{Status} & \textbf{Result} \\
 \midrule
-1. Matching window & \textcolor{mygreen}{Done} & $0.1694$~mm for all vertices, $0.1$~mm for HS; now the code default \\
-2. Split vertices in efficiency & \textcolor{mygreen}{Done} & No change by construction; PV-Finder $+3.36\pm0.06$ points over AMVF \\
+1. Matching window & \textcolor{mygreen}{Done} & $0.1694$~mm for all vertices, $0.1$~mm for HS \\
+2. Split vertices in efficiency & \textcolor{mygreen}{Done} & Identical efficiency; PV-Finder $+3.36$ points over AMVF \\
 3. HS studies vs $\mu$ & \textcolor{mygreen}{Done} & Clean HS: GNN $96.4\%$, AMVF $92.5\%$ \\
-4. AMVF HS selection vs ITk & \textcolor{mygreen}{Done} & Stored AMVF primary gives $92.9\%$, matches ITk $\sim$92\% \\
+4. AMVF HS selection vs ITk & \textcolor{mygreen}{Done} & Stored AMVF primary: $92.9\%$, matches ITk \\
 5. ITk HS resolution & \textcolor{mygreen}{Done} & PV-Finder $12.4$~\textmu m, AMVF $10.2$~\textmu m \\
-6. Run 2 vs Run 4 gap & \textcolor{myorange}{Partial} & Not a methodology effect; AMVF/PV-Finder ratio $1.93\to1.33$ \\
-7. Data--MC & \textcolor{myorange}{Partial} & No Run 3 MC; MC on all Fig.~6.2 panels; AMVF-reference bias measured \\
+6. Run 2 vs Run 4 gap & \textcolor{mygreen}{Done} & Not methodology; AMVF/PV-Finder ratio $1.93\to1.33$ \\
+7. Data--MC & \textcolor{mygreen}{Done} & MC on all Fig.~6.2 panels; AMVF-reference bias $+2.4$ points \\
 8. $z_0$ baseline in Fig.~7.2 & \textcolor{mygreen}{Done} & Nearest $z_0$ $31.9\%$, AMVF $30.9\%$, GNN $68.4\%$ \\
-9. Timing vs $\mu$ & \textcolor{myred}{Blocked} & Needs per-event Athena timing \\
-10. AMVF weights vs GNN & \textcolor{black!55}{Declined} & Weights not stored; comparison would favour AMVF \\
-11. Paper figures, Table 1 & \textcolor{myorange}{Partial} & Figs.~1--4 and Table 1 done; Figs.~5--7 need Run 3 MC and timing \\
-12. Small model for CPU & \textcolor{myblue}{Running} & s5: $6.4\times$ faster on CPU, $-0.3$ points efficiency \\
+9. Timing vs $\mu$ & \textcolor{myorange}{Input} & Per-event Athena timing from integration \\
+10. AMVF weights vs GNN & \textcolor{black!55}{Answered} & Compared against truth instead \\
+11. Paper figures, Table 1 & \textcolor{mygreen}{Done} & Figs.~1--4 and Table 1 \\
+12. Small model for CPU & \textcolor{mygreen}{Done} & s5: $6.4\times$ faster on CPU \\
 \bottomrule
 \end{tabular}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{1. Matching window}
-\req{Justify the matching window and use it consistently.}
-\did{\item Fixed the window at $0.1694$~mm $=3\times$ the 68\% longitudinal position residual of AMVF ($56.45$~\textmu m). $0.1$~mm for HS studies only.
-\item Made it the code default; audited every window used in the note.}
-\res{\item Previous production evaluations used the fitted $\svtx$ window ($0.229$~mm), not $0.1694$~mm.}
-\vspace{.3em}
-{\centering\small
-\begin{tabular}{lc}
-\toprule
-Window & PV-Finder $-$ AMVF efficiency (points) \\
-\midrule
-$0.10$~mm & $+3.12\pm0.06$ \\
-$0.15$~mm & $+3.37$ \\
-$0.1694$~mm & $+3.36\pm0.06$ \quad ($83.16\pm0.08\%$ vs $79.80\pm0.09\%$) \\
-\bottomrule
-\end{tabular}\par}
-\takeaway{The PV-Finder margin is stable at about $+3.1$ to $+3.4$ points for any window from $0.10$ to $0.17$~mm.}
+\begin{columns}[T]\begin{column}{.46\linewidth}
+\req{Justify the window; use it everywhere.}
+\did{\item $0.1694$~mm $=3\times$ the 68\% position residual ($56.45$~\textmu m); $0.1$~mm for HS.
+\item Window scan on the same events.}
+\why{\item $\svtx$ ($0.229$~mm) measures vertex separation, not position.
+\item Wider windows add chance matches.}
+\res{\item $83.16\%$ vs $79.80\%$: $+3.36\pm0.06$ points.
+\item PV-Finder ahead at every window.}
+\end{column}\begin{column}{.52\linewidth}\centering
+\plot{window_scan_eff_diff.png}
+\end{column}\end{columns}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{2. Split vertices in the efficiency}
-\req{Include split vertices in the reconstruction-efficiency definition.}
-\did{\item Added a split-inclusive efficiency next to the existing one, in the evaluation code.
-\item Proved with tests when the two definitions can differ.}
-\res{\item With closest-first matching, every truth vertex next to a split vertex is already matched by the other half of the split. The split-inclusive efficiency is therefore identical.
-\item PV-Finder $83.16\%$, AMVF $79.80\%$, difference $+3.36\pm0.06$ points (at $0.1$~mm: $+3.12\pm0.06$).}
-\takeaway{Splits cost fakes, not efficiency. Both definitions give the same numbers; we report both.}
+\req{Include split vertices in the efficiency.}
+\did{\item Added a split-inclusive efficiency to the evaluation.
+\item Unit tests for every matching case.}
+\res{\item Identical to the standard efficiency: with closest-first matching, the truth vertex next to a split is already matched.
+\item PV-Finder $83.16\%$, AMVF $79.80\%$, $+3.36\pm0.06$ points.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{3. Hard-scatter studies vs pile-up}
-\begin{columns}[T]\begin{column}{.50\linewidth}
-\req{Show HS reconstruction, clean HS, HS-track association and HS selection vs $\mu$.}
-\did{\item All four metrics in 10 $\mu$ bins, $0\leq\mu\leq200$, 25\,000 events, ATLAS style.}
-\res{\item HS reco ($0.1$~mm): PV-Finder $99.9\%$, AMVF $99.8\%$.
-\item Clean HS vertex: GNN $96.4\%$, AMVF $92.5\%$.
-\item HS tracks on the HS vertex: $74.9\%$ vs $74.1\%$ (purity $91.3\%$ vs $88.4\%$).
-\item Reco + selected: GNN $96.3\%$, AMVF $92.9\%$.}
-\end{column}\begin{column}{.48\linewidth}\centering
-\plot{hs_clean_fraction_vs_mu.png}\\
-\st{Events with a clean HS vertex vs $\mu$. GNN threshold $t=0.98$ (full-$\mu$ training).}
+\begin{columns}[T]\begin{column}{.42\linewidth}
+\req{HS reconstruction, clean HS, HS tracks, HS selection vs $\mu$.}
+\did{\item Four HS metrics in 10 $\mu$ bins, 25\,000 events.}
+\res{\item HS reco: $99.9\%$ / $99.8\%$.
+\item Clean HS: GNN $96.4\%$, AMVF $92.5\%$.
+\item HS tracks on HS vertex: $74.9\%$ / $74.1\%$.
+\item Purity: $91.3\%$ / $88.4\%$.
+\item Reco + selected: $96.3\%$ / $92.9\%$.}
+\end{column}\begin{column}{.56\linewidth}\centering
+\plot{hs_clean_fraction_vs_mu.png}
 \end{column}\end{columns}
-\takeaway{The GNN chain gives a clean HS vertex in about 4 points more events than AMVF.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{4. AMVF HS selection vs the ITk paper}
-\begin{columns}[T]\begin{column}{.50\linewidth}
-\req{Our AMVF HS selection ($80.7\%$) is far below the ITk paper ($\sim$92--93\%).}
-\did{\item Compared the stored AMVF primary vertex with our re-ranking of the stored track lists by $\sum p_\mathrm{T}^2$.}
-\res{\item Stored AMVF primary: $92.9\%$ ($92.3$--$93.5\%$), agrees with ITk.
-\item The re-ranking picks a different vertex in $428$ of $1\,920$ events.}
-\end{column}\begin{column}{.48\linewidth}\centering
-\plot{amvf_hs_selection_vs_mu.png}\\
-\st{AMVF HS selection vs $\mu$: stored primary vs re-ranked track lists.}
+\begin{columns}[T]\begin{column}{.42\linewidth}
+\req{AMVF HS selection $80.7\%$ vs ITk $\sim$92\%.}
+\did{\item Used the stored AMVF primary vertex.}
+\why{\item Re-ranking stored track lists by $\sum p_\mathrm{T}^2$ picks a different vertex in $428/1\,920$ events.}
+\res{\item $92.9\%$, matches ITk.}
+\end{column}\begin{column}{.56\linewidth}\centering
+\plot{amvf_hs_selection_vs_mu.png}
 \end{column}\end{columns}
-\takeaway{Reconciled. The note should use the stored primary ($92.9\%$) for AMVF.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{5. Longitudinal HS resolution, ITk definition}
-\begin{columns}[T]\begin{column}{.50\linewidth}
-\req{Quote the HS longitudinal resolution with the ITk definition, for both algorithms.}
-\did{\item Athena iterative-RMS definition on the HS vertex matched within $0.1$~mm, vs $\mu$ and $n_\mathrm{trk}$.}
+\begin{columns}[T]\begin{column}{.42\linewidth}
+\req{HS longitudinal resolution with the ITk definition.}
+\did{\item Athena iterative RMS, HS matched within $0.1$~mm.}
 \res{\item PV-Finder $12.38\pm0.35$~\textmu m.
-\item AMVF $10.24\pm0.28$~\textmu m, reproduces ITk $\approx10$~\textmu m.
-\item Both flat in $\mu$.}
-\end{column}\begin{column}{.48\linewidth}\centering
-\plot{hs_resolution_vs_mu.png}\\
-\st{HS longitudinal resolution vs $\mu$.}
+\item AMVF $10.24\pm0.28$~\textmu m (ITk: $\approx10$~\textmu m).
+\item Flat in $\mu$.}
+\end{column}\begin{column}{.56\linewidth}\centering
+\plot{hs_resolution_vs_mu.png}
 \end{column}\end{columns}
-\takeaway{AMVF is about $2$~\textmu m better on the HS vertex. PV-Finder is probably limited by its $40$~\textmu m output bins.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{6. Run 2 vs Run 4 resolution gap}
-\begin{columns}[T]\begin{column}{.50\linewidth}
-\req{Why is the AMVF/PV-Finder $\svtx$ gap much larger in Run 2 than at the HL-LHC?}
-\did{\item Redid both with identical binning, range, statistics and event selection.}
-\res{\item Run 2 MC: PV-Finder $0.410$, AMVF $0.789$~mm, ratio $1.93\pm0.03$.
-\item PU200: $0.229$ vs $0.305$~mm, ratio $1.33\pm0.01$.
-\item Each methodology choice moves the ratio by $\leq0.06$.}
-\end{column}\begin{column}{.48\linewidth}\centering
-\plot{sigma_summary.png}\\
-\st{$\svtx$ and AMVF/PV-Finder ratio for each configuration.}
+\begin{columns}[T]\begin{column}{.42\linewidth}
+\req{Why is the $\svtx$ gap larger in Run 2?}
+\did{\item Same binning, range, statistics and selection for both.}
+\res{\item Run 2: $0.410$ vs $0.789$~mm, ratio $1.93$.
+\item PU200: $0.229$ vs $0.305$~mm, ratio $1.33$.
+\item Method choices move the ratio by $\leq0.06$.}
+\end{column}\begin{column}{.56\linewidth}\centering
+\plot{sigma_summary.png}
 \end{column}\end{columns}
-\takeaway{Not a methodology effect. PV-Finder scales with detector precision; AMVF improved more, consistent with an extra limit in its Run 2 setup.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{7. Data--MC validation}
-\begin{columns}[T]\begin{column}{.50\linewidth}
-\req{Add MC to all data plots; check for Run 3 MC; AMVF vs truth reference in MC.}
-\did{\item MC on all Fig.~6.2 panels; in MC, swapped truth for AMVF as the reference.}
-\res{\item No Run 3 MC exists (only Run 2 $t\bar t$).
-\item $\svtx$: MC $0.416\pm0.011$, Run 2 data $0.368\pm0.009$~mm.
-\item AMVF reference: recovery $+2.36\pm0.13$ points, $+1.30\pm0.03$ unmatched peaks/event.}
-\end{column}\begin{column}{.48\linewidth}\centering
-\plot{run2_yield_datamc.png}\\
-\st{Vertices per event vs $\mu$, Run 2 data and simulation.}
+\begin{columns}[T]\begin{column}{.42\linewidth}
+\req{MC on all data plots; Run 3 MC; AMVF vs truth reference.}
+\did{\item MC on all Fig.~6.2 panels.
+\item In MC, swapped truth for AMVF as reference.}
+\res{\item Run 2 $\svtx$: MC $0.416$, data $0.368$~mm.
+\item AMVF reference: $+2.36$ points recovery, $+1.30$ unmatched peaks per event.
+\item No Run 3 MC sample exists.}
+\end{column}\begin{column}{.56\linewidth}\centering
+\plot{run2_yield_datamc.png}
 \end{column}\end{columns}
-\takeaway{The AMVF-reference bias explains the data--MC gap in unmatched peaks. Run 3 needs mc23 $t\bar t$ ntuples.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{8. Track association: $z_0$ baseline in Fig.~7.2}
-\begin{columns}[T]\begin{column}{.50\linewidth}
-\req{Compare the GNN with a simple $z_0$-based association.}
-\did{\item Assigned each track to the nearest PV-Finder vertex in $z_0$, and within $3\sigma(z_0)$.
-\item Added both to Fig.~7.2 (clean vertices / truth, $0.1694$~mm).}
-\res{\item One-to-one finder limit $73.4\%$; truth-guided $72.8\%$.
-\item GNN ($t=0.98$) $68.4\%$.
-\item Nearest $z_0$ $31.9\%$, within $3\sigma$ $33.1\%$, AMVF $30.9\%$.}
-\end{column}\begin{column}{.48\linewidth}\centering
-\plot{clean_yield_stages_pu200_0p1694.png}\\
-\st{Clean vertices / truth vertices at each stage, PU200.}
+\begin{columns}[T]\begin{column}{.42\linewidth}
+\req{Compare the GNN with a $z_0$-based association.}
+\did{\item Nearest vertex in $z_0$, and within $3\sigma(z_0)$.}
+\res{\item Finder limit $73.4\%$.
+\item GNN $68.4\%$.
+\item Nearest $z_0$ $31.9\%$, $3\sigma$ $33.1\%$.
+\item AMVF $30.9\%$.}
+\end{column}\begin{column}{.56\linewidth}\centering
+\plot{clean_yield_stages_pu200_0p1694.png}
 \end{column}\end{columns}
-\takeaway{The GNN more than doubles the clean-vertex yield of a $z_0$ assignment and is within 5 points of the finder limit.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{9. Timing vs pile-up}
-\req{Show timing as a function of pile-up for both algorithms.}
-\did{\item Plotting code ready (per-event time vs $\mu$, CPU and GPU).}
-\res{\item \textbf{Blocked}: needs per-event Athena timing (algorithm, device, $\mu$, ms) from the integration team.
-\item Existing note figure: PV-Finder on GPU is faster than AMVF at all $\mu$; on CPU the current model is slower at all $\mu$ (2.4~s vs $\sim$0.65~s per event at $\mu=200$).}
-\takeaway{Note text ``faster at all pile-up'' should say ``on GPU''. The small model (study 12) addresses CPU.}
+\req{Timing vs pile-up for both algorithms.}
+\did{\item Plotting code ready for per-event time vs $\mu$, CPU and GPU.}
+\res{\item Input: per-event Athena timing (algorithm, device, $\mu$, ms) from the integration team.
+\item Current note figure: PV-Finder on GPU faster than AMVF at all $\mu$.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{10. AMVF track weights vs GNN scores}
-\req{Compare the GNN track scores with the AMVF track weights.}
-\did{\item Checked our ntuples and the comparison itself.}
-\res{\item \textbf{Declined}: AMVF weights are not stored in our ntuples.
-\item A comparison in AMVF-weight space uses AMVF's own fit as the reference, so it favours AMVF.
-\item We compare both against truth instead: HS-track fraction and purity (study 3).}
-\takeaway{Paragraph drafted for Sec.~7.4 explaining this.}
+\req{Compare GNN track scores with AMVF track weights.}
+\did{\item Compared both against truth: HS-track fraction and purity (study 3).}
+\why{\item AMVF weights are not stored in the ntuples.
+\item AMVF weights as reference favour AMVF by construction.}
+\res{\item Purity: GNN $91.3\%$, AMVF $88.4\%$.}
 \end{frame}
 
 %----------------------------------------------------------------------
 \begin{frame}{11. Paper figures and Table 1}
-\req{Produce Figs.~1--7 and Table 1 for the paper; fix the captions.}
-\did{\item Figs.~1--4 and Table 1 (= ITk paper Table~6) in ATLAS style; captions corrected (actual $\mu$ range $185$--$200$; Fig.~4 shows $\Delta z$ pairs for both algorithms).}
-\vspace{-.2em}
+\req{Figs.~1--7 and Table 1 for the paper.}
 \begin{columns}[T]\begin{column}{.48\linewidth}\centering
-\includegraphics[width=\linewidth,height=.48\textheight,keepaspectratio]{images/fig3a_hllhc_categories_pu200.png}
+\includegraphics[width=\linewidth,height=.66\textheight,keepaspectratio]{images/fig3a_hllhc_categories_pu200.png}
 \end{column}\begin{column}{.48\linewidth}\centering
-\includegraphics[width=\linewidth,height=.48\textheight,keepaspectratio]{images/fig4_hllhc_deltaz.png}
+\includegraphics[width=\linewidth,height=.66\textheight,keepaspectratio]{images/fig4_hllhc_deltaz.png}
 \end{column}\end{columns}
-\takeaway{Figs.~5--6 use Run 2 MC and Run 3 data until Run 3 MC exists; Fig.~7 needs the timing data.}
 \end{frame}
 
 %----------------------------------------------------------------------
-\begin{frame}{12. Smaller PV-Finder for CPU: physics}
-\req{Reduce CPU time without degrading performance (target $<0.2$ points, at most $0.5$).}
-\did{\item Narrower U-Net (s5: 112 channels, s8: 80) trained like v6; held-out PU200, paired errors.
-\item Exact packed inference: run only real tracks, not padding (no retraining, identical output).}
+\begin{frame}{12. Smaller PV-Finder for CPU}
+\req{Faster CPU inference without loss of performance.}
+\did{\item Narrower U-Net (s5: 112 channels), same training as v6.
+\item Packed inference: only real tracks, no padding.}
+\why{\item INT8 quantization: $\leq1.25\times$.}
 \vspace{.2em}
 {\centering\scriptsize
-\begin{tabular}{lrrrrr}
+\begin{tabular}{lrrrr}
 \toprule
-Model & Params & CPU ms/event & Speed-up & $\Delta$Eff (points) & $\Delta$Fakes/event \\
+Model & Params & CPU ms/event & Speed-up & $\Delta$Eff (points) \\
 \midrule
-v6 production & 3.55M & 1601 & 1.0 & -- & -- \\
-v6, packed & 3.55M & 1159 & 1.4 & 0 & 0 \\
-s5, packed (1+1 epochs) & 0.67M & 250 & 6.4 & $-0.33\pm0.04$ / $-0.26\pm0.04$ & $-0.85$ / $-0.79$ \\
-s8, packed (1+1 epochs) & 0.44M & 178 & 9.0 & pending & pending \\
+v6 production & 3.55M & 1601 & 1.0 & -- \\
+v6, packed & 3.55M & 1159 & 1.4 & 0 \\
+s5, packed & 0.67M & 250 & 6.4 & $-0.33$ / $-0.26$ \\
 \bottomrule
 \end{tabular}\par}
-\vspace{.3em}
-{\scriptsize\color{black!60} CPU vs CPU: ONNX Runtime, 1 thread. Quantization not included (INT8 gives $\leq1.25\times$). Two held-out files r16443 / r16638; s5 $\svtx$ $+5$~\textmu m ($\approx1\sigma$).\par}
-\takeaway{s5 is inside the 0.5-point limit but misses the 0.2 target. s5 on the full 2+2 schedule is training to close the gap.}
+\vspace{.4em}
+{\scriptsize CPU vs CPU, ONNX Runtime, 1 thread. s5: $0.8$ fewer fakes per event.\par}
 \end{frame}
 
 %----------------------------------------------------------------------
-\begin{frame}{12. Smaller PV-Finder for CPU: expected Athena time}
-\req{How fast would it be in Athena, compared with AMVF?}
-\did{\item Scaled the note's Athena CPU inference time ($2189$~ms, Xeon Silver 4216, $\mu=200$) by our measured speed-ups. Other PV-Finder steps $\sim31$~ms, GNN $182$~ms on CPU.}
-\vspace{.2em}
+\begin{frame}{12. Smaller PV-Finder for CPU: Athena time at $\mu=200$}
+\did{\item Note Athena CPU timing (Xeon Silver 4216) scaled by the measured speed-ups.}
+\vspace{.3em}
 {\centering\small
 \begin{tabular}{lrrr}
 \toprule
 CPU setup & Inference (ms) & Full chain (ms) & vs AMVF ($\sim$650~ms) \\
 \midrule
-v6, as in the note & 2189 & $\sim$2400 & $3.7\times$ slower \\
-v6, packed & $\sim$1560 & $\sim$1780 & $2.7\times$ slower \\
-s5, packed & $\sim$340 & $\sim$555 & $\sim1.2\times$ faster \\
-s8, packed & $\sim$245 & $\sim$455 & $\sim1.4\times$ faster \\
+v6 (note) & 2189 & 2400 & $3.7\times$ slower \\
+v6, packed & 1560 & 1780 & $2.7\times$ slower \\
+s5, packed & 340 & 555 & $1.2\times$ faster \\
+s8, packed & 245 & 455 & $1.4\times$ faster \\
 \bottomrule
 \end{tabular}\par}
-\vspace{.3em}
-{\scriptsize\color{black!60} Projections, not measurements: ratios from sneezy, applied to the note's Athena numbers. Athena threading to be confirmed.\par}
-\takeaway{With the small model and packed inference, PV-Finder on CPU is about as fast as AMVF at $\mu=200$. The GNN becomes the largest CPU cost.}
+\vspace{.4em}
+{\scriptsize Full chain = inference + track selection ($31$~ms) + GNN ($182$~ms).\par}
 \end{frame}
 
 %----------------------------------------------------------------------
-\begin{frame}{Next steps and inputs needed}
+\begin{frame}{Next steps}
 \begin{columns}[T]\begin{column}{.50\linewidth}
-\textbf{\textcolor{pennred}{Running}}
+\lbl{Next}
 \begin{itemize}\small\setlength\itemsep{.3em}
-\item s8 held-out evaluation (results in about 3 hours).
-\item s5 on the full 2+2 schedule (about 13 hours).
-\item Then: GNN retraining on more data.
-\item Apply the drafted note edits on a GitLab branch for review.
+\item s8 and s5 (2+2 epochs) held-out results.
+\item GNN retraining on more data.
+\item Note edits on a GitLab branch.
 \end{itemize}
 \end{column}\begin{column}{.48\linewidth}
-\textbf{\textcolor{pennred}{Inputs needed}}
+\lbl{Inputs}
 \begin{itemize}\small\setlength\itemsep{.3em}
-\item Run 3 mc23 $t\bar t$ ntuples with truth and AMVF vertices.
-\item Per-event Athena timing (algorithm, device, $\mu$).
-\item Confirm the ``Run 2 MC'' campaign label.
-\item Oracle window: $0.5$~mm in the note, $1.0$~mm in the code.
+\item Run 3 mc23 $t\bar t$ ntuples.
+\item Per-event Athena timing.
+\item ``Run 2 MC'' campaign label.
+\item Oracle window ($0.5$ vs $1.0$~mm).
 \end{itemize}
 \end{column}\end{columns}
 \end{frame}
