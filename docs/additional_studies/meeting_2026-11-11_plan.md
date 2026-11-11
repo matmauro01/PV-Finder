@@ -103,3 +103,15 @@ Tracked in `paper_questions_2026-11-11.md`.
 - **Data access:** Trey has read access to `data/`, including the Run 3 link targets.
 - **EB talk, Friday 13 November 2026:** 20-30 min, up to date, no history. Folder `presentations/mattia/11_13_2026_EB/`. All slide numbers come from `numbers.tex`, regenerated after the recompute and freeze.
 - **Timing:** GNN v2 trains in an estimated 3-6 h (v1 took 67 min for 60k events; v2 is 2.5x the data, read from disk). Target: frozen GNN v2 and frozen density model in the EB talk and the paper deck. Extend training if the validation loss is still falling at the end.
+- **GNN working point (Mattia, 11 Nov):** no rule fixed yet. After GNN v2 is trained:
+  - scan t on the validation events in mu bins, using frozen-density-model vertices
+  - metrics per bin: Clean/truth, Clean/reco, Merged, Split and Fake, HS selection, HS resolution (3D adaptive fit), track F1
+  - check the low-mu behaviour Mattia saw for oddities and explain it
+  - present a few options with their trade-offs; Mattia decides
+- **Quality gates for every shipped number:**
+  - category bookkeeping
+  - identical event sets
+  - git hash and model recorded
+  - physics trends vs mu and n_trk
+  - AMVF anchors to the ITk paper (HS selection ~93%, HS resolution ~10 um, Fig. 25 counts)
+  - independent recomputation by a second agent
