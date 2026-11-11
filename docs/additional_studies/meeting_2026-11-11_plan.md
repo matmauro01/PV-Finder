@@ -102,4 +102,4 @@ Tracked in `paper_questions_2026-11-11.md`.
 - **Small model:** best performance within a 0.2-point drop (0.5 at most) that is faster than AMVF on CPU at mu = 200, full chain including the GNN. Distillation from v6 if needed.
 - **Data access:** Trey has read access to `data/`, including the Run 3 link targets.
 - **EB talk, Friday 13 November 2026:** 20-30 min, up to date, no history. Folder `presentations/mattia/11_13_2026_EB/`. All slide numbers come from `numbers.tex`, regenerated after the recompute and freeze.
-- **Timing:** GNN v2 (1-3 days) will not be ready for Friday. The EB talk uses the current full-mu GNN, labelled as such.
+- **Timing:** GNN v2 trains in an estimated 3-6 h (v1 took 67 min for 60k events; v2 is 2.5x the data, read from disk). Target: frozen GNN v2 and frozen density model in the EB talk and the paper deck. Extend training if the validation loss is still falling at the end.
