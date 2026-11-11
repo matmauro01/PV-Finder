@@ -102,6 +102,14 @@ differences vs v6, event-bootstrap errors
 | r16443 | s5 (1+1) | 0.8283 | -0.33 +- 0.04 | 17.88 | -0.85 +- 0.07 | 0.2344 +- 0.0033 |
 | r16638 | v6 | 0.8325 | | 18.50 | | 0.2278 +- 0.0031 |
 | r16638 | s5 (1+1) | 0.8299 | -0.26 +- 0.04 | 17.71 | -0.79 +- 0.07 | 0.2329 +- 0.0031 |
+| r16443 | s8 (1+1, step 450k) | 0.8236 | -0.80 +- 0.04 | 15.61 | -3.12 +- 0.07 | 0.2288 +- 0.0030 |
+| r16638 | s8 (1+1, step 450k) | 0.8255 | -0.70 +- 0.04 | 15.47 | -3.03 +- 0.07 | 0.2291 +- 0.0031 |
+
+s8 was evaluated at Phase-2 step 450,000 of 465,624 (97% of the epoch; the
+run hit a host-memory error after the last step, before the epoch
+checkpoint was written). It sits at a stricter operating point: 17% fewer
+fakes, efficiency -0.7 to -0.8 points, sigma unchanged. The comparison at
+matched fake rate decides whether this is a loss or an operating-point shift.
 
 s5 with 1+1 epochs is inside the 0.5-point maximum but misses the 0.2-point
 target. It has 0.8 fewer fakes per event, so part of the loss is a shift
