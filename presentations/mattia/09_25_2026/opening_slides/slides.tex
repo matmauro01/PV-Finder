@@ -1,0 +1,689 @@
+% PV-Finder presentation — editable source for the complete deck.
+%
+% EDIT THIS FILE. All slide text, tables, diagrams and settings are here.
+% Build: bash build.sh       Output: revised_deck.pdf
+% Direct build: pdflatex slides.tex (run twice; produces slides.pdf).
+%
+% Figures are external PDF/PNG assets in figures/, research/ and ../v4/.
+% To change text inside a generated plot, edit its Python script in review/.
+% The previous split sources are preserved under review/multifile_source_*.
+%
+% SLIDE INDEX (search for "SLIDE NN" to jump to a frame)
+%   01  Title
+%   02  Motivation
+%   03  One set of settings
+%   04  HL-LHC: vertex separation at integral cuts 0.3 and 0.5
+%   05  Unweighted vertex categories: four examples
+%   06  Vertex categories: our unweighted definitions
+%   07  PV-Finder and AMVF: vertex finding
+%   08  PV-Finder + GNN: track-association diagnostics
+%   09  Proposed paper structure
+%   10  Planned plots and published HS benchmarks
+%   11  Run 3 timing: the published comparison
+%   12  HL-LHC: vertex counts versus pile-up
+%   13  HL-LHC: track association versus pile-up
+%   14  HL-LHC: vertex categories after track association
+%   15  Target widths without AMVF: a simulation study
+%   16  CPU vs GPU Comparison
+%   17  Appendix
+%   18  Backup: CPU and GPU timing breakdown
+%   19  Timing Breakdown
+%   20  Backup: Inference Timing: What Has Been Measured
+
+% ============================================================================
+% SETUP — fonts, theme, metadata and reusable formatting
+% ============================================================================
+
+\documentclass[xcolor=table,aspectratio=169]{beamer}
+
+\usepackage[defaultsans,scale=0.95]{opensans}
+\usepackage{FiraMono}
+\usepackage{fourier}
+\usefonttheme{professionalfonts}
+\DeclareMathAlphabet{\mathcal}{OMS}{cmsy}{m}{n}
+\newcommand\bmmax{2}
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+\usepackage{subcaption}
+\usepackage{multicol}
+
+\usepackage{tikz}
+\usetikzlibrary{decorations.pathreplacing}
+\usepackage{wrapfig}
+
+% COLORS
+\usepackage{xcolor}
+\colorlet{myred}{red!80!black}
+\colorlet{myblue}{blue!80!black}
+\colorlet{mygreen}{green!60!black}
+\colorlet{myorange}{orange!70!red!60!black}
+\colorlet{mydarkred}{red!30!black}
+\colorlet{mydarkblue}{blue!40!black}
+\colorlet{mydarkgreen}{green!30!black}
+\colorlet{mylightblue}{blue!60!white}
+\colorlet{mydarkyellow}{yellow!70!black}
+\colorlet{myyellowred}{yellow!70!red}
+
+\usepackage{float}
+\usepackage{hyperref}
+
+\usepackage{amsmath, amsthm, amssymb, amsfonts}
+\usepackage{esint}
+\usepackage{mathtools}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily}
+
+\usepackage{physics}
+\usepackage[makeroom]{cancel}
+% siunitx + mhchem commented out due to version clash with chemgreek on this TL2017 install
+\usepackage[italic]{heppennames}
+\usepackage{xpatch}
+\makeatletter
+\xpatchcmd\@HepConStyle
+{\edef\@upcode{\updefault}}
+{\ifdefined\shapedefault\edef\@upcode{\shapedefault}\else\edef\@upcode{\updefault}\fi}
+{}{}
+\makeatother
+\usepackage{tensor}
+\usepackage{feynmp-auto}
+\usepackage{listofitems}
+\usetikzlibrary{arrows.meta}
+\usepackage[outline]{contour}
+\usepackage{booktabs}
+
+%%% ---- shared TikZ vocabulary for the Part I method figures ----
+\usetikzlibrary{positioning,calc,backgrounds}
+\tikzset{
+    pvflow/.style   ={-{Latex[length=2.4mm,width=1.9mm]}, line width=0.9pt, draw=black!55},
+    pvpoint/.style  ={-{Latex[length=2.0mm,width=1.6mm]}, line width=0.9pt},
+    pvaxis/.style   ={-{Latex[length=1.9mm,width=1.5mm]}, line width=0.7pt, draw=black!60},
+    pvdim/.style    ={{Latex[length=1.7mm,width=1.4mm]}-{Latex[length=1.7mm,width=1.4mm]},
+                      line width=0.7pt},
+    pvcurve/.style  ={line width=1.0pt, line join=round, line cap=round},
+    pvthresh/.style ={dash pattern=on 2.6pt off 2.2pt, line width=0.8pt,
+                      draw=myorange!85!black},
+    pvsplit/.style  ={dash pattern=on 3pt off 2.4pt, line width=1.0pt, draw=pennred},
+    pvguide/.style  ={line width=0.5pt, draw=black!15},
+    pvcard/.style   ={rounded corners=6pt, draw=black!15, fill=black!2, line width=0.7pt},
+    pvbox/.style    ={rounded corners=6pt, align=center, line width=0.9pt},
+}
+\newcommand{\pvcap}[1]{{\scriptsize\textcolor{black!55}{#1}}}
+
+
+\addtobeamertemplate{frametitle}{}{\vspace{-15.5pt}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\backupbegin}{
+    \newcounter{finalframe}
+    \setcounter{finalframe}{\value{framenumber}}
+    \setbeamertemplate{footline}{}
+    \begin{frame}[plain]
+        \centering
+        \vfill
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}\\[0.8em]
+        {\LARGE\textbf{\textcolor{pennred}{Backup}}}\\[0.8em]
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}
+        \vfill
+    \end{frame}
+}
+\newcommand{\backupend}{
+    \setcounter{framenumber}{\value{finalframe}}
+    \setbeamertemplate{footline}[frame number]
+}
+
+\newcommand{\ntrk}{\ensuremath{n_\mathrm{trk}}}
+
+\def\thisframelogos{}
+\newcommand{\framelogo}[1]{\def\thisframelogos{#1}}
+
+\addtobeamertemplate{frametitle}{}{%
+\begin{tikzpicture}[remember picture,overlay]
+\node[anchor=north east,yshift=3.5pt] at (current page.north east) {%
+    \foreach \img in \thisframelogos {%
+        \hspace{.5ex}%
+        \includegraphics[height=0.8cm, keepaspectratio]{\img}%
+    }%
+};
+\end{tikzpicture}}
+
+% Logo and historical-image paths are resolved through graphicspath below.
+
+% Presentation mode is the default. Set talkbuild to 0 to display the extra
+% reading notes already included in the source.
+\providecommand{\talkbuild}{1}
+\newcommand{\readingonly}[1]{\ifnum\talkbuild=0\relax#1\fi}
+\newcommand{\talkonly}[1]{\ifnum\talkbuild=1\relax#1\fi}
+\newcommand{\bnum}[2]{\ifnum\talkbuild=0 #1\else #2\fi}
+
+% Part-divider helper: \partdivider{numeral}{title}{one-line subtitle}
+\newcommand{\partdivider}[3]{%
+    \begin{frame}[plain]
+        \centering
+        \vfill
+        \begin{tikzpicture}
+            \fill[pennred] (0,0) circle (0.72cm);
+            \node[text=white, font=\Large\bfseries] at (0,0.02) {#1};
+        \end{tikzpicture}\\[0.85em]
+        {\LARGE\textbf{\textcolor{pennred}{#2}}}\\[0.75em]
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}\\[0.75em]
+        {\small\textcolor{black!50}{#3}}
+        \vfill
+    \end{frame}%
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usetheme{Philadelphia}
+\hypersetup{colorlinks,allcolors=pennred}
+
+\title[PV-Finder]{PV-Finder: End-to-end Primary Vertex Reconstruction}
+\subtitle{Method, validation and results at high pile-up}
+
+\author[Mattia Mauro]{Qi-Bin Lei, Rocky B. Garg, Lauren Tompkins,\\\textcolor{pennred}{Mattia Mauro}, Trey Warner}
+
+\institute[]{Stanford University}
+
+\date{September 25, 2026}
+
+\titlegraphic{
+    \hspace{5pt}
+    \href{https://stanford.edu/group/stanford_atlas/}{\includegraphics[height=1cm]{logo-Stanford/Block_S_2_color.png}}
+    \href{https://atlas.cern/}{\includegraphics[trim={0 11.5cm 0 11.5cm},clip,height=1cm]{logo-ATLAS/ATLAS-Logo-Ref-Pantone.pdf}}
+    \href{https://iris-hep.org/}{\includegraphics[height=1cm]{logo-iris-hep/Iris-hep-4-no-long-name.png}}
+}
+
+
+% Small reusable text styles. Edit slide text in the numbered frames below.
+\newcommand{\readingnote}[1]{\readingonly{\par\vspace{.35em}%
+  {\footnotesize\color{black!65}#1\par}}}
+\newcommand{\takeaway}[1]{\par\vspace{.65em}{\centering
+  \setlength{\fboxsep}{7pt}\colorbox{pennred!5}{\parbox{.94\linewidth}{%
+  \centering\small\textcolor{pennred}{#1}}}\par}}
+\newcommand{\context}[1]{{\centering\footnotesize\color{black!55}#1\par}\vspace{.65em}}
+\newcommand{\bigvalue}[2]{{\LARGE\bfseries\textcolor{pennred}{#1}}\\[.4em]{\small #2}\par}
+\newcommand{\pubnote}{\href{https://cds.cern.ch/record/2858348}{ATL-PHYS-PUB-2023-011}}
+\newcommand{\notelink}{\href{https://gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1}{ANA-IDTR-2026-01-INT1}}
+\newcommand{\treysource}{\href{https://gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1/-/blob/4c50ed51500c897dd6a1b5bb52b0f1e3c12e7575/sections/04b_timing.tex}{Note Sec. 5.1 (18 Sep 2026)}}
+
+\newcommand{\svtx}{\sigma_{\mathrm{vtx-vtx}}}
+\setbeamertemplate{navigation symbols}{}
+\hypersetup{pdftitle={PV-Finder: Method and Results, September 25, 2026},
+  pdfauthor={Mattia Mauro, Qi-Bin Lei, Rocky B. Garg, Lauren Tompkins, Trey Warner},
+  pdfsubject={Paper proposal, performance, width calibration and timing; revised September 24, 2026}}
+
+
+
+\graphicspath{{../v4/}}
+
+% Source links and small captions used on several slides.
+\newcommand{\sourcecaption}[1]{\par\vspace{.5em}{\scriptsize\color{black!55}#1\par}}
+\newcommand{\itkpaper}{\href{https://arxiv.org/html/2412.15090v2\#S5.SS5}{ITk performance paper, Sec.\ 5.5 (local draft pp.\ 27--29)}}
+\newcommand{\runthreepaper}{\href{https://arxiv.org/abs/2308.09471}{Run 3 tracking paper, Fig.\ 13}}
+\newcommand{\amvfnote}{\href{https://cds.cern.ch/record/2670380}{AMVF note (2019), Sec.\ 3.2, pp.\ 3--4}}
+
+\begin{document}
+
+\framelogo{}
+
+% ============================================================================
+% SLIDE 01 — Title
+% ============================================================================
+\begin{frame}[plain]
+    \titlepage
+\end{frame}
+
+% ============================================================================
+% SLIDE 02 — Motivation
+% ============================================================================
+\begin{frame}{Motivation}
+    \relax
+    \begin{columns}[c]
+        \begin{column}{.53\linewidth}
+            \textbf{Reconstruct primary vertices from tracks.}
+            \par\vspace{1em}
+            \begin{itemize}\setlength\itemsep{.7em}
+                \item Nearby interactions overlap as pile-up increases.
+                \item AMVF finds and fits vertices iteratively.
+                \item PV-Finder predicts a vertex-density map; a GNN assigns the tracks.
+            \end{itemize}
+        \end{column}
+        \begin{column}{.44\linewidth}\centering
+            \bigvalue{$\mu\sim200$}{HL-LHC design pile-up}
+            \par\vspace{1.5em}
+            \begin{tikzpicture}[x=.70cm,y=.85cm]
+                \draw[pvaxis] (0,0)--(7.3,0) node[right] {$z$};
+                \foreach \x/\h in {.8/1.4,2.4/1.7,2.85/1.2,4.5/1.8,5/1.4,6.2/1.1}{
+                \draw[pennred,line width=1.2pt] (\x,0)--(\x,\h);
+                \fill[pennred] (\x,\h) circle (2pt);}
+                \node[font=\scriptsize,text=black!55] at (3.5,-.65) {several vertices in the same event
+                    (schematic)};
+            \end{tikzpicture}
+        \end{column}
+    \end{columns}
+    \readingnote{The current PU200 production uses full ITk acceptance. Trey Warner's Athena study measures
+        the complete finder and GNN chain on the same events as AMVF, with CPU and GPU configurations. Earlier
+        method development is described in \pubnote.}
+\end{frame}
+
+% Numerical provenance and qualifications: SOURCES.md and review/.
+
+
+% ============================================================================
+% SLIDE 03 — One set of settings
+% ============================================================================
+\begin{frame}{One set of settings}
+    \vspace{.8em}
+    \centering
+    {\Large Integral threshold: \textbf{\textcolor{pennred}{0.3 everywhere}}}\par
+    \vspace{1.8em}
+    {\Large Vertex finding: \textbf{\textcolor{pennred}{$|\Delta z|\leq0.1$ mm everywhere}}}\par
+    \vspace{1.8em}
+    {\Large Vertex categories: \textbf{\textcolor{pennred}{close to ATLAS}}}\par
+    \vspace{.45em}
+    {\small Clean / Matched, Merged, Split, Fake}\par
+    \vfill
+    \sourcecaption{The ITk paper
+        uses 0.1 mm for HS finding and we extend this to our eval. Current categories use unit track weights and an unlabelled-track proxy
+        for Fake.}
+\end{frame}
+
+% ============================================================================
+% SLIDE 04 — HL-LHC: vertex separation at integral cuts 0.3 and 0.5
+% ============================================================================
+\begin{frame}{HL-LHC: vertex separation at integral cuts 0.3 and 0.5}
+    \centering
+    \includegraphics[width=.99\linewidth,height=.77\textheight,keepaspectratio]{figures/resolution_integral_030_050.pdf}
+\end{frame}
+
+% Four independent examples of the agreed unweighted ntuple diagnostic.
+% Every dot is one assigned track. The Split example includes both vertices;
+% Fake is the unlabelled-track proxy, shown as a strict plurality below 50%.
+
+% ============================================================================
+% SLIDE 05 — Unweighted vertex categories: four examples
+% ============================================================================
+\begin{frame}{Unweighted vertex categories: four examples}
+    \context{Each dot is one assigned track. Four independent examples of the convention used in our plots.}
+    \centering
+    \resizebox{.98\linewidth}{!}{%
+    \begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+        \colorlet{catA}{mydarkblue!85}
+        \colorlet{catB}{myorange!85!black}
+        \colorlet{catC}{teal!70!black}
+        \colorlet{catF}{black!45}
+        \foreach \x/\w in {1.6/3.0,5.0/3.0,9.35/5.0,13.7/3.0}{
+        \node[pvcard,minimum width=\w cm,minimum height=3.65cm] at (\x,2.05) {};
+        }
+        % Clean: one truth interaction contributes 5/6 of the assigned tracks.
+        \node[font=\small\bfseries,text=mygreen!65!black] at (1.6,3.5) {Clean / Matched};
+        \foreach \p in {(1.0,2.75),(1.6,2.75),(2.2,2.75),(1.0,2.12),(1.6,2.12)}
+        \fill[catA] \p circle (5pt);
+        \fill[catB] (2.2,2.12) circle (5pt);
+        \node[align=center,font=\footnotesize] at (1.6,1.1) {$5/6\simeq83\%$ from one\\truth collision};
+        % Merged: 60/40 avoids an ambiguous tie for the dominant truth origin.
+        \node[font=\small\bfseries,text=myorange!85!black] at (5.0,3.5) {Merged};
+        \foreach \p in {(4.4,2.75),(5.0,2.75),(5.6,2.75)}
+        \fill[catA] \p circle (5pt);
+        \foreach \p in {(4.7,2.12),(5.3,2.12)}
+        \fill[catB] \p circle (5pt);
+        \node[align=center,font=\footnotesize] at (5.0,1.1) {$60\%+40\%$\\Neither reaches $70\%$};
+        % Split: both vertices are dominated by the same truth interaction.
+        \node[font=\small\bfseries,text=myblue] at (9.35,3.5) {Split};
+        \foreach \x/\name in {8.15/v_a,10.55/v_b}{
+        \node[draw=black!25,rounded corners=3pt,minimum width=1.7cm,minimum height=1.1cm] at (\x,2.55) {};
+        \node[font=\scriptsize,text=black!60] at (\x,3.08) {$\name$};
+        \foreach \dx in {-.42,0,.42} \fill[catC] (\x+\dx,2.55) circle (5pt);
+        }
+        \node[font=\footnotesize] at (9.35,1.65) {$\sum p_T^2(v_a)>\sum p_T^2(v_b)$};
+        \node[font=\footnotesize,text=mygreen!65!black] at (8.15,.98) {Keep Clean};
+        \node[font=\footnotesize\bfseries,text=myblue] at (10.55,.98) {Relabel Split};
+        % Fake proxy: 3 unlabelled + 2 from each truth collision.
+        \node[font=\small\bfseries,text=myred] at (13.7,3.5) {Fake (proxy)};
+        \foreach \p in {(13.1,2.75),(13.7,2.75),(14.3,2.75)}
+        \fill[catF] \p circle (5pt);
+        \foreach \p in {(13.05,2.12),(13.48,2.12)} \fill[catA] \p circle (5pt);
+        \foreach \p in {(13.92,2.12),(14.35,2.12)} \fill[catB] \p circle (5pt);
+        \node[align=center,font=\footnotesize] at (13.7,1.1) {$3/7$ unlabelled $>2/7$\\from either collision};
+        % Colours refer to truth origin within each independent example.
+        \fill[catA] (1.0,-.45) circle (5pt);
+        \node[anchor=west,font=\footnotesize] at (1.25,-.45) {truth collision A};
+        \fill[catB] (4.7,-.45) circle (5pt);
+        \node[anchor=west,font=\footnotesize] at (4.95,-.45) {truth collision B};
+        \fill[catC] (8.4,-.45) circle (5pt);
+        \node[anchor=west,font=\footnotesize] at (8.65,-.45) {same truth collision};
+        \fill[catF] (12.65,-.45) circle (5pt);
+        \node[anchor=west,font=\footnotesize] at (12.9,-.45) {unlabelled tracks};
+    \end{tikzpicture}%
+    }
+    \par\vspace{.65em}\small
+    Track counts set the category; $\sum p_T^2$ only resolves the Split label.
+    \sourcecaption{Unweighted approximation to \amvfnote. The paper uses fit weights and truth-classified fake
+        tracks; neither is available here. Main results: top-1 GNN assignment, reco
+        $\ntrk\geq2$. ATLAS labels a reconstructed vertex fake when the summed fit weight of fake tracks exceeds the contribution from every individual true collision.}
+\end{frame}
+
+% ============================================================================
+% SLIDE 06 — Vertex categories: our unweighted definitions
+% ============================================================================
+\begin{frame}{Vertex categories: our unweighted definitions}
+    \context{Every assigned track counts once. Truth labels identify its collision of origin.}
+    \small\renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{p{3.2cm}p{10.3cm}}
+        \toprule
+        \textbf{Clean / Matched} & At least 70\% of the assigned tracks come from one true collision.\\
+        \textbf{Merged} & A true collision is the largest contribution, but none reaches 70\% of the assigned
+            tracks.\\
+        \textbf{Split} & Several reco vertices have the same dominant true collision. Only the vertex with the
+            largest $\sum p_T^2$ keeps Clean or Merged.\\
+        \textbf{Fake (proxy)} & The unlabelled-track group is the largest contribution.\\
+        \bottomrule
+    \end{tabular}
+    \par\vspace{.6em}\footnotesize
+    Both methods retain reco vertices with at
+        least two stored tracks. Unlabelled tracks
+        enter the category fractions.
+    \sourcecaption{Adapted from \amvfnote; Track and Vertex Reconstruction with the ATLAS Inner Detector,
+        Sec.\ 6.5, pp.\ 44--45 (local draft). Those papers use fit weights and truth-classified fake tracks.}
+\end{frame}
+
+% ============================================================================
+% SLIDE 07 — PV-Finder and AMVF: vertex finding
+% ============================================================================
+\begin{frame}{PV-Finder and AMVF: vertex finding}
+    \context{$14$ TeV $t\bar t$ simulation, $\langle\mu\rangle=192.5$, $|\eta|<4$; same 1,920 events; integral
+        cut $0.3$.}
+    \centering
+    \small\renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{lccc}
+        \toprule
+        Measurement & $z$ window & PV-Finder & AMVF\\
+        \midrule
+        All-vertex positional efficiency & $\pm0.1$ mm & $74.11\pm0.10\%$ & $70.99\pm0.10\%$\\
+        Efficiency after GNN + selection & $\pm0.1$ mm & $71.07\pm0.10\%$ & $70.99\pm0.10\%$\\
+        Unmatched reco / event, after selection & $\pm0.1$ mm & $15.05\pm0.09$ & $25.46\pm0.11$\\
+        \midrule
+        Hard-scatter finding efficiency & $\pm0.1$ mm & $99.90^{+0.07}_{-0.14}\%$ &
+            $99.79^{+0.10}_{-0.16}\%$\\
+        \bottomrule
+    \end{tabular}
+    \par\vspace{.25em}\raggedright\footnotesize
+    \textbf{Efficiency:} truth PVs with $\ntrk\geq2$ selected reco tracks and a reco within $0.1$ mm / all
+        such truth PVs. One reco may recover several truth PVs.\\[.2em]
+    \textbf{Track association:} top-1 GNN target per track; keep reco $\ntrk\geq2$, no reassignment.\\[.2em]
+    \textbf{Unmatched/event:} retained reco vertices with no eligible truth PV within $0.1$ mm, divided by
+        the number of events. This is a count per event, not a percentage.\\[.2em]
+    \textbf{Hard scatter:} events with any vertex within $0.1$ mm of the true HS position / all events.
+    \sourcecaption{The first and HS rows use PV-Finder peaks before GNN; the middle two rows apply the full-pileup GNN
+        (epoch 213) and reco selection. AMVF uses reco $\ntrk\geq2$ throughout. HS criterion: ITk p.\ 27.}
+\end{frame}
+
+% ============================================================================
+% SLIDE 08 — PV-Finder + GNN: track-association diagnostics
+% ============================================================================
+% Fit the longer diagnostic notes on one page without removing text.
+\begin{frame}[shrink=5]{PV-Finder + GNN: track-association diagnostics}
+    \context{Same 1,920 events, $185\leq\mu\leq200$; integral cut $0.3$; reco $\ntrk\geq2$
+        for both.}
+    \centering\small\renewcommand{\arraystretch}{1.2}
+    \begin{tabular}{lcc}
+        \toprule
+        Measurement & PV-Finder + GNN & AMVF (stored links)\\
+        \midrule
+        Track efficiency & $69.06\pm0.06\%$ & $68.32\pm0.06\%$\\
+        Assignment purity & $69.69\pm0.06\%$ & $68.65\pm0.06\%$\\
+        Assigned fraction & $99.10\pm0.01\%$ & $99.52\pm0.01\%$\\
+        \midrule
+        Clean / reconstructed vertices & $49.75\pm0.13\%$ & $35.17\pm0.10\%$\\
+        \bottomrule
+    \end{tabular}
+    \par\vspace{.25em}\raggedright\footnotesize
+    \textbf{Truth-labelled tracks:} efficiency = correct / all input tracks; purity = correct / assigned
+        links; assigned fraction = assigned / all input tracks.\\[.3em]
+    Correct: the target's dominant unweighted truth origin equals the track's origin. All truth origins enter,
+        including one-track origins; efficiency counts each track once.\\[.3em]
+    Clean uses the unit-weight approximation, including Split relabelling.
+    \takeaway{Full-pileup GNN: $+0.75\pm0.02$\ efficiency points and $+1.05\pm0.02$\ purity points over AMVF.}
+\end{frame}
+
+% ============================================================================
+% SLIDE 09 — Proposed paper structure
+% ============================================================================
+\begin{frame}{Proposed paper structure}
+    \begin{columns}[T]
+        \begin{column}{.45\linewidth}
+            \small
+            \textbf{1\quad Introduction}\\[.45em]
+            Why vertex reconstruction matters at high pile-up.\\[1em]
+
+            \textbf{2\quad ATLAS detector}\\[.45em]
+            2.1\quad Run 3 Inner Detector\\[.3em]
+            2.2\quad The ITk upgrade\\[1em]
+
+            \textbf{3\quad Data and MC samples}\\[.45em]
+            Run 3 data and simulation; HL-LHC simulation.\\[.35em]
+            Track selection, pile-up and beam spot.
+        \end{column}
+
+        \begin{column}{.51\linewidth}
+            \small
+            \textbf{4\quad PV-Finder and the track-to-vertex GNN}\\[.45em]
+            Inputs, both architectures, training and chosen settings.\\[1em]
+
+            \textbf{5\quad Performance}\\[.45em]
+            5.1\quad Run 3 simulation\\[.3em]
+            5.2\quad Run 3 data\\[.3em]
+            5.3\quad HL-LHC simulation\\[.3em]
+            5.4\quad Timing studies\\[1em]
+
+            \textbf{6\quad Conclusion}\\[.45em]
+            Main improvements and remaining limitations.
+        \end{column}
+    \end{columns}
+
+    \takeaway{Describe both algorithms in Section 4; compare their performance with AMVF in Section 5.}
+    \sourcecaption{Section order follows the professor's outline, dated 23 September 2026.}
+\end{frame}
+
+% ============================================================================
+% SLIDE 10 — Plots in the current paper draft
+% ============================================================================
+\begin{frame}{Plots in the current paper draft}
+    \small
+
+    \textbf{Performance figures already specified in the paper skeleton}
+
+    \begin{itemize}
+        \item \textbf{Fig.\ 3a:} Number of reconstructed vertices:
+        PV-Finder vs.\ AMVF in simulated $t\bar t$ events,
+        classified by vertex type.
+
+        \item \textbf{Fig.\ 3b:} Number of reconstructed PV-Finder vertices
+        versus $\langle\mu\rangle$, classified by vertex type.
+
+        \item \textbf{Fig.\ 4:} Longitudinal separation between reconstructed
+        PV-Finder and AMVF primary vertices in simulated $t\bar t$ events.
+
+        \item \textbf{Figs.\ 5--6:} Additional performance plots currently
+        carrying placeholder copies of the Fig.\ 3--4 captions.
+
+        \item \textbf{Fig.\ 7:} Processing time per event versus
+        $\langle\mu\rangle$ for PV-Finder and AMVF.
+    \end{itemize}
+
+    \vspace{.4em}
+    \textbf{Also in the algorithm section}
+    \begin{itemize}
+        \item Fig.\ 1: PV-Finder algorithm diagram.
+        \item Fig.\ 2: Track-to-vertex GNN algorithm diagram.
+    \end{itemize}
+
+    \takeaway{The immediate task is to populate the figures already defined
+    in the paper skeleton and clarify the intended content of Figs.\ 5--6.}
+
+    \sourcecaption{PV-Finder paper draft, 23 September 2026, Figs.\ 1--7.}
+\end{frame}
+
+
+% ============================================================================
+% SLIDE 12 — HL-LHC: vertex counts versus pile-up
+% ============================================================================
+\begin{frame}{HL-LHC: vertex counts versus pile-up}
+    \centering
+    \includegraphics[width=.99\linewidth,height=.86\textheight,keepaspectratio]{figures/finder_and_categories_vs_mu.pdf}
+\end{frame}
+
+% ============================================================================
+% SLIDE 13 — HL-LHC: track association versus pile-up
+% ============================================================================
+\begin{frame}{HL-LHC: track association versus pile-up}
+    \centering
+    \includegraphics[width=.98\linewidth,height=.83\textheight,keepaspectratio]{figures/ttva_efficiency_purity_vs_mu.pdf}
+\end{frame}
+
+% ============================================================================
+% SLIDE 14 — HL-LHC: vertex categories after track association
+% ============================================================================
+\begin{frame}{HL-LHC: vertex categories after track association}
+    \centering
+    \includegraphics[width=.96\linewidth,height=.82\textheight,keepaspectratio]{figures/ttva_categories_no_cut_vs_mu.pdf}
+\end{frame}
+
+% ============================================================================
+% SLIDE 15 — Target widths without AMVF: a simulation study
+% ============================================================================
+\begin{frame}{Target widths without AMVF: a simulation study}
+    \context{Truth supplies the track groups; a separate fit estimates the vertex position.}
+    \small
+    \textbf{Group the reconstructed tracks by their truth vertex, with $\ntrk\geq2$.}\\[.3em]
+    Fit reconstructed measurements. Use the truth position only to measure the residual afterwards.
+    \par\vspace{.2em}
+    \textbf{Start with a simple one-dimensional fit.}\\[.3em]
+    At a fixed transverse beam position, a weighted least-squares estimate is
+    \[
+    \hat z=\frac{\sum_i z_{0,i}/\sigma_{z_0,i}^2}{\sum_i1/\sigma_{z_0,i}^2}.
+    \]
+    All $z_0$ values must refer to the same beam line. Check this approximation and the residual bias. A full
+        3D fit needs a standalone vertex fitter and full track covariances.
+    \par\vspace{.2em}
+    \textbf{Measure the width of $\hat z-z_{\rm truth}$ versus track multiplicity.}\\[.3em]
+    Fit a positive curve to set the Gaussian training-target width. Validate it on separate events.
+    \takeaway{A fit is still needed. Truth grouping replaces AMVF finding and track assignment.}
+    \sourcecaption{Proposal only. Truth grouping omits association mistakes. Target width is not the final
+        position error.}
+\end{frame}
+
+% Restored from V4, with its original numerical results.
+
+% ============================================================================
+% SLIDE 16 — CPU vs GPU Comparison
+% ============================================================================
+\begin{frame}{CPU vs GPU Comparison}
+    \context{Same events, from input tracks to a vertex container with associated tracks.}
+    \begin{columns}[c]
+        \begin{column}{.68\linewidth}\centering
+            \includegraphics[width=\linewidth,height=\bnum{.57}{.67}\textheight,keepaspectratio]{images/athena_cpu_gpu_amvf.png}
+        \end{column}
+        \begin{column}{.29\linewidth}\small
+            \textbf{One lxplus-gpu node}\\[.5em]
+            Intel Xeon Silver 4216\\
+            @ 2.10 GHz\\[.5em]
+            NVIDIA Tesla T4\\[1em]
+            \textbf{Near PU200}\\[.5em]
+            \textcolor{pennred}{\Large$\sim9\times$ faster}\\[.4em]
+            PV-Finder + GNN on GPU versus AMVF on CPU.
+        \end{column}
+    \end{columns}
+    \par\vspace{.45em}{\scriptsize\color{black!55}V4 benchmark: elapsed time around Athena execution; 200--500
+        events/sample. Settings not remeasured here. \treysource.}
+    \readingnote{The note describes four Run 3 collision-data and six Run 4 simulation samples; the original
+        plot labels the collision-data series Run 2/3. The figure is reproduced unchanged. The ninefold
+        comparison is reported in the note; the PV-Finder CPU implementation is slower than AMVF in this
+        benchmark.}
+\end{frame}
+
+\appendix
+
+% ============================================================================
+% SLIDE 17 — Appendix
+% ============================================================================
+\partdivider{A}{Appendix}{Timing measurements from V4}
+% Restored V4 backup measurements; no new timing claim.
+
+% ============================================================================
+% SLIDE 18 — Backup: CPU and GPU timing breakdown
+% ============================================================================
+\begin{frame}{Backup: CPU and GPU timing breakdown}
+    \context{597 events across three Run 4 PU200 samples; mean wall time per complete event.}
+    \begin{columns}[c]
+        \begin{column}{.59\linewidth}\centering\footnotesize
+            \begin{tabular}{lrr}\toprule
+                Stage & CPU (ms) & GPU (ms)\\\midrule
+                Track selection & 30.54 & 29.96\\
+                Tensor building & 0.10 & 0.10\\
+                Finder inference & 2188.67 & 37.56\\
+                Peak finding & 0.05 & 0.05\\
+                Vertex building & 0.29 & 0.22\\
+                GNN track association & 181.65 & 8.30\\
+                \quad Graph building & 2.83 & 2.50\\
+                \quad GNN inference & 177.89 & 5.20\\
+                \quad Edge selection & 0.68 & 0.41\\\midrule
+                \textbf{Total} & \textbf{2401.28} & \textbf{76.18}\\\bottomrule
+            \end{tabular}
+        \end{column}
+        \begin{column}{.37\linewidth}\small
+            \bigvalue{$31.5\times$}{faster PV-Finder + GNN with CUDA}
+            \par\vspace{.9em}\raggedright
+            \textbf{GPU time:}\\[.4em]
+            Finder + GNN inference: $56.1\%$.\\[.5em]
+            Track selection: $39.3\%$.\\[.7em]
+            Input preparation becomes a major part of the total.
+        \end{column}
+    \end{columns}
+    \par\vspace{.8em}{\scriptsize\color{black!55}Same Xeon Silver 4216 / Tesla T4 setup. GNN substages sum to
+        8.11 ms; reported total: 8.30 ms. Table from \treysource.}
+    \readingnote{The GPU column is the complete CPU+CUDA execution path, including CPU track selection and
+        graph construction. GNN association comprises graph building (2.50 ms), inference (5.20 ms), and edge
+        selection (0.41 ms); components are rounded. The 31.5 ratio uses 2401.28/76.18 and compares the two
+        PV-Finder implementations, not AMVF.}
+\end{frame}
+
+% ============================================================================
+% SLIDE 19 — Timing Breakdown
+% ============================================================================
+\begin{frame}{Timing Breakdown}
+    \centering
+    \includegraphics[width=.99\linewidth,height=.82\textheight,keepaspectratio]{image.png}
+\end{frame}
+
+% ============================================================================
+% SLIDE 20 — Backup: Inference Timing: What Has Been Measured
+% ============================================================================
+\begin{frame}{Backup: Inference Timing: What Has Been Measured}
+    \relax
+    \begin{columns}[c]
+        \begin{column}{.59\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.488}{.61}\textheight,keepaspectratio]{images/timing.png}
+        \end{column}
+        \begin{column}{.38\linewidth}
+            \centering\bigvalue{4.5 ms}{per 40 mm $z$ interval, earlier model}
+            \par\vspace{1.2em}\raggedright\small
+            NVIDIA A100, batch size one.\\[.6em]
+            Inference only; $0\leq\mu\leq80$.\\[.6em]
+            Mean time changes little across this range.
+        \end{column}
+    \end{columns}
+    \takeaway{Earlier model: inference only, one of twelve intervals; not a full-event
+        timing.}\readingnote{Each sub-event is a 40 mm interval along the beam axis. The study timed only the
+        first of twelve intervals per event: 12,150 calls, 150 per integer pile-up bin. Input loading, GPU
+        transfer and peak finding are outside the timer. The 1.2 ms spread is the standard deviation across
+        calls; plotted errors are the standard error on each bin mean. Separate profiler operator sums are not
+        a wall-clock breakdown or a measured batching gain.}
+    \par\vspace{.35em}{\scriptsize\color{black!55}Input loading, GPU transfer and peak finding are outside the
+        timer. Original V4 measurement.}
+\end{frame}
+
+\end{document}

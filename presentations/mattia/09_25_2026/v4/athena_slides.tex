@@ -1,0 +1,50 @@
+\begin{frame}{CPU vs GPU Comparison}
+\context{Same events, from input tracks to a vertex container with associated tracks.}
+\begin{columns}[c]
+\begin{column}{.68\linewidth}\centering
+\includegraphics[width=\linewidth,height=\bnum{.57}{.67}\textheight,keepaspectratio]{images/athena_cpu_gpu_amvf.png}
+\end{column}
+\begin{column}{.29\linewidth}\small
+\textbf{One lxplus-gpu node}\\[.5em]
+Intel Xeon Silver 4216\\
+@ 2.10 GHz\\[.5em]
+NVIDIA Tesla T4\\[1em]
+\textbf{Near PU200}\\[.5em]
+\textcolor{pennred}{\Large$\sim9\times$ faster}\\[.4em]
+PV-Finder + GNN on GPU versus AMVF on CPU.
+\end{column}
+\end{columns}
+\par\vspace{.45em}{\scriptsize\color{black!55}Elapsed time around Athena algorithm execution; 200--500 events/sample. \treysource.}
+\readingnote{The note describes four Run 3 collision-data and six Run 4 simulation samples; the original plot labels the collision-data series Run 2/3. The figure is reproduced unchanged. The ninefold comparison is reported in the note; the PV-Finder CPU implementation is slower than AMVF in this benchmark.}
+\end{frame}
+
+\begin{frame}{Athena: From Tracks to Vertices with Track Links}
+\context{Implemented by Trey Warner; same \texttt{IVertexFinder} interface as AMVF.}
+{\centering\resizebox{\bnum{.72}{.94}\linewidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+\foreach \x/\id/\txt in {0/trk/{xAOD tracks},3.4/sel/{Track selection\\+ tensor building},6.8/net/{ONNX inference\\+ peak finding},10.2/vtx/{xAOD vertices}}{
+\node[pvbox,draw=mydarkblue!60,fill=mydarkblue!7,minimum width=2.9cm,minimum height=1.1cm] (\id) at (\x,0) {\txt};}
+\draw[pvflow] (trk)--(sel);\draw[pvflow] (sel)--(net);\draw[pvflow] (net)--(vtx);
+\node[pvbox,draw=pennred!70,fill=pennred!7,text width=5.0cm,minimum height=1.0cm] (gnn) at (6.8,-2.0) {GNN: build graph $\to$ score edges\\$\to$ select track links};
+\draw[pvflow] (trk.south) -- (0,-.95) -| ([xshift=-12mm]gnn.north);
+\draw[pvflow] (vtx.south) -- (10.2,-2.0) -- (gnn.east);
+\node[pvbox,draw=mygreen!60!black,fill=mygreen!7,text width=3.1cm,minimum height=1.0cm] (links) at (0,-2.0) {Vertices with\\linked tracks};
+\draw[pvflow,draw=mygreen!60!black] (gnn.west)--(links.east);
+\end{tikzpicture}}\par}
+\par\vspace{.6em}
+\begin{columns}[t]
+\begin{column}{.49\linewidth}\small
+\textbf{Two configurable tools}\\[.4em]
+{\scriptsize\texttt{InDetNNPriVxFinderTool}\\
+\texttt{InDetGNNTrackVertexAssociationTool}}\\[.5em]
+Separate selection, tensor/graph, inference and output subtools.
+\end{column}
+\begin{column}{.46\linewidth}\small
+\textbf{Inference and validation}\\[.4em]
+ONNX Runtime: CPU or CUDA, configurable without recompiling.\\[.5em]
+Python comparison: 50 events, 5,037 peaks and 962,060 GNN edges (details in backup).
+\end{column}
+\end{columns}
+\par\vspace{.55em}{\scriptsize\color{black!55}\treysource.}
+\readingnote{Athena applies TightPrimary selection. Finder export: ONNX opset 17; GNN: dynamo exporter, opset 20. Vertex building fills non-native fit quantities with null values.}
+\end{frame}

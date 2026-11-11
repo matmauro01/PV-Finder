@@ -1,0 +1,18 @@
+\begin{frame}{Target widths without AMVF: a simulation study}
+\context{Truth supplies the track groups; a separate fit estimates the vertex position.}
+\small
+\textbf{Group the reconstructed tracks by their truth vertex, with $\ntrk\geq2$.}\\[.3em]
+Fit reconstructed measurements. Use the truth position only to measure the residual afterwards.
+\par\vspace{.2em}
+\textbf{Start with a simple one-dimensional fit.}\\[.3em]
+At a fixed transverse beam position, a weighted least-squares estimate is
+\[
+\hat z=\frac{\sum_i z_{0,i}/\sigma_{z_0,i}^2}{\sum_i1/\sigma_{z_0,i}^2}.
+\]
+All $z_0$ values must refer to the same beam line. Check this approximation and the residual bias. A full 3D fit needs a standalone vertex fitter and full track covariances.
+\par\vspace{.2em}
+\textbf{Measure the width of $\hat z-z_{\rm truth}$ versus track multiplicity.}\\[.3em]
+Fit a positive curve to set the Gaussian training-target width. Validate it on separate events.
+\takeaway{A fit is still needed. Truth grouping replaces AMVF finding and track assignment.}
+\sourcecaption{Proposal only. Truth grouping omits association mistakes. Target width is not the final position error.}
+\end{frame}

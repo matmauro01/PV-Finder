@@ -1,0 +1,60 @@
+% Four independent examples of the agreed unweighted ntuple diagnostic.
+% Every dot is one assigned track. The Split example includes both vertices;
+% Fake is the unlabelled-track proxy, shown as a strict plurality below 50%.
+\begin{frame}{Unweighted vertex categories: four examples}
+\context{Each dot is one assigned track. Four independent examples of the convention used in our plots.}
+\centering
+\resizebox{.98\linewidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+  \colorlet{catA}{mydarkblue!85}
+  \colorlet{catB}{myorange!85!black}
+  \colorlet{catC}{teal!70!black}
+  \colorlet{catF}{black!45}
+  \foreach \x/\w in {1.6/3.0,5.0/3.0,9.35/5.0,13.7/3.0}{
+    \node[pvcard,minimum width=\w cm,minimum height=3.65cm] at (\x,2.05) {};
+  }
+  % Clean: one truth interaction contributes 5/6 of the assigned tracks.
+  \node[font=\small\bfseries,text=mygreen!65!black] at (1.6,3.5) {Clean / Matched};
+  \foreach \p in {(1.0,2.75),(1.6,2.75),(2.2,2.75),(1.0,2.12),(1.6,2.12)}
+    \fill[catA] \p circle (5pt);
+  \fill[catB] (2.2,2.12) circle (5pt);
+  \node[align=center,font=\footnotesize] at (1.6,1.1) {$5/6=83\%$ from one\\truth collision};
+  % Merged: 60/40 avoids an ambiguous tie for the dominant truth origin.
+  \node[font=\small\bfseries,text=myorange!85!black] at (5.0,3.5) {Merged};
+  \foreach \p in {(4.4,2.75),(5.0,2.75),(5.6,2.75)}
+    \fill[catA] \p circle (5pt);
+  \foreach \p in {(4.7,2.12),(5.3,2.12)}
+    \fill[catB] \p circle (5pt);
+  \node[align=center,font=\footnotesize] at (5.0,1.1) {$60\%+40\%$\\Neither reaches $70\%$};
+  % Split: both vertices are dominated by the same truth interaction.
+  \node[font=\small\bfseries,text=myblue] at (9.35,3.5) {Split};
+  \foreach \x/\name in {8.15/v_a,10.55/v_b}{
+    \node[draw=black!25,rounded corners=3pt,minimum width=1.7cm,minimum height=1.1cm] at (\x,2.55) {};
+    \node[font=\scriptsize,text=black!60] at (\x,3.08) {$\name$};
+    \foreach \dx in {-.42,0,.42} \fill[catC] (\x+\dx,2.55) circle (5pt);
+  }
+  \node[font=\footnotesize] at (9.35,1.65) {$\sum p_T^2(v_a)>\sum p_T^2(v_b)$};
+  \node[font=\footnotesize,text=mygreen!65!black] at (8.15,.98) {Keep Clean};
+  \node[font=\footnotesize\bfseries,text=myblue] at (10.55,.98) {Relabel Split};
+  \draw[-{Latex[length=2mm]},draw=myblue!65] (10.55,1.95)--(10.55,1.24);
+  % Fake proxy: 3 unlabelled + 2 from each truth collision.
+  \node[font=\small\bfseries,text=myred] at (13.7,3.5) {Fake (proxy)};
+  \foreach \p in {(13.1,2.75),(13.7,2.75),(14.3,2.75)}
+    \fill[catF] \p circle (5pt);
+  \foreach \p in {(13.05,2.12),(13.48,2.12)} \fill[catA] \p circle (5pt);
+  \foreach \p in {(13.92,2.12),(14.35,2.12)} \fill[catB] \p circle (5pt);
+  \node[align=center,font=\footnotesize] at (13.7,1.1) {$3/7$ unlabelled $>2/7$\\from either collision};
+  % Colours refer to truth origin within each independent example.
+  \fill[catA] (1.0,-.45) circle (5pt);
+  \node[anchor=west,font=\footnotesize] at (1.25,-.45) {truth collision A};
+  \fill[catB] (4.7,-.45) circle (5pt);
+  \node[anchor=west,font=\footnotesize] at (4.95,-.45) {truth collision B};
+  \fill[catC] (8.4,-.45) circle (5pt);
+  \node[anchor=west,font=\footnotesize] at (8.65,-.45) {same truth collision};
+  \fill[catF] (12.65,-.45) circle (5pt);
+  \node[anchor=west,font=\footnotesize] at (12.9,-.45) {unlabelled tracks};
+\end{tikzpicture}}
+\par\vspace{.65em}\small
+Track counts set the category; $\sum p_T^2$ only resolves the Split label.
+\sourcecaption{Unweighted approximation to \amvfnote. The paper uses fit weights and truth-classified fake tracks; neither is available here. Main results: top-1 GNN assignment, no score cut, reco $\ntrk\geq2$.}
+\end{frame}

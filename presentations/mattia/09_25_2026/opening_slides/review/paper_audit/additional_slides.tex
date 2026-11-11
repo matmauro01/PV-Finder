@@ -1,0 +1,141 @@
+% Opening results and conventions, to follow V4's Motivation slide.
+% Numerical provenance and qualifications: SOURCES.md and review/.
+\input{review/slide4_no_cut_numbers.tex}
+\newcommand{\sourcecaption}[1]{\par\vspace{.5em}{\scriptsize\color{black!55}#1\par}}
+\newcommand{\itkpaper}{\href{https://arxiv.org/html/2412.15090v2\#S5.SS5}{ITk performance paper, Sec.\ 5.5}}
+\newcommand{\runthreepaper}{\href{https://arxiv.org/abs/2308.09471}{Run 3 tracking paper, Fig.\ 13}}
+\newcommand{\amvfnote}{\href{https://cds.cern.ch/record/2670380}{AMVF note (2019), Sec.\ 3.2}}
+
+\begin{frame}{PV-Finder and AMVF: vertex finding}
+\context{$14$ TeV $t\bar t$ simulation, $\langle\mu\rangle=192.5$, $|\eta|<4$; same 1,920 events; integral cut $0.3$.}
+\centering
+\small\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lccc}
+\toprule
+Measurement & $z$ window & PV-Finder & AMVF\\
+\midrule
+All-vertex efficiency & $\pm0.1$ mm & $74.11\pm0.10\%$ & $70.99\pm0.10\%$\\
+Unmatched reco / event & $\pm0.1$ mm & $25.16\pm0.11$ & $25.46\pm0.11$\\
+Extra nearby reco / event & $\pm0.1$ mm & $0.112\pm0.008$ & $0.035\pm0.004$\\
+\midrule
+Hard-scatter efficiency & $\pm0.1$ mm & $99.90^{+0.07}_{-0.14}\%$ & $99.79^{+0.10}_{-0.16}\%$\\
+\bottomrule
+\end{tabular}
+\par\vspace{.25em}\raggedright\footnotesize
+\textbf{Efficiency:} truth PVs with $\ntrk\geq2$ and a reco vertex within $0.1$ mm / all truth PVs with $\ntrk\geq2$. One reco vertex can be near several truth PVs.\\[.3em]
+\textbf{Unmatched:} no eligible truth PV within $0.1$ mm. \textbf{Extra nearby reco:} another candidate near an already matched truth PV.\\[.3em]
+\textbf{Hard scatter:} events with a vertex within $0.1$ mm of the true HS position / all events.
+\sourcecaption{PV-Finder: peaks before GNN; AMVF: $\ntrk\geq2$. Unmatched candidates may lie near excluded one-track truth PVs. Errors: event bootstrap (10,000 resamples); HS: 68.27\% Clopper--Pearson.}
+\end{frame}
+
+\input{settings_and_resolution.tex}
+
+\begin{frame}{PV-Finder + GNN: track association}
+\context{Same 1,920 events, $185\leq\mu\leq200$; integral cut $0.3$; no GNN score cut; reco $\ntrk\geq2$ for both.}
+\centering\small\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lcc}
+\toprule
+Measurement & PV-Finder + GNN & AMVF (stored links)\\
+\midrule
+Track efficiency & \gnnEfficiency & \amvfEfficiency\\
+Assignment purity & \gnnPurity & \amvfPurity\\
+Assigned fraction & \gnnAssigned & \amvfAssigned\\
+\midrule
+Clean / reconstructed vertices & \gnnCleanReco & \amvfCleanReco\\
+\bottomrule
+\end{tabular}
+\par\vspace{.25em}\raggedright\footnotesize
+\textbf{Truth-labelled tracks:} efficiency = correct / all; purity = correct / assigned links. All stored truth origins enter these track metrics.\\[.3em]
+Correct means the vertex's dominant truth origin matches the track's origin.\\[.3em]
+Clean uses 70\% purity from track counts; the public definition uses fit weights.
+\takeaway{At high pile-up: \gnnGainEfficiency\ efficiency points and \gnnGainPurity\ purity points over AMVF.}
+\sourcecaption{Highest-scoring target per track; then remove reco vertices with fewer than two tracks. Paired event-bootstrap errors. Categories approximate \amvfnote; fit weights are unavailable.}
+\end{frame}
+
+\begin{frame}{Proposed paper structure}
+\begin{columns}[T]
+\begin{column}{.45\linewidth}
+\small
+\textbf{1\quad Introduction}\\[.45em]
+Why vertex reconstruction matters at high pile-up.\\[1em]
+\textbf{2\quad ATLAS detector}\\[.6em]
+\textbf{3\quad Run 3 Inner Detector}\\[.6em]
+\textbf{4\quad The ITk upgrade}\\[1em]
+\textbf{5\quad Data and MC samples}\\[.45em]
+Run 3 data and simulation; HL-LHC simulation.\\[.35em]
+Track selection, pile-up and beam spot.
+\end{column}
+\begin{column}{.51\linewidth}
+\small
+\textbf{6\quad PV-Finder and the track-to-vertex GNN}\\[.45em]
+Inputs, both architectures, training and chosen settings.\\[1em]
+\textbf{7\quad Performance}\\[.45em]
+7.1\quad Run 3 simulation\\[.3em]
+7.2\quad Run 3 data\\[.3em]
+7.3\quad HL-LHC simulation\\[.3em]
+7.4\quad Timing studies\\[1em]
+\textbf{8\quad Conclusion}\\[.45em]
+Main improvements and remaining limitations.
+\end{column}
+\end{columns}
+\takeaway{Describe both algorithms in Section 6; compare their performance with AMVF in Section 7.}
+\sourcecaption{Section order follows the professor's outline, dated 23 September 2026.}
+\end{frame}
+
+\begin{frame}{What we will include in the paper}
+\small
+\textbf{Use an integral cut of 0.3 for the main results.}\\[.4em]
+Use the same setting for vertex yields, resolution and the GNN input vertices.
+\par\vspace{.6em}
+\centering\footnotesize\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{2.1cm}p{4.35cm}p{6.35cm}}
+\toprule
+Study & Available & Add or update\\
+\midrule
+Run 3 MC & V4 has Run 2 MC validation. & Add representative Run 3 MC; finder and GNN against AMVF.\\
+Run 3 data & Agreement with AMVF positions and track assignments. & Compare the same observables in data and MC, with matched pile-up.\\
+HL-LHC MC & Inclusive and HS efficiency; TTVA efficiency, purity and categories. & Add HS selection and HS position resolution; check the AMVF fit weights.\\
+Timing & Athena CPU and GPU measurements. & Compare CPU with CPU; show finder, GNN and full-chain times versus pile-up.\\
+\bottomrule
+\end{tabular}
+\par\vspace{.5em}\raggedright\small
+Use one set of vertex categories throughout: the ATLAS convention.
+\sourcecaption{Main GNN results use no score cut; the score scan is a separate diagnostic. Re-evaluate Run 2/3 at integral cut 0.3 before quoting updated performance.}
+\end{frame}
+
+\begin{frame}{Comparison with the ITk paper}
+\centering\small\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{3.05cm}p{3.05cm}p{6.6cm}}
+\toprule
+Measurement & Published result & Comparison with our study\\
+\midrule
+HS finding, $0.1$ mm & About $99.5\%$ & PV-Finder $99.90\%$, AMVF $99.79\%$. Same $z$ cut; exact monitoring selection to check.\\
+HS finding + selection & About $92$--$93\%$ & Stored AMVF primary: $93.0\%$. The old $80.7\%$ re-ranked the ntuple track lists.\\
+HS position precision & ITk: about $10\,\mu$m; Run 3: about $20\,\mu$m & Add HS resolution. Our inclusive width and vertex-separation scale are different quantities.\\
+\bottomrule
+\end{tabular}
+\par\vspace{.6em}\raggedright\small
+The stored primary contains the largest number of true HS tracks in 1,785/1,920 events ($93.0^{+0.6}_{-0.6}\%$). Re-ranking changes the chosen vertex in 428 events.
+\takeaway{The stored AMVF primary gives HS selection consistent with the published range.}
+\sourcecaption{\itkpaper, Figs.\ 26--28. Our ntuple uses RecoVertex\_type = 1. Confirm geometry and the exact monitoring configuration before claiming a reproduction.}
+\end{frame}
+
+\begin{frame}{Run 3 timing: the published comparison}
+\begin{columns}[c]
+\begin{column}{.43\linewidth}
+\small
+\textbf{ACTS AMVF: about 200 ms/event at $\langle\mu\rangle\simeq90$.}\\[.7em]
+That point is from a 2018 machine-development run, outside the standard data-quality selection.\\[.7em]
+Benchmark: AMD EPYC 7302, one thread per reconstruction job.
+\end{column}
+\begin{column}{.54\linewidth}
+\centering
+\includegraphics[page=22,trim={172bp 562bp 157bp 104bp},clip,width=.96\linewidth,height=.48\textheight,keepaspectratio]{research/run3_tracking.pdf}
+\end{column}
+\end{columns}
+\par\vspace{.9em}\small
+V4's approximately $9\times$ gain compares \textbf{PV-Finder + GNN on GPU} with \textbf{AMVF on CPU}, on different hardware from the paper (Xeon 4216 / Tesla T4).
+\par\vspace{.55em}
+For the paper, show a common benchmark and separate finder, GNN and full-chain times.
+\sourcecaption{\runthreepaper\ and benchmark description in Sec.\ 4; V4 timing source: \treysource.}
+\end{frame}

@@ -1,0 +1,43 @@
+% Restored V4 backup measurements; no new timing claim.
+\begin{frame}{Backup: CPU and GPU timing breakdown}
+\context{597 events across three Run 4 PU200 samples; mean wall time per complete event.}
+\begin{columns}[c]
+\begin{column}{.59\linewidth}\centering\footnotesize
+\begin{tabular}{lrr}\toprule
+Stage & CPU (ms) & GPU (ms)\\\midrule
+Track selection & 30.54 & 29.96\\
+Tensor building & 0.10 & 0.10\\
+Finder inference & 2188.67 & 37.56\\
+Peak finding & 0.05 & 0.05\\
+Vertex building & 0.29 & 0.22\\
+GNN track association & 181.65 & 8.30\\
+\quad Graph building & 2.83 & 2.50\\
+\quad GNN inference & 177.89 & 5.20\\
+\quad Edge selection & 0.68 & 0.41\\\midrule
+\textbf{Total} & \textbf{2401.28} & \textbf{76.18}\\\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.37\linewidth}\small
+\bigvalue{$31.5\times$}{faster PV-Finder + GNN with CUDA}
+\par\vspace{.9em}\raggedright
+\textbf{GPU time:}\\[.4em]
+Finder + GNN inference: $56.1\%$.\\[.5em]
+Track selection: $39.3\%$.\\[.7em]
+Input preparation becomes a major part of the total.
+\end{column}
+\end{columns}
+\par\vspace{.8em}{\scriptsize\color{black!55}Same Xeon Silver 4216 / Tesla T4 setup. GNN substages sum to 8.11 ms; reported total: 8.30 ms. Table from \treysource.}
+\readingnote{The GPU column is the complete CPU+CUDA execution path, including CPU track selection and graph construction. GNN association comprises graph building (2.50 ms), inference (5.20 ms), and edge selection (0.41 ms); components are rounded. The 31.5 ratio uses 2401.28/76.18 and compares the two PV-Finder implementations, not AMVF.}
+\end{frame}
+
+\begin{frame}{Backup: Inference Timing: What Has Been Measured}
+\relax
+\begin{columns}[c]\begin{column}{.59\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.488}{.61}\textheight,keepaspectratio]{images/timing.png}\end{column}\begin{column}{.38\linewidth}
+\centering\bigvalue{4.5 ms}{per 40 mm $z$ interval, earlier model}
+\par\vspace{1.2em}\raggedright\small
+NVIDIA A100, batch size one.\\[.6em]
+Inference only; $0\leq\mu\leq80$.\\[.6em]
+Mean time changes little across this range.
+\end{column}\end{columns}\takeaway{Earlier model: inference only, one of twelve intervals; not a full-event timing.}\readingnote{Each sub-event is a 40 mm interval along the beam axis. The study timed only the first of twelve intervals per event: 12,150 calls, 150 per integer pile-up bin. Input loading, GPU transfer and peak finding are outside the timer. The 1.2 ms spread is the standard deviation across calls; plotted errors are the standard error on each bin mean. Separate profiler operator sums are not a wall-clock breakdown or a measured batching gain.}
+\par\vspace{.35em}{\scriptsize\color{black!55}Input loading, GPU transfer and peak finding are outside the timer. Original V4 measurement.}
+\end{frame}

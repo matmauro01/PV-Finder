@@ -1,0 +1,1296 @@
+\documentclass[xcolor=table,aspectratio=169]{beamer}
+
+\usepackage[defaultsans,scale=0.95]{opensans}
+\usepackage{FiraMono}
+\usepackage{fourier}
+\usefonttheme{professionalfonts}
+\DeclareMathAlphabet{\mathcal}{OMS}{cmsy}{m}{n}
+\newcommand\bmmax{2}
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+\usepackage{subcaption}
+\usepackage{multicol}
+
+\usepackage{tikz}
+\usetikzlibrary{decorations.pathreplacing}
+\usepackage{wrapfig}
+
+% COLORS
+\usepackage{xcolor}
+\colorlet{myred}{red!80!black}
+\colorlet{myblue}{blue!80!black}
+\colorlet{mygreen}{green!60!black}
+\colorlet{myorange}{orange!70!red!60!black}
+\colorlet{mydarkred}{red!30!black}
+\colorlet{mydarkblue}{blue!40!black}
+\colorlet{mydarkgreen}{green!30!black}
+\colorlet{mylightblue}{blue!60!white}
+\colorlet{mydarkyellow}{yellow!70!black}
+\colorlet{myyellowred}{yellow!70!red}
+
+\usepackage{float}
+\usepackage{hyperref}
+
+\usepackage{amsmath, amsthm, amssymb, amsfonts}
+\usepackage{esint}
+\usepackage{mathtools}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily}
+
+\usepackage{physics}
+\usepackage[makeroom]{cancel}
+% siunitx + mhchem commented out due to version clash with chemgreek on this TL2017 install
+\usepackage[italic]{heppennames}
+\usepackage{xpatch}
+\makeatletter
+\xpatchcmd\@HepConStyle
+{\edef\@upcode{\updefault}}
+{\ifdefined\shapedefault\edef\@upcode{\shapedefault}\else\edef\@upcode{\updefault}\fi}
+{}{}
+\makeatother
+\usepackage{tensor}
+\usepackage{feynmp-auto}
+\usepackage{listofitems}
+\usetikzlibrary{arrows.meta}
+\usepackage[outline]{contour}
+\usepackage{booktabs}
+
+%%% ---- shared TikZ vocabulary for the Part I method figures ----
+\usetikzlibrary{positioning,calc,backgrounds}
+\tikzset{
+    pvflow/.style   ={-{Latex[length=2.4mm,width=1.9mm]}, line width=0.9pt, draw=black!55},
+    pvpoint/.style  ={-{Latex[length=2.0mm,width=1.6mm]}, line width=0.9pt},
+    pvaxis/.style   ={-{Latex[length=1.9mm,width=1.5mm]}, line width=0.7pt, draw=black!60},
+    pvdim/.style    ={{Latex[length=1.7mm,width=1.4mm]}-{Latex[length=1.7mm,width=1.4mm]},
+                      line width=0.7pt},
+    pvcurve/.style  ={line width=1.0pt, line join=round, line cap=round},
+    pvthresh/.style ={dash pattern=on 2.6pt off 2.2pt, line width=0.8pt,
+                      draw=myorange!85!black},
+    pvsplit/.style  ={dash pattern=on 3pt off 2.4pt, line width=1.0pt, draw=pennred},
+    pvguide/.style  ={line width=0.5pt, draw=black!15},
+    pvcard/.style   ={rounded corners=6pt, draw=black!15, fill=black!2, line width=0.7pt},
+    pvbox/.style    ={rounded corners=6pt, align=center, line width=0.9pt},
+}
+\newcommand{\pvcap}[1]{{\scriptsize\textcolor{black!55}{#1}}}
+
+
+\addtobeamertemplate{frametitle}{}{\vspace{-15.5pt}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\backupbegin}{
+    \newcounter{finalframe}
+    \setcounter{finalframe}{\value{framenumber}}
+    \setbeamertemplate{footline}{}
+    \begin{frame}[plain]
+        \centering
+        \vfill
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}\\[0.8em]
+        {\LARGE\textbf{\textcolor{pennred}{Backup}}}\\[0.8em]
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}
+        \vfill
+    \end{frame}
+}
+\newcommand{\backupend}{
+    \setcounter{framenumber}{\value{finalframe}}
+    \setbeamertemplate{footline}[frame number]
+}
+
+\newcommand{\ntrk}{\ensuremath{n_\mathrm{trk}}}
+
+\def\thisframelogos{}
+\newcommand{\framelogo}[1]{\def\thisframelogos{#1}}
+
+\addtobeamertemplate{frametitle}{}{%
+\begin{tikzpicture}[remember picture,overlay]
+\node[anchor=north east,yshift=3.5pt] at (current page.north east) {%
+    \foreach \img in \thisframelogos {%
+        \hspace{.5ex}%
+        \includegraphics[height=0.8cm, keepaspectratio]{\img}%
+    }%
+};
+\end{tikzpicture}}
+
+% Asset folders are symlinked locally (e.g. logo-ATLAS -> ../../legacy/...)
+
+% ---------------------------------------------------------------------------
+% Two builds from one source.  See build.sh.
+%
+%   slides.pdf       reading version   (default, \talkbuild = 0)
+%   slides_talk.pdf  presentation      (pdflatex "\def\talkbuild{1}\input{slides}")
+%
+% \readingonly{...} keeps its argument only in the reading build; \talkonly{...}
+% only in the talk build.  Every number lives in exactly one place, so the two
+% versions cannot drift apart.
+\providecommand{\talkbuild}{0}
+\newcommand{\readingonly}[1]{\ifnum\talkbuild=0\relax#1\fi}
+\newcommand{\talkonly}[1]{\ifnum\talkbuild=1\relax#1\fi}
+% \bnum{reading}{talk} expands to a bare number, so it can be used inside a
+% length: \includegraphics[height=\bnum{0.5}{0.6}\textheight]{...}.  The talk
+% build drops prose, which frees vertical room for the figure that is left.
+\newcommand{\bnum}[2]{\ifnum\talkbuild=0 #1\else #2\fi}
+% ---------------------------------------------------------------------------
+
+% Part-divider helper: \partdivider{numeral}{title}{one-line subtitle}
+\newcommand{\partdivider}[3]{%
+    \begin{frame}[plain]
+        \centering
+        \vfill
+        \begin{tikzpicture}
+            \fill[pennred] (0,0) circle (0.72cm);
+            \node[text=white, font=\Large\bfseries] at (0,0.02) {#1};
+        \end{tikzpicture}\\[0.85em]
+        {\LARGE\textbf{\textcolor{pennred}{#2}}}\\[0.75em]
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}\\[0.75em]
+        {\small\textcolor{black!50}{#3}}
+        \vfill
+    \end{frame}%
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usetheme{Philadelphia}
+\hypersetup{colorlinks,allcolors=pennred}
+
+\title[PV-Finder]{PV-Finder: End-to-end Primary Vertex Reconstruction}
+\subtitle{Method, validation and results at high pile-up}
+
+\author[Mattia Mauro]{Qi-Bin Lei, Rocky B. Garg, Lauren Tompkins, \textcolor{pennred}{Mattia Mauro}}
+
+\institute[]{Stanford University}
+
+\date{September 14, 2026}
+
+\titlegraphic{
+    \hspace{5pt}
+    \href{https://stanford.edu/group/stanford_atlas/}{\includegraphics[height=1cm]{logo-Stanford/Block_S_2_color.png}}
+    \href{https://atlas.cern/}{\includegraphics[trim={0 11.5cm 0 11.5cm},clip,height=1cm]{logo-ATLAS/ATLAS-Logo-Ref-Pantone.pdf}}
+    \href{https://iris-hep.org/}{\includegraphics[height=1cm]{logo-iris-hep/Iris-hep-4-no-long-name.png}}
+}
+
+
+% September 14 refresh. Main text is common to both builds; explanatory
+% paragraphs appear only in the reading deck. Sources: README and FACT_CHECK.md.
+\newcommand{\readingnote}[1]{\readingonly{\par\vspace{.35em}%
+  {\footnotesize\color{black!65}#1\par}}}
+\newcommand{\takeaway}[1]{\par\vspace{.65em}{\centering
+  \setlength{\fboxsep}{7pt}\colorbox{pennred!5}{\parbox{.94\linewidth}{%
+  \centering\small\textcolor{pennred}{#1}}}\par}}
+\newcommand{\context}[1]{{\centering\footnotesize\color{black!55}#1\par}\vspace{.65em}}
+\newcommand{\bigvalue}[2]{{\LARGE\bfseries\textcolor{pennred}{#1}}\\[.4em]{\small #2}\par}
+\newcommand{\pubnote}{\href{https://cds.cern.ch/record/2858348}{ATL-PHYS-PUB-2023-011}}
+\newcommand{\notelink}{\href{https://gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1}{ANA-IDTR-2026-01-INT1}}
+\newcommand{\svtx}{\sigma_{\mathrm{vtx-vtx}}}
+\setbeamertemplate{navigation symbols}{}
+\hypersetup{pdftitle={PV-Finder: Method and Results, September 14, 2026},
+  pdfauthor={Mattia Mauro, Qi-Bin Lei, Rocky B. Garg, Lauren Tompkins}}
+
+
+\begin{document}
+
+\framelogo{}
+
+\begin{frame}[plain]\titlepage\end{frame}
+
+\begin{frame}{Motivation}
+\relax
+\begin{columns}[c]\begin{column}{.53\linewidth}
+\textbf{Reconstruct the collision points from tracks.}
+\par\vspace{1em}
+\begin{itemize}\setlength\itemsep{.7em}
+\item Nearby interactions overlap as pile-up increases.
+\item AMVF finds and fits vertices iteratively.
+\item PV-Finder predicts a vertex-density map; a GNN assigns the tracks.
+\end{itemize}
+\end{column}\begin{column}{.44\linewidth}\centering
+\bigvalue{$\mu\sim200$}{HL-LHC design pile-up}
+\par\vspace{1.5em}
+\begin{tikzpicture}[x=.70cm,y=.85cm]
+\draw[pvaxis] (0,0)--(7.3,0) node[right] {$z$};
+\foreach \x/\h in {.8/1.4,2.4/1.7,2.85/1.2,4.5/1.8,5/1.4,6.2/1.1}{
+\draw[pennred,line width=1.2pt] (\x,0)--(\x,\h);
+\fill[pennred] (\x,\h) circle (2pt);}
+\node[font=\scriptsize,text=black!55] at (3.5,-.65) {several vertices in the same event (schematic)};
+\end{tikzpicture}\end{column}\end{columns}\takeaway{Accurate vertex positions and track assignments, with practical computing cost.}\readingnote{The current PU200 production uses full ITk acceptance. The timing measurements shown later concern an earlier model; a complete timing comparison of the current chain at PU200 remains to be made. Earlier method development is described in \pubnote.}
+\end{frame}
+
+
+\begin{frame}{Outline}
+\relax
+\begin{columns}[c]\begin{column}{.53\linewidth}
+\begin{enumerate}\setlength\itemsep{.85em}
+\item[\textcolor{pennred}{\textbf{I.}}] \textbf{The PV-Finder method}\\{\small Tracks, training targets, peaks and metrics}
+\item[\textcolor{pennred}{\textbf{II.}}] \textbf{Low pile-up validation}\\{\small Simulation, Run 2 and Run 3 data, timing}
+\item[\textcolor{pennred}{\textbf{III.}}] \textbf{HL-LHC PU200 results}\\{\small Vertex yields, resolution and AMVF comparison}
+\item[\textcolor{pennred}{\textbf{IV.}}] \textbf{Track-to-vertex association}\\{\small Graph network and full-chain performance}
+\item[\textcolor{pennred}{\textbf{V.}}] \textbf{Integration and next steps}
+\end{enumerate}\end{column}\begin{column}{.44\linewidth}\centering\includegraphics[width=\linewidth,height=\bnum{0.368}{.46}\textheight,keepaspectratio]{images/method_example_e2e.png}\end{column}\end{columns}\readingnote{This talk describes the method used for the current results. For the original KDE-based pipeline and its development, see \pubnote. Detailed settings and diagnostic studies are in the backup.}
+\end{frame}
+
+
+\partdivider{I}{The PV-Finder method}{Tracks, training targets, peak finding and performance metrics}
+
+\begin{frame}{From Tracks to a Vertex Histogram}
+\relax
+{\centering\resizebox{\bnum{0.855}{.95}\linewidth}{!}{\begin{tikzpicture}[x=1cm,y=1cm]
+        \tikzset{
+            term/.style={pvbox, draw=black!35, fill=black!4,
+                         minimum width=2.2cm, minimum height=1.35cm, font=\small},
+            net/.style ={pvbox, draw=mydarkblue!55, fill=mydarkblue!10,
+                         minimum width=2.2cm, minimum height=1.35cm, font=\small},
+            map/.style ={pvbox, draw=myorange!70!black, fill=myorange!14,
+                         minimum width=2.2cm, minimum height=1.35cm, font=\small},
+            sub/.style ={font=\scriptsize, text=black!50, inner sep=1.5pt}}
+        % backdrop for the trainable part, drawn first so it sits behind the nodes
+        \fill[pennred!4, rounded corners=12pt] (1.45,-1.20) rectangle (9.65,1.20);
+        \draw[pennred!35, dashed, line width=0.9pt, rounded corners=12pt]
+            (1.45,-1.20) rectangle (9.65,1.20);
+        \node[fill=white, inner sep=2.5pt, font=\scriptsize, text=pennred] at (5.55,1.20)
+            {current PU200 model: one trainable network};
+        \node[term] (tracks) at (0,0)    {Track\\features};
+        \node[net]  (mlp)    at (2.85,0) {Masked\\MLP};
+        \node[map]  (lat)    at (5.55,0) {Latent\\map};
+        \node[net]  (unet)   at (8.25,0) {1-D\\U-Net};
+        \node[map]  (out)    at (11.10,0){Vertex\\histogram};
+        \node[term] (pv)     at (14.60,0){Primary\\vertices};
+        \node[sub, below=2pt] at (tracks.south) {$(7,\,N_\text{trk})$};
+        \node[sub, below=2pt] at (out.south)    {$1{,}000$ bins / interval};
+        \node[sub, below=2pt] at (pv.south)     {$z$ positions};
+        \draw[pvflow] (tracks) -- (mlp);
+        \draw[pvflow] (mlp)    -- (lat);
+        \draw[pvflow] (lat)    -- (unet);
+        \draw[pvflow] (unet)   -- (out);
+        \draw[pvflow, draw=pennred!80] (out) -- (pv);
+        \node[font=\scriptsize, text=pennred, align=center, anchor=south] at (12.85,0.14)
+            {peak\\finding};
+    \end{tikzpicture}}\par}
+\par\vspace{1em}
+\begin{columns}[t]
+\begin{column}{.31\linewidth}\textbf{Inputs: tracks}\\[.5em]\small
+$d_0,z_0,\sigma_{d_0},\sigma_{z_0},$\\[.3em]
+$\mathrm{cov}(d_0,z_0)$ and two interval bounds.
+\end{column}
+\begin{column}{.31\linewidth}\textbf{Network}\\[.5em]\small
+MLP $\to$ latent map $\to$ U-Net.\\[.5em]
+Sum masked track contributions: invariant to track order.
+\end{column}
+\begin{column}{.32\linewidth}\textbf{Output: 1-D histogram}\\[.5em]\small
+Twelve $40$ mm intervals.\\[.4em]
+$12{,}000$ bins of $0.04$ mm over $|z|<240$ mm.
+\end{column}\end{columns}\readingnote{The seven inputs are $d_0,z_0,\sigma_{d_0},\sigma_{z_0},\mathrm{cov}(d_0,z_0)$ and the two interval bounds. The same MLP and U-Net process each interval. The output depends on the tracks, but not on their ordering; padding is masked. The PU200 model has 3.55M parameters and four learned latent channels.}
+\end{frame}
+
+
+\begin{frame}{Training Targets and the Warm-up}
+\relax
+\readingonly{\setlength{\abovedisplayskip}{3pt}\setlength{\belowdisplayskip}{3pt}}
+\readingonly{\ifnum\talkbuild=0\footnotesize\else\small\fi}\begin{columns}[c]\begin{column}{.53\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.456}{.57}\textheight,keepaspectratio]{images/amvf_resolution_vs_ntracks_v2.png}\end{column}\begin{column}{.44\linewidth}
+\textbf{Building the target histogram from truth vertices}\\[.5em]\ifnum\talkbuild=0\footnotesize\else\small\fi One Gaussian per truth vertex:
+\[\sigma(\ntrk)=A\ntrk^{-B}+C\]
+\ifnum\talkbuild=0\footnotesize\else\small\fi Widths fitted from AMVF--truth residuals in ITk simulation.
+\par\vspace{.5em}
+\textbf{Training recipe}\\[.5em]
+1. MLP alone $\to$ target histogram.\\[.4em]
+2. MLP + U-Net $\to$ same target.\\[.6em]
+Mean-squared error in both phases.
+\end{column}\end{columns}\takeaway{The warm-up teaches the spatial mapping before end-to-end training.}\readingnote{Target widths use Gaussian-plus-constant fits to 9,243,820 matched pairs in 99,800 events. $A=0.14318$ mm, $B=0.36200$, $C=-0.01797$ mm; width floor 0.002 mm. PU200 uses histogram warm-up; the separate low-pile-up model uses KDE pretraining.}
+\end{frame}
+
+
+\begin{frame}{Peak Finding: From the Histogram to Vertices}
+\relax
+{\centering\resizebox{\bnum{0.819}{.91}\linewidth}{!}{\begin{tikzpicture}[x=1cm, y=1cm]
+        % --- axes and threshold
+        \draw[pvaxis] (-0.55,0) -- (14.90,0) node[right, font=\small] {$z$};
+        \draw[pvaxis] (0,-0.06) -- (0,2.20) node[above, font=\scriptsize] {output};
+        \draw[pvthresh] (-0.25,0.28) -- (14.30,0.28);
+        \node[left, font=\small, text=myorange!85!black] at (-0.28,0.28) {$\tau$};
+        % --- a clean, isolated peak
+        \fill[mydarkblue!15] plot[smooth] coordinates {
+            (1.39,0.28)(1.59,0.50)(1.79,0.81)(1.99,1.18)(2.20,1.54)(2.40,1.80)(2.60,1.90)
+            (2.80,1.80)(3.00,1.54)(3.21,1.18)(3.41,0.81)(3.61,0.50)(3.81,0.28)} -- cycle;
+        \draw[pvcurve, draw=mydarkblue!80!black] plot[smooth] coordinates {
+            (0.70,0.00)(0.80,0.03)(1.03,0.08)(1.25,0.18)(1.39,0.28)(1.48,0.37)(1.70,0.66)
+            (1.93,1.05)(2.15,1.46)(2.38,1.78)(2.60,1.90)(2.83,1.78)(3.05,1.46)(3.28,1.05)
+            (3.50,0.66)(3.73,0.37)(3.81,0.28)(3.95,0.18)(4.18,0.08)(4.40,0.03)(4.50,0.00)};
+        \draw[mydarkblue!70, dash pattern=on 2pt off 1.6pt, line width=0.7pt]
+            (2.60,0.06) -- (2.60,1.86);
+        \filldraw[mydarkblue] (2.60,1.90) circle (2.4pt);
+        \node[below, font=\small, text=mydarkblue] at (2.60,-0.04) {$\hat{z}_1$};
+        \draw[<->, mydarkblue!40, line width=0.7pt] (1.39,-0.45) -- (3.81,-0.45);
+        \node[below, font=\scriptsize, text=mydarkblue!70] at (2.60,-0.50) {one run, one vertex};
+        % --- two conjoined peaks
+        \fill[pennred!13] plot[smooth] coordinates {
+            (8.21,0.28)(8.43,0.48)(8.65,0.74)(8.88,1.04)(9.10,1.32)(9.32,1.50)(9.51,1.55)
+            (9.77,1.45)(9.99,1.24)(10.22,1.00)(10.44,0.81)(10.66,0.73)} -- (10.66,0.28) -- cycle;
+        \fill[pennred!13] (10.66,0.28) -- plot[smooth] coordinates {
+            (10.66,0.73)(10.90,0.82)(11.13,1.05)(11.36,1.36)(11.59,1.64)(11.82,1.79)
+            (12.05,1.76)(12.29,1.53)(12.52,1.19)(12.75,0.83)(12.98,0.51)(13.21,0.28)} -- cycle;
+        \draw[pvcurve, draw=pennred!75!black] plot[smooth] coordinates {
+            (7.45,0.00)(7.55,0.03)(7.80,0.08)(8.05,0.18)(8.21,0.28)(8.31,0.36)(8.56,0.63)
+            (8.81,0.95)(9.06,1.27)(9.31,1.50)(9.51,1.55)(9.82,1.42)(10.07,1.16)(10.32,0.90)
+            (10.57,0.75)(10.66,0.73)(10.82,0.77)(11.08,0.99)(11.33,1.32)(11.58,1.63)
+            (11.83,1.80)(12.08,1.74)(12.34,1.47)(12.59,1.08)(12.84,0.69)(13.09,0.39)
+            (13.21,0.28)(13.34,0.19)(13.60,0.08)(13.85,0.03)(14.10,0.01)(14.20,0.00)};
+        \draw[pennred!60, dash pattern=on 2pt off 1.6pt, line width=0.7pt]
+            (9.51,0.06) -- (9.51,1.51);
+        \draw[pennred!60, dash pattern=on 2pt off 1.6pt, line width=0.7pt]
+            (11.89,0.06) -- (11.89,1.76);
+        \filldraw[pennred!80!black] (9.51,1.55) circle (2.4pt);
+        \filldraw[pennred!80!black] (11.89,1.80) circle (2.4pt);
+        \node[below, font=\small, text=pennred!80!black] at (9.51,-0.04) {$\hat{z}_2$};
+        \node[below, font=\small, text=pennred!80!black] at (11.89,-0.04) {$\hat{z}_3$};
+        \draw[pvsplit] (10.66,0.02) -- (10.66,2.00);
+        \node[above, font=\scriptsize, text=pennred] at (10.66,2.00) {split at the local minimum};
+        \filldraw[pennred!80!black] (10.66,0.73) circle (2.0pt);
+        \draw[<->, pennred!40, line width=0.7pt] (8.21,-0.45) -- (13.21,-0.45);
+        \node[below, font=\scriptsize, text=pennred!65] at (10.71,-0.50) {one run above $\tau$, two vertices};
+    \end{tikzpicture}}\par}
+\par\vspace{.8em}
+\begin{columns}[t]
+\begin{column}{.47\linewidth}\small
+\textbf{1. Scan} bins above $\tau=0.01$.\\[.6em]
+\textbf{2. Split} when a falling run rises again.
+\end{column}
+\begin{column}{.49\linewidth}\small
+\textbf{3. Keep} width $\geq3$ bins, integral $\geq0.30$, height $\geq0.03$.\\[.6em]
+\textbf{4. Locate} each peak with a local centroid.
+\end{column}\end{columns}\readingnote{These are the production PU200 counting settings. Peak finding is a deterministic scan of the concatenated histogram. The resolution fit uses a stricter integral cut of 0.50. The split rule has no minimum-prominence requirement, so small fluctuations on predicted peaks can also create extra candidates.}
+\end{frame}
+
+
+\begin{frame}{Peak Position: A Local Weighted Mean}
+\relax
+\readingonly{\small}{\centering\resizebox{\bnum{0.864}{.96}\linewidth}{!}{\begin{tikzpicture}[x=1cm, y=0.95cm]
+        \tikzset{
+            binin/.style={fill=mygreen!28, draw=mygreen!55!black, line width=0.6pt},
+            binout/.style={fill=black!9,    draw=black!25,         line width=0.6pt}}
+        %%% ---------------- panel A: the run left behind by a split
+        \draw[pvaxis] (-0.40,0) -- (8.90,0) node[right, font=\small] {$z$};
+        \draw[pvthresh] (-0.20,0.10) -- (8.60,0.10);
+        \node[left, font=\small, text=myorange!85!black] at (-0.24,0.10) {$\tau$};
+        \fill[mydarkblue!15] (0.65,0) -- plot[smooth] coordinates {
+            (0.65,0.10)(0.89,0.17)(1.13,0.28)(1.38,0.43)(1.62,0.62)(1.86,0.84)(2.11,1.07)
+            (2.35,1.30)(2.59,1.48)(2.84,1.59)(3.08,1.62)(3.32,1.57)(3.57,1.48)(3.81,1.39)
+            (4.05,1.35)} -- (4.05,0) -- cycle;
+        \draw[pvcurve, draw=mydarkblue!80!black] plot[smooth] coordinates {
+            (0.15,0.00)(0.25,0.04)(0.49,0.07)(0.73,0.12)(0.96,0.20)(1.20,0.32)(1.44,0.47)
+            (1.68,0.67)(1.91,0.89)(2.15,1.12)(2.39,1.33)(2.63,1.50)(2.86,1.59)(3.10,1.62)
+            (3.34,1.57)(3.58,1.48)(3.81,1.39)(4.05,1.35)};
+        \draw[pvcurve, draw=black!28, dash pattern=on 2.6pt off 2pt] plot[smooth] coordinates {
+            (4.05,1.35)(4.34,1.42)(4.63,1.64)(4.91,1.94)(5.20,2.19)(5.48,2.27)(5.77,2.11)
+            (6.06,1.74)(6.34,1.27)(6.63,0.81)(6.92,0.46)(7.20,0.23)(7.49,0.10)(7.78,0.04)
+            (8.06,0.01)(8.35,0.00)};
+        \node[above, font=\scriptsize, text=black!45] at (5.48,2.31) {neighboring peak};
+        % extent of the run
+        \draw[black!35, line width=0.6pt] (0.645,1.72) -- (0.645,1.88);
+        \draw[black!35, line width=0.6pt] (4.052,1.72) -- (4.052,1.88);
+        \draw[<->, black!35, line width=0.6pt] (0.645,1.80) -- (4.052,1.80);
+        \node[above, font=\scriptsize, text=black!55] at (1.90,1.84)
+            {the run for this vertex};
+        % the split
+        \draw[pvsplit] (4.05,0.02) -- (4.05,2.06);
+        \node[anchor=south, font=\scriptsize, text=pennred] at (4.05,2.04) {split};
+        % the two position estimates
+        \draw[myred!85!black, dotted, line width=1.3pt] (2.80,-0.55) -- (2.80,1.66);
+        \node[anchor=east, font=\scriptsize, text=myred!85!black] at (2.66,-0.55)
+            {whole-region mean};
+        \draw[mygreen!50!black, line width=1.1pt] (3.05,-0.55) -- (3.05,1.72);
+        \filldraw[mygreen!50!black] (3.05,1.62) circle (2.4pt);
+        \node[anchor=west, font=\scriptsize, text=mygreen!45!black] at (3.19,-0.55)
+            {local centroid};
+        %%% ---------------- divider
+        \draw[black!12, line width=0.6pt] (9.75,-0.62) -- (9.75,2.35);
+        %%% ---------------- panel B: the window, bin by bin
+        \node[above, font=\scriptsize, text=mygreen!45!black] at (13.62,2.26)
+            {the $\pm3$-bin window, bin by bin};
+        \filldraw[binout] (10.91,0) rectangle (11.39,0.036);
+        \filldraw[binin] (11.46,0) rectangle (11.94,0.165);
+        \filldraw[binin] (12.01,0) rectangle (12.49,0.517);
+        \filldraw[binin] (12.56,0) rectangle (13.04,1.094);
+        \filldraw[binin] (13.11,0) rectangle (13.59,1.566);
+        \filldraw[binin] (13.66,0) rectangle (14.14,1.516);
+        \filldraw[binin] (14.21,0) rectangle (14.69,0.994);
+        \filldraw[binin] (14.76,0) rectangle (15.24,0.441);
+        \filldraw[binout] (15.31,0) rectangle (15.79,0.132);
+        \filldraw[binout] (15.86,0) rectangle (16.34,0.027);
+        \draw[pvaxis, -] (10.70,0) -- (16.55,0);
+        \filldraw[mygreen!50!black] (13.35,1.566) circle (2.4pt);
+        \node[anchor=south east, font=\scriptsize, text=black!50] at (13.28,1.66) {maximum bin};
+        \draw[mygreen!50!black, line width=1.1pt] (13.54,-0.55) -- (13.54,1.78);
+        \node[anchor=north, font=\scriptsize, text=mygreen!45!black] at (13.54,-0.46)
+            {amplitude-weighted centroid};
+    \end{tikzpicture}}\par}
+\par\vspace{.9em}
+\[\hat z=\frac{\sum_{i\in W}h_i z_i}{\sum_{i\in W}h_i},\qquad
+W=\{\text{maximum bin}\pm3\text{ bins}\}\cap\{\text{peak run}\}.\]
+\takeaway{Use the bins near the maximum; stop at the peak-run boundaries.}\readingnote{A split can leave an asymmetric peak region. Averaging the whole region can pull the reported position away from the maximum. The local centroid limits this effect and gives a continuous position on the 0.04 mm output grid. It is used for the PU200 results; the low-pile-up reproduction retains its original estimator.}
+\end{frame}
+
+
+\begin{frame}{Example End-to-end Output}
+\relax
+\centering\includegraphics[width=\linewidth,height=\bnum{0.68}{.87}\textheight,keepaspectratio]{images/method_example_e2e.png}\readingnote{This is an output from the end-to-end model at PU200. Dashed lines mark reference truth vertices with at least two selected tracks; open circles mark reconstructed peaks. It illustrates the histogram that the method actually predicts, rather than an analytical KDE.}
+\end{frame}
+
+
+\begin{frame}{Matching and Vertex Categories}
+\relax
+\context{Positional classification: match by $z$, closest-first, one to one.}{\centering\resizebox{\bnum{0.864}{.96}\linewidth}{!}{\begin{tikzpicture}[x=1cm, y=1cm]
+        \tikzset{
+            truthv/.style={circle, inner sep=0pt, minimum size=9.2pt,
+                           fill=black!78, draw=black!88, line width=0.5pt},
+            recov/.style ={rectangle, rounded corners=1.5pt, inner sep=0pt,
+                           minimum width=8pt, minimum height=10pt, line width=0.6pt},
+            band/.style  ={dashed, line width=0.5pt},
+            note/.style  ={font=\scriptsize, text=black!55, align=center, anchor=north},
+            head/.style  ={font=\small\bfseries}}
+        % --- cards, guide lines and row labels
+        \foreach \cx/\lab/\col in {2.05/Clean/{mygreen!60!black}, 6.05/Merged/{myorange!85!black},
+                                   10.05/Split/{myblue}, 14.05/Fake/{myred}} {
+            \node[pvcard, minimum width=3.5cm, minimum height=3.6cm] at (\cx,1.40) {};
+            \node[head, text=\col] at (\cx,2.88) {\lab};
+            \draw[\col, line width=1.1pt] (\cx-0.45,2.66) -- (\cx+0.45,2.66);
+            \draw[pvguide] (\cx-1.55,2.15) -- (\cx+1.55,2.15);
+            \draw[pvguide] (\cx-1.55,0.85) -- (\cx+1.55,0.85);
+        }
+        \node[font=\scriptsize, text=black!45, anchor=east] at (0.18,2.15) {truth};
+        \node[font=\scriptsize, text=black!45, anchor=east] at (0.18,0.85) {reco};
+        % --- CLEAN
+        \fill[mygreen!10] (1.42,1.85) rectangle (2.82,2.45);
+        \draw[band, draw=mygreen!35] (1.42,1.85) rectangle (2.82,2.45);
+        \node[truthv] at (2.00,2.15) {};
+        \node[recov, fill=mygreen!45, draw=mygreen!65!black] at (2.12,0.85) {};
+        \draw[pvpoint, draw=mygreen!60!black] (2.12,1.03) -- (2.02,1.93);
+        \node[note] at (2.05,0.35) {one reco,\\one truth};
+        % --- MERGED
+        \fill[myorange!10] (5.15,1.85) rectangle (6.55,2.45);
+        \draw[band, draw=myorange!40] (5.15,1.85) rectangle (6.55,2.45);
+        \node[truthv] at (5.72,2.15) {};
+        \node[truthv] at (6.42,2.15) {};
+        \node[recov, fill=myorange!55, draw=myorange!85!black] at (5.85,0.85) {};
+        \draw[pvpoint, draw=myorange!85!black] (5.85,1.03) -- (5.75,1.93);
+        \draw[pvpoint, draw=myorange!85!black, dash pattern=on 2.4pt off 1.8pt]
+            (5.97,1.03) -- (6.35,1.93);
+        \node[note] at (6.05,0.35) {the second truth\\is credited too};
+        % --- SPLIT
+        \fill[myblue!8] (9.92,1.85) rectangle (11.32,2.45);
+        \draw[band, draw=myblue!30] (9.92,1.85) rectangle (11.32,2.45);
+        \node[truthv] at (10.00,2.15) {};
+        \node[recov, fill=mygreen!45, draw=mygreen!65!black] at (9.80,0.85) {};
+        \node[recov, fill=myblue!45, draw=myblue!80!black] at (10.62,0.85) {};
+        \draw[pvpoint, draw=mygreen!60!black] (9.80,1.03) -- (9.94,1.93);
+        \draw[myblue!70, dotted, line width=1.0pt] (10.62,1.03) -- (10.16,1.85);
+        \node[font=\small, text=myblue!80!black] at (10.52,1.53) {$\times$};
+        \node[note] at (10.05,0.35) {a closer reco\\already took it};
+        % --- FAKE
+        \fill[myred!8] (13.75,1.85) rectangle (15.15,2.45);
+        \draw[band, draw=myred!35] (13.75,1.85) rectangle (15.15,2.45);
+        \node[truthv] at (13.05,2.15) {};
+        \node[recov, fill=myred!50, draw=myred!80!black] at (14.45,0.85) {};
+        \draw[myred!65, dotted, line width=1.0pt] (14.45,1.03) -- (14.45,1.92);
+        \node[font=\small, text=myred] at (14.45,2.15) {$\times$};
+        \node[note] at (14.05,0.35) {no truth inside\\the window};
+        % --- legend
+        \node[truthv, minimum size=7.4pt] at (2.10,-1.05) {};
+        \node[anchor=west, font=\scriptsize, text=black!55] at (2.32,-1.05) {truth vertex};
+        \node[recov, minimum width=7pt, minimum height=9pt,
+              fill=black!22, draw=black!45] at (4.73,-1.05) {};
+        \node[anchor=west, font=\scriptsize, text=black!55] at (5.02,-1.05) {reconstructed vertex};
+        \fill[black!8] (8.40,-1.22) rectangle (9.20,-0.88);
+        \draw[band, draw=black!30] (8.40,-1.22) rectangle (9.20,-0.88);
+        \node[anchor=west, font=\scriptsize, text=black!55] at (9.36,-1.05)
+            {matching window of that reco vertex};
+    \end{tikzpicture}}\par}\readingnote{After the initial assignment, additional unclaimed truth vertices inside a matched peak\textquotesingle s window are labelled merged. A surplus reconstructed peak near an already claimed truth vertex is split; a peak with no eligible truth vertex in its window is fake. The reference truth list requires at least two associated reconstructed tracks passing the sample selection.}
+\end{frame}
+
+
+\begin{frame}{Efficiency and Fake Rate Use Different Denominators}
+\relax
+
+\begin{columns}[t]
+\begin{column}{.57\linewidth}\centering\small
+\textbf{Efficiency definition}
+\[\varepsilon=\frac{N_{\mathrm{truth,clean}}+N_{\mathrm{truth,merged}}}{N_{\mathrm{truth}}}\]
+Merged truth vertices do not penalize efficiency.
+\par\vspace{.9em}
+\textbf{Unique (one-to-one) efficiency}
+\[\varepsilon_{1:1}=\frac{N_{\mathrm{truth,clean}}}{N_{\mathrm{truth}}}\]
+Only truth vertices with a dedicated reconstructed match.
+\end{column}
+\begin{column}{.39\linewidth}\centering\small
+\textbf{Fake rate}
+\[r_{\mathrm{fake}}=\frac{N_{\mathrm{reco,fake}}}{N_{\mathrm{events}}}\]
+Fake vertices per event.\\[.9em]
+Surplus vertices $=$ fake $+$ split.
+\end{column}\end{columns}
+\readingnote{All counts are summed over events before forming ratios. In the closest-first one-to-one assignment, each matched truth vertex has its own reconstructed partner; these are the truth-side Clean vertices. Efficiency additionally counts otherwise unmatched truth vertices within a matched peak's window as Merged. Unique efficiency excludes this additional credit. Neither efficiency is the reconstructed Clean fraction. The track-based categories in Part IV use different definitions.}
+
+\end{frame}
+
+
+\begin{frame}{Resolution Metric: $\svtx$}
+\relax
+\begin{columns}[c]\begin{column}{.35\linewidth}
+\textbf{Separating nearby vertices}
+\par\vspace{.7em}
+\begin{itemize}\setlength\itemsep{.6em}\small
+\item Calculate all pairwise separations in each event.
+\item A dip near zero from lost close pairs.
+\item $\svtx$: fitted half-recovery point.
+\end{itemize}
+\end{column}\begin{column}{.62\linewidth}\resizebox{\linewidth}{!}{\begin{tikzpicture}[x=1.2cm, y=1.6cm]
+                \fill[pennred!8] (-1,0) rectangle (1,1.02);
+                \fill[mydarkblue!12] (-3.50,0) -- plot[smooth] coordinates {
+                    (-3.50,1.000)(-3.15,0.999)(-2.80,0.996)(-2.45,0.989)(-2.10,0.969)
+                    (-1.75,0.918)(-1.40,0.801)(-1.05,0.602)(-1.00,0.570)(-0.70,0.389)
+                    (-0.35,0.247)(0.00,0.181)(0.35,0.247)(0.70,0.389)(1.00,0.570)
+                    (1.05,0.602)(1.40,0.801)(1.75,0.918)(2.10,0.969)(2.45,0.989)
+                    (2.80,0.996)(3.15,0.999)(3.50,1.000)} -- (3.50,0) -- cycle;
+                \draw[dashed, black!25, line width=0.5pt] (-3.50,1.0) -- (3.78,1.0);
+                \draw[dashed, black!25, line width=0.5pt] (-3.50,0.14) -- (3.78,0.14);
+                \node[anchor=west, font=\scriptsize, text=black!45] at (3.82,1.0) {$a{+}c$};
+                \node[anchor=west, font=\scriptsize, text=black!45] at (3.82,0.14) {$c$};
+                \draw[pvcurve, draw=mydarkblue!80!black] plot[smooth] coordinates {
+                    (-3.50,1.000)(-3.15,0.999)(-2.80,0.996)(-2.45,0.989)(-2.10,0.969)
+                    (-1.75,0.918)(-1.40,0.801)(-1.05,0.602)(-1.00,0.570)(-0.70,0.389)
+                    (-0.35,0.247)(0.00,0.181)(0.35,0.247)(0.70,0.389)(1.00,0.570)
+                    (1.05,0.602)(1.40,0.801)(1.75,0.918)(2.10,0.969)(2.45,0.989)
+                    (2.80,0.996)(3.15,0.999)(3.50,1.000)};
+                \draw[pvaxis] (-3.50,0) -- (3.80,0);
+                \draw[pvaxis] (-3.50,0) -- (-3.50,1.30) node[above, font=\scriptsize] {count};
+                \foreach \x in {-3,-2,-1,1,2,3} {
+                    \draw[black!55, line width=0.5pt] (\x,0.03) -- (\x,-0.03);
+                    \node[below, font=\scriptsize, text=black!55, inner sep=2pt] at (\x,0) {\x};
+                }
+                \node[anchor=north east, font=\scriptsize, text=black!65] at (3.80,-0.30)
+                    {$\Delta z$ (mm)};
+                \draw[pvsplit] (-1,0) -- (-1,1.04);
+                \draw[pvsplit] ( 1,0) -- ( 1,1.04);
+                \node[anchor=south east, font=\scriptsize, text=pennred] at (-1.05,1.02) {$-\sigma$};
+                \node[anchor=south west, font=\scriptsize, text=pennred] at ( 1.05,1.02) {$+\sigma$};
+                \filldraw[pennred] (-1,0.570) circle (2.4pt);
+                \filldraw[pennred] ( 1,0.570) circle (2.4pt);
+                \node[anchor=south, font=\scriptsize, text=black!55] at (0,1.44)
+                    {close pairs are suppressed};
+                \draw[->, black!35, line width=0.6pt] (0,1.40) -- (0,1.09);
+                \draw[pvdim, draw=pennred!60, line width=0.8pt] (-1,-0.40) -- (1,-0.40);
+                \node[below, font=\scriptsize, text=pennred] at (0,-0.44)
+                    {$2\sigma_{\text{vtx-vtx}}$};
+            \end{tikzpicture}}\[f(\Delta z)=\frac{a}{1+e^{b(\sigma-|\Delta z|)}}+c\]\end{column}\end{columns}\takeaway{A statistical separation scale; some closer pairs are still reconstructed.}\readingnote{At $|\Delta z|=\sigma$, the sigmoid is halfway between its fitted levels $c$ and $a+c$. This quantity differs from single-vertex position precision. Fake and split vertices, peak selections and histogram binning can change the pairwise distribution and its fitted width.}
+\end{frame}
+
+
+\partdivider{II}{Low pile-up validation}{Run 2 simulation, Run 2 and Run 3 collision data, timing}
+
+\begin{frame}{Run 2 Simulation: Resolution and Recovery}
+\relax
+\begin{columns}[c]\begin{column}{.48\linewidth}\centering\includegraphics[width=\linewidth,height=\bnum{0.424}{.53}\textheight,keepaspectratio]{images/mc_resolution.png}\\[.3em]\small PV-Finder: $0.42$ mm\end{column}\begin{column}{.48\linewidth}\centering\includegraphics[width=\linewidth,height=\bnum{0.424}{.53}\textheight,keepaspectratio]{images/amvf_mc_resolution_2500.png}\\[.3em]\small AMVF: $0.79$ mm\end{column}\end{columns}\takeaway{$91.6\%$ efficiency; $0.42$ fake vertices/event.}\context{Same simulated sample; PV-Finder: 2,550 events, AMVF resolution: 2,500 events.}\readingnote{This is the low-pile-up reproduction model, using KDE pretraining. PV-Finder counts and fits use integral threshold 0.50 and no additional height cut. Its matching window is 0.42 mm. The AMVF evaluation uses a separate subset, so this is not an exactly paired resolution comparison.}
+\end{frame}
+
+
+\begin{frame}{Run 2 Simulation: Vertex Categories and Yield}
+\relax
+\begin{columns}[c]\begin{column}{.48\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.488}{.61}\textheight,keepaspectratio]{images/mc_category_counts_review.pdf}\end{column}\begin{column}{.48\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.488}{.61}\textheight,keepaspectratio]{images/mc_stats_review.pdf}\end{column}\end{columns}\context{Left: $55\leq\mu\leq65$. Right: yield over the evaluated pile-up range.}\readingnote{Clean vertices dominate the positional category plot. The yield plot counts reconstructed vertices, while efficiency measures recovery of eligible truth vertices. The 91.6\% efficiency on the previous slide uses all 2,550 test events, rather than only the category-plot slice.}
+\end{frame}
+
+
+\begin{frame}{Real Collision Data: Run 2 and Run 3}
+\relax
+
+\begin{columns}[c]
+\begin{column}{.49\linewidth}\centering
+\includegraphics[width=\linewidth,height=\bnum{.33}{.70}\textheight,keepaspectratio]{images/run2_resolution_review.pdf}\\[.4em]
+\small Run 2: $\svtx=0.368\pm0.009$ mm
+\end{column}
+\begin{column}{.49\linewidth}\centering
+\includegraphics[width=\linewidth,height=\bnum{.33}{.70}\textheight,keepaspectratio]{images/run3_resolution_review.pdf}\\[.4em]
+\small Run 3: $\svtx=0.348\pm0.009$ mm
+\end{column}\end{columns}
+\readingonly{\par\vspace{.5em}\centering\small
+\begin{tabular}{lcc}\toprule
+ & AMVF recovery & No AMVF match/event\\\midrule
+Run 2, $\langle\mu\rangle=42.5$ & $95.3\%$ & $1.82$\\
+Run 3, $\langle\mu\rangle=50.0$ & $94.8\%$ & $1.96$\\\bottomrule
+\end{tabular}\par}
+\readingnote{Each sample contains 2,500 collision events. Errors are the covariance uncertainties of the historical sigmoid fits, reproduced with the original 60 bins over $\pm6$ mm and saved pairwise separations. AMVF recovery measures agreement with a reconstruction reference and includes merged reference vertices. AMVF vertices require at least two tracks and the beam-spot offset is subtracted. Without truth, unmatched peaks cannot be identified as fake interactions.}
+
+\end{frame}
+
+
+\begin{frame}{Inference Timing: What Has Been Measured}
+\relax
+\begin{columns}[c]\begin{column}{.59\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.488}{.61}\textheight,keepaspectratio]{images/timing.png}\end{column}\begin{column}{.38\linewidth}
+\centering\bigvalue{4.5 ms}{per 40 mm $z$ interval, earlier model}
+\par\vspace{1.2em}\raggedright\small
+NVIDIA A100, batch size one.\\[.6em]
+Inference only; $0\leq\mu\leq80$.\\[.6em]
+Mean time changes little across this range.
+\end{column}\end{columns}\takeaway{PU200 timing is being benchmarked within Athena.}\readingnote{Each sub-event is a 40 mm interval along the beam axis. The study timed only the first of twelve intervals per event: 12,150 calls, 150 per integer pile-up bin. Input loading, GPU transfer and peak finding are outside the timer. The 1.2 ms spread is the standard deviation across calls; plotted errors are the standard error on each bin mean. Separate profiler operator sums are not a wall-clock breakdown or a measured batching gain.}
+\end{frame}
+
+
+\partdivider{III}{HL-LHC PU200 results}{The current sample, vertex yields, resolution and AMVF comparison}
+
+\begin{frame}{The PU200 Sample}
+\relax
+\begin{columns}[c]\begin{column}{.51\linewidth}
+\textbf{$\sqrt{s}=14$ TeV $t\bar t$, ITk simulation}
+\par\vspace{.9em}
+\begin{itemize}\setlength\itemsep{.7em}\small
+\item Training: \textbf{5.17M events} near $\mu=200$.
+\item Full track acceptance: \textbf{$|\eta|<4$}.
+\item Evaluation plot: full $\mu$ range; \textbf{1,920 events} selected at $185\leq\mu\leq215$.
+\item $\langle\mu\rangle=192.5$; \textbf{111.3 truth PVs/event} with $\ntrk\geq2$.
+\end{itemize}
+\end{column}\begin{column}{.46\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.392}{.49}\textheight,keepaspectratio]{images/mu_distribution_review.pdf}\end{column}\end{columns}\context{$p_T\geq0.9$ GeV, $|d_0|\leq1$ mm, $\sigma(d_0)\leq0.35$ mm, $|z_0|\leq200$ mm.}\readingnote{Training uses events near $\mu=200$, not the flat-$\mu$ evaluation range shown here. The plot contains all 25,000 events in the evaluation file; red marks the PU200 subset. The evaluation tag is excluded from finder training. There are 213,738 eligible truth vertices in the selected events. The second reconstruction tag shares generated and simulated events and checks reconstruction consistency. Forward tracks also change the truth denominator, so earlier central-only efficiencies are not directly comparable.}
+\end{frame}
+
+
+\begin{frame}{PU200: PV-Finder against AMVF}
+\relax
+\begin{columns}[c]\begin{column}{.56\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.496}{.62}\textheight,keepaspectratio]{images/category_counts_review.pdf}\end{column}\begin{column}{.41\linewidth}
+\centering\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrr}\toprule
+ & PV-Finder & AMVF\\\midrule
+Clean/event & $71.87\pm0.18$ & $67.74\pm0.18$\\
+Fake/event & $16.31\pm0.10$ & $17.48\pm0.10$\\
+Efficiency [\%] & $86.91\pm0.08$ & $84.03\pm0.08$\\\bottomrule
+\end{tabular}
+\par\vspace{1em}\raggedright\small
+Same 1,920 events.\\[.5em]
+Same truth-matching tolerance:\\[.25em]$\pm0.229$~mm.\\[.5em]
+Statistical uncertainties only.
+\end{column}\end{columns}\takeaway{Higher clean-vertex yield and fewer fakes on the same events.}\readingnote{The window is the production PV-Finder separation fit. Counts use integral threshold 0.30, minimum height 0.03 and the local centroid. The resolution fit uses integral threshold 0.50. No GBT filter is applied. The AMVF efficiency is 84.0\% at this window, with event counts summed before forming the ratio. The table gives statistical errors from 10,000 paired event-bootstrap resamples. The chart uses standard errors on event means.}
+\end{frame}
+
+
+\begin{frame}{PU200: Yield across the Pile-up Range}
+\relax
+\begin{columns}[c]\begin{column}{.65\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.552}{.69}\textheight,keepaspectratio]{images/reco_vs_mu_v6_r16443.png}\end{column}\begin{column}{.32\linewidth}
+\textbf{Reconstructed vertices per event}
+\par\vspace{.9em}
+\small The full evaluation file spans low pile-up through the PU200 region.
+\par\vspace{.9em}
+
+At high pile-up, both methods fall below the truth yield; PV-Finder retains more vertices.
+\end{column}\end{columns}\readingnote{The reference curve counts truth vertices with at least two selected tracks. This plot uses the file\textquotesingle s full pile-up range; the headline category counts use only $185\leq\mu\leq215$. The plot\textquotesingle s summary box averages pile-up-bin means and must not be read as an event-weighted file average or a PU200 average.}
+\end{frame}
+
+
+\begin{frame}{Vertex--Vertex Resolution at PU200}
+\relax
+\begin{columns}[c]\begin{column}{.60\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.480}{.60}\textheight,keepaspectratio]{images/hllhc_resolution_v6_r16443.png}\end{column}\begin{column}{.37\linewidth}
+\centering\bigvalue{$0.229\pm0.003$ mm}{PV-Finder separation scale}
+\par\vspace{1.3em}
+{\Large $0.305\pm0.006$ mm}\\[.4em]\small AMVF, same event selection
+\par\vspace{1.1em}\raggedright
+Smaller separation scale for PV-Finder.
+\end{column}\end{columns}\readingnote{The fit uses 300 bins across $-6<\Delta z<6$ mm and a 0.50 integral threshold; the uncertainty is from the sigmoid fit. The second reconstruction tag gives $0.228\pm0.003$ mm. At the counting threshold of 0.30, PV-Finder gives 0.218 mm. Separation scale and single-vertex precision describe different properties.}
+\end{frame}
+
+
+\begin{frame}{Choosing a Matching Window for Efficiency}
+\relax
+\begin{columns}[c]\begin{column}{.55\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.456}{.57}\textheight,keepaspectratio]{images/position_resolution_pvf_amvf.png}\end{column}\begin{column}{.42\linewidth}
+\textbf{Single-vertex position precision}
+\par\vspace{.8em}
+\small $68\%$ of matched vertices satisfy $|z_{\rm reco}-z_{\rm truth}|<w_{68}$:
+\par\vspace{.7em}\centering
+\begin{tabular}{lr}\toprule
+PV-Finder & $55.1\,\mu$m\\
+AMVF & $56.5\,\mu$m\\\bottomrule
+\end{tabular}
+\par\vspace{.9em}\raggedright
+Similar $68\%$ containment; the core shapes differ.
+\end{column}\end{columns}\takeaway{Use $w=3\times56.5\,\mu\mathrm{m}\simeq0.17$ mm for both algorithms.}\readingnote{The residual measurement uses optimal one-to-one assignment within 1 mm. The exact common window used in the scan is 0.1694 mm. It is based on three times the larger central width; it is not a statement of Gaussian 3-sigma coverage. A signed-residual Gaussian-core fit and its range sensitivity are shown in the backup. Holding it fixed prevents changes in the separation fit from moving the AMVF matching criterion.}
+\end{frame}
+
+
+\begin{frame}{PV-Finder and AMVF at the Same Fixed Window}
+\relax
+
+\context{1,920 events; $w=0.1694$ mm; truth $\ntrk\geq2$; positional classification.}
+\centering\small
+\begin{tabular}{lccc}\toprule
+ & Efficiency & Unique efficiency & Fake + split/event\\\midrule
+PV-Finder & $83.16\pm0.08\%$ & $73.43\pm0.09\%$ & $19.27\pm0.10$\\
+AMVF & $79.80\pm0.09\%$ & $70.07\pm0.09\%$ & $19.87\pm0.10$\\\midrule
+\rowcolor{pennred!5}Difference & $\mathbf{+3.36\pm0.06}$ points & $\mathbf{+3.37\pm0.06}$ points & $\mathbf{-0.60\pm0.09}$\\\bottomrule
+\end{tabular}
+\par\vspace{1.0em}
+\bigvalue{$+3.36\pm0.06$}{percentage points of efficiency over AMVF}
+\readingnote{Uncertainties come from paired event bootstraps. Removing merged credit lowers both absolute efficiencies by about 9.7 points, with almost no change in their difference. PV-Finder has higher efficiency over the tested 0.1--1.0 mm window range. Its fake-plus-split advantage changes sign near 0.60 mm. The extended table and window scan are in the backup.}
+\end{frame}
+
+
+\begin{frame}{What Still Limits Vertex Finding}
+\relax
+
+\centering\includegraphics[width=\linewidth,height=\bnum{.60}{.76}\textheight,keepaspectratio]{images/fm_merged.png}\par
+\context{Merged-vertex example: earlier PU200 model, 0.5 mm matching window.}
+\readingnote{Nearby truth vertices can share one peak (Merged); a low-multiplicity vertex can produce no accepted peak (Missed); an accepted peak can have no selected truth vertex in its window (Fake). The median adjacent truth separation is 1.16 mm, and 13.4\% of adjacent pairs are closer than 0.229 mm. This is not a hard separation limit: some closer pairs are reconstructed. Missed and Fake examples remain in the backup.}
+
+\end{frame}
+
+
+\partdivider{IV}{Track-to-vertex association}{A graph network turns the peak list into per-vertex track lists}
+
+\begin{frame}{TTVA Completes the Reconstruction Chain}
+\relax
+
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\node[pvbox,draw=mydarkblue,fill=mydarkblue!8,minimum width=3.3cm,minimum height=1.25cm] (p) at (0,0) {PV-Finder\\positions};
+\node[pvbox,draw=pennred,fill=pennred!8,minimum width=3.3cm,minimum height=1.25cm] (g) at (4.6,0) {GNN\\track association};
+\node[pvbox,draw=myorange,fill=myorange!12,minimum width=3.3cm,minimum height=1.25cm] (t) at (9.2,0) {Vertices\\with track lists};
+\draw[pvflow] (p)--(g);\draw[pvflow] (g)--(t);
+\end{tikzpicture}
+\par\vspace{1.4em}
+\begin{itemize}\setlength\itemsep{.65em}\small
+\item The GNN assigns tracks to the vertex positions found by PV-Finder.
+\item Track lists enable hard-scatter selection with $\sum p_T^2$ and pile-up observables.
+\item AMVF provides track lists too: evaluate both chains with the same track-based categories.
+\end{itemize}
+\readingnote{The GNN treats each possible track--vertex connection as a binary classification problem. It is trained with MC truth vertices and applied to reconstructed PV-Finder peaks. The current associator assigns tracks to the existing candidates; it does not create new vertices or fit new vertex positions.}
+\end{frame}
+
+
+\begin{frame}{TTVA: The Event as a Graph}
+\relax
+\begin{columns}[c]\begin{column}{.52\linewidth}
+\small
+\textcolor{mydarkblue}{\textbf{Track nodes:}}\\[.4em]
+$d_0,z_0,\sigma_{d_0},\sigma_{z_0},\mathrm{cov}(d_0,z_0),$\\[.3em]
+$\theta,\phi,p_T/(50\,\mathrm{GeV})$.\\[.7em]
+\textcolor{myorange}{\textbf{Vertex nodes:}} position and peak height.\\[.7em]
+\textbf{Edge features:}
+\[\frac{z_0-z_{\rm PV}}{\sqrt{\sigma_{z_0}^2+\sigma_{\rm PV}^2}},\quad
+\frac{d_0}{\sigma_{d_0}},\quad |z_0-z_{\rm PV}|.\]
+\textbf{PU200:} connect each track to its $k=20$ nearest vertex candidates.
+\end{column}\begin{column}{.45\linewidth}\centering\resizebox{.88\linewidth}{!}{\begin{tikzpicture}[x=0.85cm, y=0.85cm]
+                \foreach \y/\n in {3.6/1, 2.4/2, 1.2/3, 0.0/4} {
+                    \filldraw[fill=mydarkblue!14, draw=mydarkblue!70, thick] (0,\y) circle (8pt)
+                        node[font=\scriptsize] {\(t_\n\)};
+                }
+                \foreach \y/\n in {3.0/1, 1.8/2, 0.6/3} {
+                    \filldraw[fill=myorange!20, draw=myorange!80!black, thick] (4,\y) circle (8pt)
+                        node[font=\scriptsize] {\(v_\n\)};
+                }
+                \foreach \s/\t in {3.6/3.0, 3.6/1.8, 2.4/3.0, 2.4/1.8, 1.2/1.8, 1.2/0.6, 0.0/1.8, 0.0/0.6} {
+                    \draw[black!40, thick] (0.3,\s) -- (3.7,\t);
+                }
+                \draw[pennred, very thick] (0.3,2.4) -- (3.7,3.0);
+                \node[font=\tiny, text=pennred] at (2.0,3.35) {edge score \(\in[0,1]\)};
+                \node[font=\tiny, text=black!55] at (0.0,-0.75) {tracks};
+                \node[font=\tiny, text=black!55] at (4.0,-0.75) {candidate vertices};
+            \end{tikzpicture}}\end{column}\end{columns}\readingnote{PU200 training graphs average about 1,366 tracks and 139 truth vertex nodes: roughly 27,300 edges with $k=20$, compared with about 190,000 if fully connected. Track inputs are $d_0,z_0$, their errors and covariance, $\theta,\phi,p_T/(50\,\mathrm{GeV})$. A positive edge links a track to its stored truth vertex. Single-track truth vertices can supply labels.}
+\end{frame}
+
+
+\begin{frame}{TTVA: A Small Graph Attention Network}
+\relax
+
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\foreach \x/\name/\txt in {0/a/{Embed nodes\\32 dimensions},4.6/b/{Exchange information\\2 attention layers},9.2/c/{Score each edge\\MLP + sigmoid}}{
+\node[pvbox,draw=mydarkblue!50,fill=mydarkblue!7,minimum width=3.8cm,minimum height=1.5cm] (\name) at (\x,0) {\txt};}
+\draw[pvflow] (a)--(b);\draw[pvflow] (b)--(c);
+\end{tikzpicture}
+\par\vspace{1.3em}
+\begin{itemize}\setlength\itemsep{.6em}\small
+\item Tracks and vertices update each other's representations; edge features weight their connections.
+\item Two attention layers, four heads each; \textbf{39,521 trainable parameters}.
+\item Train on \textbf{180,000 PU200 events} with truth-vertex nodes and true track--vertex associations.
+\item Weighted binary cross-entropy; no graph augmentation for this model.
+\end{itemize}
+\readingnote{The final edge MLP has dimensions $64\to32\to32\to1$, taking the concatenated track and vertex embeddings. The positive-class weight is recomputed from each batch. PU200 training uses 18 files, one per epoch; 108 epochs correspond to six complete passes. This result does not measure the benefit of longer training or a larger sample.}
+\end{frame}
+
+
+\begin{frame}{TTVA: Classify Vertices by Their Assigned Tracks}
+\relax
+\readingonly{\small}{\centering\resizebox{\bnum{0.800}{.93}\linewidth}{!}{\begin{tikzpicture}[x=1cm,y=1cm,>=Latex,font=\small]
+        \colorlet{oA}{mydarkblue!75}
+        \colorlet{oB}{myorange!85!black}
+        \colorlet{oC}{teal!65!black}
+        \colorlet{oPU}{black!35}
+        % cards
+        \foreach \cx/\name in {1.6/v_1, 5.9/v_2, 10.2/v_3, 14.5/v_4} {
+            \node[draw=black!25, rounded corners=8pt, minimum width=3.0cm, minimum height=3.0cm, fill=black!2] at (\cx,2) {};
+            \node[font=\footnotesize, text=black!60] at (\cx,3.75) {reco $\name$};
+        }
+        % V1 Clean : 5 A + 1 B
+        \foreach \p in {(1.15,2.45),(1.75,2.55),(2.05,2.15),(1.25,1.75),(1.95,1.6)} {\filldraw[oA] \p circle (5pt);}
+        \filldraw[oB] (1.55,1.25) circle (5pt);
+        \node[font=\scriptsize, text=black!55] at (1.6,0.75) {$\tfrac{5}{6}$ from $t_1$};
+        \node[font=\footnotesize\bfseries, text=mygreen!65!black] at (1.6,0.15) {Clean ($\geq70\%$)};
+        % V2 Merged : 3 A + 3 B
+        \foreach \p in {(5.45,2.45),(6.05,2.55),(5.5,1.7)} {\filldraw[oA] \p circle (5pt);}
+        \foreach \p in {(6.25,2.2),(6.05,1.6),(5.75,1.2)} {\filldraw[oB] \p circle (5pt);}
+        \node[font=\scriptsize, text=black!55] at (5.9,0.75) {no $70\%$ majority};
+        \node[font=\footnotesize\bfseries, text=myorange!85!black] at (5.9,0.15) {Merged};
+        % V3 Split : 4 C, already claimed
+        \foreach \p in {(9.75,2.45),(10.45,2.45),(9.85,1.7),(10.55,1.6)} {\filldraw[oC] \p circle (5pt);}
+        \node[font=\scriptsize, text=black!55, align=center] at (10.2,0.8) {$t_3$ claimed by a\\larger $\sum p_T^2$ vertex};
+        \node[font=\footnotesize\bfseries, text=myblue] at (10.2,0.05) {Split};
+        % V4 Fake : 4 PU
+        \foreach \p in {(14.05,2.4),(14.75,2.45),(14.15,1.6),(14.9,1.7)} {\filldraw[oPU] \p circle (5pt);}
+        \node[font=\scriptsize, text=black!55] at (14.5,0.75) {unlabelled plurality};
+        \node[font=\footnotesize\bfseries, text=myred] at (14.5,0.15) {Fake};
+        % legend
+        \filldraw[oA] (2.4,-1.0) circle (5pt); \node[anchor=west,font=\scriptsize] at (2.7,-1.0) {tracks from truth $t_1$};
+        \filldraw[oB] (6.2,-1.0) circle (5pt); \node[anchor=west,font=\scriptsize] at (6.5,-1.0) {from truth $t_2$};
+        \filldraw[oC] (9.4,-1.0) circle (5pt); \node[anchor=west,font=\scriptsize] at (9.7,-1.0) {from truth $t_3$};
+        \filldraw[oPU] (12.4,-1.0) circle (5pt); \node[anchor=west,font=\scriptsize] at (12.7,-1.0) {no stored truth label};
+    \end{tikzpicture}}\par}\begin{itemize}\small\item Empty vertices have no assigned tracks and are removed.\end{itemize}\readingnote{The diagrams illustrate the category rules separately. Clean requires at least 70\% of the assigned tracks to come from one truth vertex. Both chains use unweighted track counts and remove empty vertices. Duplicate dominant truth vertices are resolved by $\sum p_T^2$: only the largest keeps Clean or Merged; the others become Split. Fake means the unlabelled group is the largest contribution. Unlabelled is not synonymous with pile-up. The ATLAS definition uses vertex-fit weights, which these ntuples do not store; particle-level fake-track matching is also unavailable.}
+\end{frame}
+
+
+\begin{frame}{TTVA: From Scores to Track Lists}
+\relax
+
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\node[pvbox,draw=mydarkblue,fill=mydarkblue!10,minimum width=2cm,minimum height=1cm] (t) at (0,0) {Track};
+\node[pvbox,draw=mygreen!60!black,fill=mygreen!10,minimum width=2.3cm,minimum height=1cm] (v1) at (5.2,.85) {Vertex 1};
+\node[pvbox,draw=black!35,fill=black!3,minimum width=2.3cm,minimum height=1cm] (v2) at (5.2,-.85) {Vertex 2};
+\draw[pvflow,draw=mygreen!60!black,line width=1.4pt] (t)--node[above,sloped] {$0.99$} (v1);
+\draw[pvflow,draw=black!35] (t)--node[below,sloped,text=black!55] {$0.12$} (v2);
+\node[align=left,font=\small] at (10.3,0) {Choose the highest score.\\[.4em]Keep it if it passes $t$.\\[.4em]Otherwise leave the track unassigned.};
+\end{tikzpicture}
+\par\vspace{.9em}
+\context{Illustrative scores. PU200 working point: $t=0.98$.}
+\small
+\begin{tabular}{lrr}\toprule
+PU200 output & Vertices & Fraction\\\midrule
+All finder peaks & 193,945 & 100\%\\
+Peaks with tracks & 175,491 & 90.5\%\\
+No GNN-assigned tracks; removed & 18,454 & 9.5\%\\\bottomrule
+\end{tabular}
+\readingnote{Finder peaks are predicted before track assignment. A peak is empty if no track chooses it as its highest-scoring candidate above the threshold: tracks may prefer another peak or fail the cut. Among populated vertices, 303 are Fake (0.17\%). Counting empty peaks as Fake would give 9.67\%. Removing empties changes this rate but cannot increase the number of Clean vertices.}
+\end{frame}
+
+
+\begin{frame}{TTVA at PU200: Finding and Assignment Losses}
+\relax
+
+\context{Same 1,920 events. Positional and truth-guided diagnostics use a 0.5 mm window.}
+\centering
+\resizebox{\bnum{.60}{.66}\linewidth}{!}{%
+\begin{tikzpicture}[x=1.4mm,y=.55mm,font=\small]
+\foreach \y in {0,19,38,57}{\fill[black!7] (0,\y) rectangle (100,{\y+10});}
+\foreach \y/\f/\val/\col/\lab in {
+57/100/{100\%}/black!50/{Truth vertices ($\ntrk\geq2$)},
+38/78.1/{78.1\%}/mydarkblue!80/{Truth vertices with a separate reconstructed peak},
+19/73.7/{73.7\%}/myorange/{Clean vertices using true track origins},
+0/68.4/{68.4\%}/mygreen!65!black/{Clean vertices using GNN-assigned tracks}}{
+\fill[\col] (0,\y) rectangle (\f,{\y+10});
+\node[anchor=east,text=white,font=\small\bfseries] at ({\f-2},{\y+5}) {\val};
+\node[anchor=south west,inner sep=0pt] at (0,{\y+11}) {\lab};}
+\end{tikzpicture}}
+\par\vspace{.5em}\small
+\textbf{Separate peak:} a unique reconstructed match within 0.5 mm of the truth vertex.\\[.5em]
+\textbf{True track origins:} assign each track to the peak nearest its truth vertex within 0.5 mm, then apply the 70\% Clean rule.\readingnote{The truth-guided rule assigns each track to the peak closest to its true vertex, within 0.5 mm, then applies the same track classification. It is a diagnostic reference, not a strict bound. The gaps are 21.9 points to a separate positional match, 4.4 to truth-guided assignment and 5.2 to the GNN (from unrounded values). Unmatched truth vertices have median $\ntrk=3$, compared with 9 for matched vertices.}
+\end{frame}
+
+
+\begin{frame}{TTVA at PU200: The Full Chain against AMVF}
+\relax
+\readingonly{\small}
+\context{Same 1,920 events; 213,738 truth PVs; unweighted 70\% rule; empty vertices removed.}
+\centering
+\begin{tikzpicture}[x=.09cm,y=.76cm]
+\fill[black!6] (0,0) rectangle (100,.8);
+\fill[pennred] (0,0) rectangle (68.4,.8);
+\node[anchor=west,font=\large\bfseries,text=pennred] at (70,.4) {$68.4\%$};
+\node[anchor=south west,font=\small] at (0,.88) {PV-Finder + GNN, $t=0.98$};
+\fill[black!6] (0,-1.7) rectangle (100,-.9);
+\fill[mydarkblue!70] (0,-1.7) rectangle (30.9,-.9);
+\node[anchor=west,font=\large\bfseries,text=mydarkblue] at (32,-1.3) {$30.9\%$};
+\node[anchor=south west,font=\small] at (0,-.82) {AMVF};
+\node[anchor=north,font=\small,text=black!60] at (50,-1.95) {Clean vertices / reference truth vertices};
+\end{tikzpicture}
+\par\vspace{.5em}\small
+\begin{tabular}{lccc}\toprule
+ & Clean/reco & Fake/reco & Hard-scatter ID\\\midrule
+PV-Finder + GNN & $83.3\%$ & $0.17\%$ & $94.4\%$ ($t=0.95$)\\
+AMVF & $35.2\%$ & $0.07\%$ & $80.7\%$\\\bottomrule
+\end{tabular}
+\par\vspace{.55em}\footnotesize\textcolor{black!60}{AMVF Clean/reco rises to $60.2\%$ at a $50\%$ purity cut (backup).}
+\readingnote{Median track purity: AMVF 63.2\%, GNN 100\%. At 50\% purity, AMVF reaches 52.9\% Clean/truth; the main comparison uses 70\% for both. Hard-scatter ID selects the leading-$\sum p_T^2$ vertex at $t=0.95$, distinct from the category threshold $t=0.98$.}
+\end{frame}
+
+
+\partdivider{V}{Integration and conclusions}{Bringing PV-Finder and track association into Athena}
+
+\begin{frame}{Athena Integration}
+\relax
+
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\node[pvbox,draw=mydarkblue,fill=mydarkblue!8,minimum width=5.5cm,minimum height=1.5cm] (p) at (0,0) {Vertex finding\\\small Inputs $\to$ network $\to$ peaks};
+\node[pvbox,draw=pennred,fill=pennred!8,minimum width=5.5cm,minimum height=1.5cm] (g) at (7,0) {Track association\\\small Graph $\to$ scores $\to$ track lists};
+\draw[pvflow] (p)--(g);
+\end{tikzpicture}
+\par\vspace{.9em}
+\begin{columns}[t]
+\begin{column}{.45\linewidth}\textbf{Component validation complete}\\[.6em]\small
+Exported inference and numerical agreement.\\[.5em]
+Peak positions and track-list outputs.
+\end{column}
+\begin{column}{.45\linewidth}\textbf{PU200 timing in progress}\\[.6em]\small
+Input preparation, transfers and peak finding.\\[.5em]
+Graph construction, GNN and track selection.
+\end{column}\end{columns}
+\takeaway{Validated components; full-event PU200 timing is being benchmarked within Athena.}\readingnote{Exported inference, peak positions and track-list outputs have been validated. The Athena benchmark measures complete-event processing at PU200, including input preparation, data transfers, peak finding, graph construction, GNN inference and track selection. No new timing number is quoted before this benchmark is available.}
+\end{frame}
+
+
+\begin{frame}{Conclusions}
+\relax
+
+\begin{enumerate}\setlength\itemsep{1.15em}
+\item \textbf{Method:} tracks $\to$ learned histogram $\to$ peaks $\to$ track lists.\\[.35em]
+{\small PU200 training uses histogram warm-up and end-to-end MSE.}
+\item \textbf{Finder at PU200:} $\textcolor{pennred}{+3.36\pm0.06}$ efficiency points over AMVF.\\[.35em]
+{\small Common $0.1694$ mm window; $0.60\pm0.09$ fewer fake + split vertices/event.}
+\item \textbf{Separation scale:} $0.229\pm0.003$ mm for PV-Finder; $0.305\pm0.006$ mm for AMVF.
+\item \textbf{Full chain:} $\textcolor{pennred}{68.4\%}$ Clean/truth, compared with $30.9\%$ for AMVF.\\[.35em]
+{\small Same unweighted track classification, 70\% purity, empty vertices removed.}
+\end{enumerate}
+\readingnote{Low-pile-up simulation and collision data provide complementary validation, using a separate reproduction model. The finder\textquotesingle s fixed-window efficiency gain remains when only separate matches receive credit. The full-chain gain is a different observable, driven by the purity of assigned tracks. Production timing at PU200 is being benchmarked within Athena.}
+\end{frame}
+
+
+\begin{frame}{Next Steps}
+\relax
+
+\centering
+{\Large\bfseries\textcolor{mydarkblue}{Integrate PV-Finder + GNN into Athena}}
+\par\vspace{1.6em}
+\begin{tikzpicture}[x=1cm,y=1cm]
+\node[pvbox,draw=mydarkblue,fill=mydarkblue!8,minimum width=5cm,minimum height=1.5cm] (models) at (0,0) {PV-Finder + GNN\\\small Vertex finding and track association};
+\node[pvbox,draw=pennred,fill=pennred!8,minimum width=5cm,minimum height=1.5cm] (athena) at (6.5,0) {Athena\\\small Production reconstruction workflow};
+\draw[pvflow] (models)--(athena);
+\end{tikzpicture}
+\par\vspace{1.6em}
+\context{Current method and results: \notelink.\quad Earlier development: \pubnote.}
+\readingnote{The next step is to integrate the existing finder and GNN association models into Athena, with vertex finding and track association exposed as the two reconstruction components. Their outputs connect the learned vertex positions and associated track lists to the production reconstruction workflow.}
+\end{frame}
+
+
+\backupbegin
+
+\begin{frame}{Backup: Reference Material}
+\relax
+
+\begin{itemize}\setlength\itemsep{1em}
+\item \textbf{Earlier method and development}\\[.4em]
+\pubnote: \emph{Primary Vertex identification using deep learning in ATLAS}.
+\item \textbf{Current method, settings and results}\\[.4em]
+\notelink, including the local September 7 review revisions.
+\item \textbf{Definitions and reproducibility}\\[.4em]
+Project documentation, saved evaluations and the note's reproduction appendices.
+\end{itemize}
+\par\vspace{1em}\small
+This deck follows the August 7 structure. The history of the original pipeline is left to the public note.
+\readingnote{Source status checked September 8, 2026. GitLab main was at 7a95d88; the canonical local checkout contains later author edits and reviewed figure replacements. The accompanying FACT\_CHECK.md records these distinctions and the numerical sources. The technical note is an internal document.}
+\end{frame}
+
+
+\begin{frame}{Backup: Full Comparison at the Fixed Window}
+\relax
+
+\context{1,920 events, common window $0.1694$ mm; differences from paired event bootstraps.}
+\centering\footnotesize
+\begin{tabular}{lrrr}\toprule
+ & PV-Finder & AMVF & Difference\\\midrule
+Efficiency [\%] & $83.16\pm0.08$ & $79.80\pm0.09$ & $+3.36\pm0.06$\\
+Unique efficiency [\%] & $73.43\pm0.09$ & $70.07\pm0.09$ & $+3.37\pm0.06$\\
+Fake/event, truth $\ntrk\geq2$ & $18.73\pm0.10$ & $19.69\pm0.10$ & $-0.95\pm0.09$\\
+Fake/event, truth $\ntrk\geq1$ & $14.00\pm0.09$ & $16.16\pm0.09$ & $-2.16\pm0.09$\\
+Fake + split/event, $\ntrk\geq2$ & $19.27\pm0.10$ & $19.87\pm0.10$ & $-0.60\pm0.09$\\\bottomrule
+\end{tabular}
+\par\vspace{1.2em}\small
+At equal candidate yield (97.87/event), PV-Finder retains\\[.4em]
+$2.89\pm0.06$ efficiency points and $3.23\pm0.09$ fewer fake + split vertices/event.
+\readingnote{The difference columns are calculated before rounding the two algorithm values. The $\ntrk\geq1$ row changes only the reference truth selection used to classify positional fakes; the main results retain $\ntrk\geq2$. Equal yield is obtained by raising the PV-Finder height cut, with the matching window held fixed.}
+\end{frame}
+
+
+\begin{frame}{Backup: Dependence on the Matching Window}
+\relax
+\centering\includegraphics[width=\linewidth,height=\bnum{0.552}{.69}\textheight,keepaspectratio]{images/amvf_window_scan_r16443.png}\takeaway{Efficiency stays higher over 0.1--1.0 mm; fake + split crosses near 0.60 mm.}\readingnote{The efficiency margin changes with the merge convention. At 0.5 mm it is +0.86 points with merged truth vertices included and +3.01 points for one-to-one matching. A common window permits a paired comparison, but does not make absolute efficiencies independent of that window.}
+\end{frame}
+
+
+\begin{frame}{Backup: Displaced-Position Control}
+\relax
+
+\context{Shift each reconstructed list by 3 mm, then repeat positional matching.}
+\centering\small
+\begin{tabular}{lcc}\toprule
+ & $w=0.17$ mm & $w=0.50$ mm\\\midrule
+PV-Finder shifted recovery & $18.6\%$ & $45.4\%$\\
+AMVF shifted recovery & $18.4\%$ & $46.7\%$\\\bottomrule
+\end{tabular}
+\par\vspace{1.5em}
+\small Dense events allow shifted vertices to match other truth vertices by chance.
+\takeaway{These control rates are not the accidental fraction in the original reconstruction.}\readingnote{Recovery here includes merged truth vertices. A larger window increases the rate in the displaced control. The shifted lists do not have the same correlations as the original reconstructed lists, so these rates are not subtracted from the measured efficiencies.}
+\end{frame}
+
+
+\begin{frame}{Backup: A Second Reconstruction Tag}
+\relax
+\begin{columns}[c]\begin{column}{.56\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.464}{.58}\textheight,keepaspectratio]{images/hllhc_resolution_v6_r16638.png}\end{column}\begin{column}{.41\linewidth}
+\small\centering
+\begin{tabular}{lrr}\toprule
+ & Tag 1 & Tag 2\\\midrule
+Selected events & 1,920 & 1,888\\
+Efficiency [\%] & 86.9 & 86.95\\
+Fake/event & 16.3 & 16.10\\
+$\svtx$ [mm] & 0.229 & 0.228\\\bottomrule
+\end{tabular}
+\par\vspace{1em}\raggedright
+Consistent results across reconstruction versions.
+\end{column}\end{columns}\takeaway{The tags share generated and simulated events; this checks reconstruction consistency.}\readingnote{Tag 1 is r16443 and tag 2 is r16638. Both use $185\leq\mu\leq215$. Their standard matching windows are their respective PV-Finder separation widths, 0.228983 and 0.227832 mm. The fit uncertainties are about 0.003 mm. Agreement is not an independent-event generalisation test.}
+\end{frame}
+
+
+\begin{frame}{Backup: Peak-Finding Settings}
+\relax
+
+\centering\small
+\begin{tabular}{lcc}\toprule
+ & Low-pile-up validation & PU200 production\\\midrule
+Run threshold & 0.01 & 0.01\\
+Minimum width & 3 bins & 3 bins\\
+Integral, counts & 0.50 & 0.30\\
+Integral, separation fit & 0.50 & 0.50\\
+Additional minimum height & None & 0.03\\
+Position estimator & Full-run mean & Local centroid, $\pm3$ bins\\
+GBT filter & None & None\\\bottomrule
+\end{tabular}
+\par\vspace{1em}\small
+The two PU200 integral cuts produce different peak lists.\\[.5em]
+The separation fit uses 300 bins across $\pm6$ mm, matching the 0.04 mm output grid.
+\readingnote{This low-pile-up column describes the epoch-300 vertex-finder validation. The separate low-pile-up GNN chain uses an epoch-400 finder with integral threshold 0.20, as recorded in the note\textquotesingle s reproduction appendix. Do not transfer defaults between these evaluations. Peak selections, fit settings and matching windows must be recorded together.}
+\end{frame}
+
+
+\begin{frame}{Backup: Training Settings}
+\relax
+
+\centering\small
+\begin{tabular}{lcc}\toprule
+ & PU200 finder & PU200 GNN\\\midrule
+Training pool & 5.17M events & 180,000 event graphs\\
+Parameters & 3.55M & 39,521\\
+Loss & Mean-squared error & Weighted binary cross-entropy\\
+Optimizer & Adam & Adam\\
+Batch size & 128 intervals & 32 event graphs\\
+Training & 2 MLP + 2 joint epochs & 108 shard epochs = 6 data passes\\
+Initial learning rate & $10^{-3}$ warm-up, $10^{-4}$ joint & $10^{-3}$\\
+Gradient norm limit & 1.0 & 1.0\\\bottomrule
+\end{tabular}
+\par\vspace{1em}\small
+Finder: 280 U-Net channels and 4 latent channels.\\[.5em]
+GNN: $k=20$, two attention layers, 32 dimensions, four heads.
+\readingnote{The finder uses a 96/3/1 split of the converted interval dataset and a 3,000-step learning-rate warm-up before cosine decay in joint training. The external evaluation reconstruction tag is excluded from finder training. GNN training uses 18 files in sequence, one per epoch, and a cosine schedule to $10^{-5}$. The published pool size describes the source events; the converted training examples are 40 mm intervals.}
+\end{frame}
+
+
+\begin{frame}{Backup: What the Positional Fake Count Includes}
+\relax
+
+\small The main truth reference requires at least two selected tracks. A peak near a real single-track interaction can therefore enter the fake category.
+\par\vspace{1.2em}\centering\small
+\begin{tabular}{lccc}\toprule
+Estimated single-track contribution & PV-Finder & AMVF & Difference\\\midrule
+$w=0.17$ mm [vertices/event] & $3.98\pm0.05$ & $2.73\pm0.05$ & $1.25\pm0.04$\\
+$w=0.50$ mm [vertices/event] & $3.33\pm0.05$ & $2.36\pm0.05$ & $0.97\pm0.04$\\\bottomrule
+\end{tabular}
+\takeaway{The truth-selection effect applies to both algorithms and depends on the window.}\readingnote{These estimates account for chance proximity to single-track truth vertices, following the fixed-window study in the note. They are distinct from simply repeating matching with $\ntrk\geq1$. The main comparison keeps the two-track reference and reports the uncorrected fake rates under that convention.}
+\end{frame}
+
+
+\begin{frame}{Backup: Additional Fake Rejection}
+\relax
+
+\context{Matched event subsets; keep the window fixed before and after each selection.}
+\centering\small
+\begin{tabular}{lccc}\toprule
+Selection change & Events & Fakes removed/event & Efficiency cost\\\midrule
+Height floor $0\to0.03$ & 384 & 1.06 & 0.21 points\\
+GBT score $\geq0.3$, after height floor & 268 & 1.38 & 0.34 points\\\bottomrule
+\end{tabular}
+\par\vspace{1.2em}
+\begin{columns}[t]
+\begin{column}{.46\linewidth}\small\textbf{Height floor is used in production.}\\[.5em]
+It removes low peaks with a modest efficiency cost.
+\end{column}
+\begin{column}{.46\linewidth}\small\textbf{GBT is an additional study.}\\[.5em]
+It removes 8.6\% of the remaining fakes in this check.
+\end{column}\end{columns}
+\readingnote{Windows are 0.228983 mm for the height test and 0.227832 mm for the GBT test. The histogram-only GBT is applied on a different reconstruction tag sharing generated and simulated events with its training sample. These are exploratory checks, not independent-event validation. No GBT is included in the headline production results.}
+\end{frame}
+
+
+\begin{frame}{Backup: GBT Inputs and Validation Scope}
+\relax
+\readingonly{\small}\begin{columns}[c]\begin{column}{.61\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.464}{.58}\textheight,keepaspectratio]{images/peak_clf_performance.png}\end{column}\begin{column}{.36\linewidth}
+\small\textbf{23 candidate features}
+\begin{itemize}\setlength\itemsep{.5em}
+\item Nearby track counts and quality.
+\item Histogram shape and local integral.
+\item Neighbouring peak distances.
+\end{itemize}
+\par\vspace{.6em}\centering
+\begin{tabular}{lr}\toprule
+Inputs & AUC\\\midrule
+All & 0.958\\
+Tracks only & 0.946\\
+Histogram/neighbours & 0.953\\\bottomrule
+\end{tabular}
+\end{column}\end{columns}\talkonly{\takeaway{Peaks from the same event enter both training and test subsets.}}\readingonly{\par\smallskip\textcolor{pennred}{Peaks from the same event enter both training and test subsets.}}\readingnote{The dataset has 340,541 candidates from 6,000 flat-pile-up events, randomly split 70/30 by peak. Labels use a 0.5 mm truth window. Local integral has feature importance 0.74. Independent testing requires an event split and distinct simulated events; these AUCs do not establish that track information is redundant.}
+\end{frame}
+
+
+\begin{frame}{Backup: Satellite Peaks}
+\relax
+
+\begin{columns}[t]
+\begin{column}{.47\linewidth}\textbf{Mechanism}\\[.6em]\small
+Small rises beside larger peaks can trigger a split.\\[.7em]
+92.5\% of satellites in the diagnostic close-pair band come from split regions.\\[.7em]
+A local centroid reduces position shifts from asymmetric regions.
+\end{column}
+\begin{column}{.47\linewidth}\textbf{At the production settings}\\[.6em]\small
+0.3--0.7 mm pair excess: 3.6\%, compared with 0.4\% for truth.\\[.7em]
+Alternative baseline fits give about 0--1.7\% for PV-Finder.\\[.7em]
+The residual is sensitive to the baseline estimate.
+\end{column}\end{columns}
+\readingnote{The mechanism study used a full-run centroid, integral 0.20 and no height floor, giving 12.5\% band excess. Using a local centroid on the same peak list gives 5.1\%. A prominence cut at 0.005 removes 75\% of that diagnostic excess but also 1.70 truth-matched peaks/event, so it is not used. These overlapping changes are not additive contributions.}
+\end{frame}
+
+
+\begin{frame}{Backup: Model Capacity and HGTD Timing}
+\relax
+
+\begin{columns}[t]
+\begin{column}{.47\linewidth}\textbf{Model-size tests}\\[.6em]\small
+681K and 3.55M parameters gave similar performance on the earlier 99.8K-event pool.\\[.8em]
+Optimizer and loss variations gave no clear overall improvement.\\[.8em]
+A smaller model still needs testing on the current full sample.
+\end{column}
+\begin{column}{.47\linewidth}\textbf{HGTD timing}\\[.6em]\small
+\textbf{28.8\%} of tracks have a valid time at full acceptance.\\[.8em]
+Current results use no timing information.\\[.8em]
+A timing-enabled finder or GNN remains an open study.
+\end{column}\end{columns}
+\readingnote{The capacity tests do not establish a minimum model size, a common optimum or a fundamental performance ceiling. The earlier timing study was limited by only 3.9\% timed tracks at $|\eta|<2.5$. The much larger coverage at full acceptance has not been tested in a trained timing-enabled model.}
+\end{frame}
+
+
+\begin{frame}{Backup: TTVA at Low Pile-up}
+\relax
+\begin{columns}[c]\begin{column}{.48\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.320}{.40}\textheight,keepaspectratio]{images/gnn_mu60_categories.png}\end{column}\begin{column}{.48\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.320}{.40}\textheight,keepaspectratio]{images/gnn_mu60_eff_ntrk.png}\end{column}\end{columns}
+\context{2,550 simulated events, $\langle\mu\rangle=38.9$; empty vertices removed.}
+\centering\footnotesize
+\begin{tabular}{lccc}\toprule
+ & Clean/reco [\%] & Fake/reco [\%] & Clean/truth [\%]\\\midrule
+PV-Finder + GNN, $t=0.99$ & $90.38\pm0.14$ & $0.021\pm0.006$ & $77.43\pm0.24$\\
+AMVF & $77.23\pm0.22$ & $0.054\pm0.011$ & $60.91\pm0.29$\\\bottomrule
+\end{tabular}
+\readingnote{Errors are event-bootstrap statistical uncertainties. The paired Clean/truth difference is $16.52\pm0.18$ points. Both algorithms remove empty vertices, including 398 empty AMVF vertices. The GNN training events exclude the test graphs, but its augmentation distributions were calibrated on this test set; this is not independent of all development choices.}
+\end{frame}
+
+
+\begin{frame}{Backup: TTVA on Run 3 Collision Data}
+\relax
+
+\context{2,000 events; $t=0.98$; comparison with AMVF assignments.}
+\begin{columns}[c]
+\begin{column}{.45\linewidth}\centering
+\bigvalue{95.7\%}{vertex agreement among tracks assigned by both methods}
+\end{column}
+\begin{column}{.48\linewidth}\small
+Assigned tracks: \textbf{83.4\%} GNN, \textbf{94.8\%} AMVF.\\[.9em]
+Leading-$\sum p_T^2$ vertex agrees in \textbf{88.7\%} of events.\\[.9em]
+The GNN leaves more tracks unassigned.
+\end{column}\end{columns}
+\takeaway{Agreement on collision data does not determine which assignment is correct.}\readingnote{Vertices agree when their positions are within 1 mm. The 95.7\% rate among tracks assigned by both methods corresponds to 83.7\% of all AMVF-assigned tracks. The leading-$\sum p_T^2$ comparison is a hard-scatter proxy, not a measured truth-identification efficiency.}
+\end{frame}
+
+
+\begin{frame}{Backup: Training Graphs and Deployment}
+\relax
+
+\small Training uses truth vertex nodes; deployment uses reconstructed peak positions, widths and heights.
+\par\vspace{1.2em}\centering\small
+\begin{tabular}{lccc}\toprule
+PU200 training graphs & Clean/truth & Clean/reco & Empty peaks\\\midrule
+Without augmentation & $68.4\%$ & $83.3\%$ & 18,454\\
+With augmentation & $65.0\%$ & $85.9\%$ & 32,116\\\bottomrule
+\end{tabular}
+\takeaway{The tested augmentation lowers clean yield at the same training budget.}\readingnote{The modified graphs remove some truth nodes, smear or resample remaining node properties, and add unassociated candidates; tracks are unchanged. Each setup used one run and six passes over the data. The result supports the unaugmented model for this setup, but does not rule out other augmentation or longer training. Direct training on reconstructed peaks is a possible next test.}
+\end{frame}
+
+
+\begin{frame}{Backup: Failure Modes, Missed and Fake}
+\relax
+\begin{columns}[c]\begin{column}{.48\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.520}{.65}\textheight,keepaspectratio]{images/fm_missed.png}\end{column}\begin{column}{.48\linewidth}\includegraphics[width=\linewidth,height=\bnum{0.520}{.65}\textheight,keepaspectratio]{images/fm_fake.png}\end{column}\end{columns}\context{Earlier PU200 model, 0.5 mm matching window; examples illustrate the categories.}\readingnote{Left: little track density is present near the selected truth position and no peak is recovered. Right: a small accepted peak has no eligible truth vertex inside the matching window. These examples are not the source of the production performance rates.}
+\end{frame}
+
+
+
+\begin{frame}{Backup: Signed Vertex-Position Residuals}
+\relax
+\context{Optimal matches within 1 mm. Dashed: Gaussian + constant fit over $\pm0.15$ mm.}
+\begin{columns}[c]
+\begin{column}{.58\linewidth}\centering
+\includegraphics[width=\linewidth,height=\bnum{.40}{.60}\textheight,keepaspectratio]{images/signed_residual_fit_review.pdf}
+\end{column}
+\begin{column}{.39\linewidth}\centering\footnotesize
+Fitted Gaussian width [$\mu$m]\\[.5em]
+\begin{tabular}{lrr}\toprule
+Fit range & PV-Finder & AMVF\\\midrule
+$\pm0.10$ mm & 29.0 & 28.0\\
+$\pm0.15$ mm & 33.7 & 32.7\\
+$\pm0.20$ mm & 36.6 & 35.4\\\bottomrule
+\end{tabular}
+\par\vspace{.9em}\raggedright\small
+At $\pm0.15$ mm:\\[.4em]
+$\chi^2/\mathrm{ndf}=43.5$ (PV-Finder),\\
+$46.5$ (AMVF).
+\end{column}\end{columns}
+\takeaway{The shape is not Gaussian; retain the $68\%$ containment metric.}
+\readingnote{Fits use 5 micrometre bins with Poisson-error weights. Formal width errors of 0.11 micrometres are much smaller than the fit-range dependence. The signed matches reproduce the original $68\%$ widths: 55.1 and 56.5 micrometres. The fitted core and percentile summarize different parts of the non-Gaussian shape.}
+\end{frame}
+
+\begin{frame}{Backup: AMVF Sensitivity to the Purity Cut}
+\relax
+\context{1,920 PU200 events; 187,960 populated AMVF vertices; 213,738 reference truth vertices.}
+\centering\small
+\begin{tabular}{lcc}\toprule
+Unweighted purity cut & $\geq50\%$ & $\geq70\%$\\\midrule
+Clean vertices & 113,088 & 66,127\\
+\rowcolor{mydarkblue!6} Clean/reco & $(60.17\pm0.11)\%$ & $(35.18\pm0.10)\%$\\
+\rowcolor{mydarkblue!6} Clean/truth & $(52.91\pm0.12)\%$ & $(30.94\pm0.11)\%$\\
+Merged/reco & $(17.63\pm0.09)\%$ & $(42.62\pm0.12)\%$\\
+Split/reco & $(22.13\pm0.09)\%$ & $(22.13\pm0.09)\%$\\
+Fake/reco & $(0.072\pm0.006)\%$ & $(0.072\pm0.006)\%$\\\bottomrule
+\end{tabular}
+\par\vspace{.6em}\footnotesize\textcolor{black!60}{Full Fake/Split rules applied. Errors: event-bootstrap statistical uncertainties.}
+\takeaway{Lowering the cut moves 46,961 vertices from Merged to Clean.}
+\readingnote{Both cuts were replayed from the stored track assignments. The 70\% result matches the saved baseline event by event. For each dominant truth vertex, only the largest-$\sum p_T^2$ reconstruction avoids Split; a winning unlabelled-track group is Fake. These rules leave Split/Fake counts unchanged. Errors use 10,000 paired event resamples. The 73.7\% raw threshold-pass fraction is not a Clean rate.}
+\end{frame}
+
+\backupend
+
+\end{document}

@@ -1,0 +1,48 @@
+\begin{frame}{Backup: CPU vs GPU Comparison}
+\context{597 events across three Run 4 PU200 samples; mean wall time per complete event.}
+\begin{columns}[c]
+\begin{column}{.59\linewidth}\centering\small
+\begin{tabular}{lrr}\toprule
+Stage & CPU (ms) & GPU (ms)\\\midrule
+Track selection & 30.54 & 29.96\\
+Tensor building & 0.10 & 0.10\\
+Finder inference & 2188.67 & 37.56\\
+Peak finding & 0.05 & 0.05\\
+Vertex building & 0.29 & 0.22\\
+GNN track association & 181.65 & 8.30\\\midrule
+\textbf{Total} & \textbf{2401.28} & \textbf{76.18}\\\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.37\linewidth}\small
+\bigvalue{$31.5\times$}{faster PV-Finder + GNN with CUDA}
+\par\vspace{.9em}\raggedright
+\textbf{GPU time:}\\[.4em]
+Finder + GNN inference: $56.1\%$.\\[.5em]
+Track selection: $39.3\%$.\\[.7em]
+Input preparation becomes a major part of the total.
+\end{column}
+\end{columns}
+\par\vspace{.8em}{\scriptsize\color{black!55}Same Xeon Silver 4216 / Tesla T4 setup. Table from \treysource.}
+\readingnote{The GPU column is the complete CPU+CUDA execution path, including CPU track selection and graph construction. GNN association comprises graph building (2.50 ms), inference (5.20 ms), and edge selection (0.41 ms); components are rounded. The 31.5 ratio uses 2401.28/76.18 and compares the two PV-Finder implementations, not AMVF.}
+\end{frame}
+
+\begin{frame}{Backup: Athena Agreement with Python}
+\context{PU200 checkpoint; 50 events; 5,037 peaks and 962,060 GNN edges.}
+\begin{columns}[t]
+\begin{column}{.47\linewidth}\small
+\textbf{CPU}\\[.8em]
+Peak maximum $|\Delta z|=7.7\times10^{-6}$ mm.\\[.6em]
+Peak maximum $|\Delta\sigma|=5.9\times10^{-8}$ mm.\\[.6em]
+Peak-bin agreement is exact.\\[.6em]
+Maximum GNN $|\Delta\mathrm{logit}|=1.8\times10^{-3}$.
+\end{column}
+\begin{column}{.47\linewidth}\small
+\textbf{CUDA}\\[.8em]
+All but one peak agree to better than $6\times10^{-6}$ mm.\\[.6em]
+One peak: $|\Delta z|=1.6\times10^{-3}$ mm and $|\Delta\sigma|=2.0\times10^{-3}$ mm.\\[.6em]
+Peak-bin agreement is exact.
+\end{column}
+\end{columns}
+\takeaway{No edge decisions change on CPU or CUDA at the tested cuts: 0.5, 0.9, 0.99, 0.999.}
+{\scriptsize\color{black!55}\treysource. The physics working point 0.98 is not listed among these validation cuts.}
+\end{frame}

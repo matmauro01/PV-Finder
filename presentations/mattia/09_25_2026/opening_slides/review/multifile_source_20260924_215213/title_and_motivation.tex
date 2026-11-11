@@ -1,0 +1,27 @@
+
+
+\framelogo{}
+
+\begin{frame}[plain]\titlepage\end{frame}
+
+\begin{frame}{Motivation}
+\relax
+\begin{columns}[c]\begin{column}{.53\linewidth}
+\textbf{Reconstruct primary vertices from tracks.}
+\par\vspace{1em}
+\begin{itemize}\setlength\itemsep{.7em}
+\item Nearby interactions overlap as pile-up increases.
+\item AMVF finds and fits vertices iteratively.
+\item PV-Finder predicts a vertex-density map; a GNN assigns the tracks.
+\end{itemize}
+\end{column}\begin{column}{.44\linewidth}\centering
+\bigvalue{$\mu\sim200$}{HL-LHC design pile-up}
+\par\vspace{1.5em}
+\begin{tikzpicture}[x=.70cm,y=.85cm]
+\draw[pvaxis] (0,0)--(7.3,0) node[right] {$z$};
+\foreach \x/\h in {.8/1.4,2.4/1.7,2.85/1.2,4.5/1.8,5/1.4,6.2/1.1}{
+\draw[pennred,line width=1.2pt] (\x,0)--(\x,\h);
+\fill[pennred] (\x,\h) circle (2pt);}
+\node[font=\scriptsize,text=black!55] at (3.5,-.65) {several vertices in the same event (schematic)};
+\end{tikzpicture}\end{column}\end{columns}\readingnote{The current PU200 production uses full ITk acceptance. Trey Warner's Athena study measures the complete finder and GNN chain on the same events as AMVF, with CPU and GPU configurations. Earlier method development is described in \pubnote.}
+\end{frame}

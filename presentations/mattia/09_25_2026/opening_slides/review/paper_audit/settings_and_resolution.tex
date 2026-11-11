@@ -1,0 +1,35 @@
+\begin{frame}{One set of settings}
+\vspace{.8em}
+\centering
+{\Large Integral threshold: \textbf{\textcolor{pennred}{0.3}}}\par
+\vspace{1.8em}
+{\Large Vertex finding: \textbf{\textcolor{pennred}{$|\Delta z|\leq0.1$ mm}}}\par
+\vspace{1.8em}
+{\Large Vertex categories: \textbf{\textcolor{pennred}{ATLAS convention}}}\par
+\vspace{.45em}
+{\small Clean / Matched, Merged, Split, Fake}\par
+\vfill
+\sourcecaption{0.5 is a cross-check only. Current category counts approximate ATLAS: unit track weights and an unlabelled-track proxy for Fake.}
+\end{frame}
+
+\begin{frame}{HL-LHC: resolution at integral cuts 0.3 and 0.5}
+\centering
+\includegraphics[width=.99\linewidth,height=.78\textheight,keepaspectratio]{figures/resolution_integral_030_050.pdf}
+\sourcecaption{AMVF is unchanged between panels. This reconstructed-pair fit uses no truth-matching window.}
+\end{frame}
+
+\begin{frame}{One vertex classification: the ATLAS convention}
+\context{Same four categories as V4 slide 26; truth contributions use vertex-fit weights.}
+\small\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{p{3.2cm}p{10.3cm}}
+\toprule
+\textbf{Clean / Matched} & At least 70\% of the total track weight comes from one true collision.\\
+\textbf{Merged} & No true collision contributes 70\% of the total track weight.\\
+\textbf{Split} & Several reco vertices have the same dominant true collision. Only the vertex with the largest $\sum p_T^2$ keeps Clean or Merged.\\
+\textbf{Fake} & Fake tracks contribute more weight than any single true collision.\\
+\bottomrule
+\end{tabular}
+\par\vspace{.6em}\footnotesize
+Fake and Split take precedence over the Clean/Merged label. We retain reco vertices with at least two tracks for both methods.
+\sourcecaption{\amvfnote. Current plots use unit weights and unlabelled tracks as a Fake proxy; the ntuples lack fit weights and detailed fake-track truth information. Position-only results use ``nearby'' and ``unmatched'', not these category names.}
+\end{frame}

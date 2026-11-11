@@ -1,0 +1,162 @@
+\chapter{Inference timing and scaling with pile-up}
+\label{sec:timing}
+
+At PU200, \pvf{} gives a higher clean-vertex yield and fewer fake vertices
+than AMVF under the matching rules of Chapter~\ref{sec:hllhc}. Its running
+time is another reason to study the method. AMVF iteratively finds and fits
+vertex candidates. This takes longer as pile-up increases. \pvf{} uses
+the same network for twelve $40$~mm intervals in each event. Once the tracks
+are stored in fixed-size input tensors, the network size and number of
+operations stay the same as the number of vertices changes. A full comparison
+must also include the time to prepare these inputs and find the peaks.
+
+We timed an earlier model on an NVIDIA~A100 GPU using one sub-event from
+each of $12\,150$ simulated events. The sample contains $150$ events in
+each integer pile-up bin from $0$ to $80$. We used only the first of the twelve
+sub-events from each event. The test used batch size one and ten warm-up calls.
+CUDA was synchronized before and after the network call. We did not time
+input loading, transfer to the GPU or peak finding.
+
+The mean time was $4.5$~ms per sub-event, with a standard deviation of
+$1.2$~ms across calls. The mean changed little over the tested pile-up
+range (Figure~\ref{fig:timing}). This result is for the earlier model and
+covers only the network call. It does not give the time for a complete event
+with the production model at PU200.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.72\linewidth]{timing.png}
+  \caption{Mean network time per sub-event for an earlier \pvf{} model on
+  an NVIDIA~A100. Each point is the mean of $150$ calls. The error bars show
+  the standard error on the mean. Only the first sub-event of each event
+  was timed. The times exclude input loading, transfer to the GPU and peak finding.}
+  \label{fig:timing}
+\end{figure}
+
+In a separate profiler run on $1\,500$ sub-events, the reported GPU
+operator times added up to about $0.38$~ms per call. These times cannot
+separate GPU work from input preparation in the $4.5$~ms measurement.
+We also need to measure the effect of batching.
+
+The Run~3 tracking-software paper~\cite{IDTR-2022-04} shows that AMVF
+takes longer to reconstruct primary vertices as pile-up increases on an
+AMD EPYC~7302 CPU. The ACTS implementation reduces this time by more than
+a factor of $1.5$. The physics results are the same. These CPU measurements
+cannot be compared directly with the GPU test above. A full comparison at
+PU200 needs timing measurements of the current algorithms. For \pvf{},
+these must include input preparation and peak finding.
+
+The HGTD study in Appendix~\ref{sec:negative:timing} uses the arrival
+times of tracks measured by the detector. We have not yet tested a model
+using this information on the full-acceptance sample.
+
+\section{Athena Integration and Timing:}
+\subsection{Athena implementation details:}
+The \pvf{} and the GNN track-to-vertex association algorithms have been implemented within the ATLAS software framework, Athena. This integration also facilitates the comparison of
+\pvf{} to AMVF on equal terms such that we can time the same events on both algorithms, from raw tracks to vertices with tracks linked.
+
+The code is structured as two packages in InnerDetector/InDetRecTools, InDetNNPriVxFinderTool and InDetGNNTrackVertexAssociationTool. The former is an implementation of the IVertexFinder interface, so that one can call it in exactly the same way as AMVF. The latter is a tool that takes a TrackParticleContainer and a VertexContainer reference and links the two according to the GNN Track-to-vertex association algorithm.
+
+Both algorithms are composed of smaller tools: InDetNNPriVxFinderTool is composed of PVFinderTrackSelectionTool, PVFinderTensorBuilderTool, PVFinderInferenceTool, PVFinderPeakFinderTool, PVFinderVertexBuilderTool. InDetGNNTrackVertexAssociationTool is similarly composed of GNNTTVAGraphBuilderTool and GNNTTVAInferenceTool. The flow of these subtools in a call of InDetNNPriVxFinderTool's findVertex method is illustrated in Figure~\ref{fig:athena-diagram}. The Track-to-vertex association tool is used is a configurable property, as are the other sub-tools.
+
+\begin{figure}
+    \centering
+    \resizebox{1\linewidth}{!}{
+
+\begin{tikzpicture}[x=1cm,y=1cm,>=Latex]
+  \tikzstyle{io}=[draw=black!40, rounded corners=6pt, minimum width=2.8cm, minimum height=1.4cm, align=center, fill=black!3, line width=0.8pt]
+  \tikzstyle{hist}=[draw=myorange!70!black, rounded corners=6pt, minimum width=2.8cm, minimum height=1.4cm, align=center, fill=myorange!16, line width=0.9pt]
+  \tikzstyle{gnn}=[draw=mydarkblue!70!black, rounded corners=6pt, minimum width=2.8cm, minimum height=1.4cm, align=center, fill=mydarkblue!16, line width=0.9pt]
+  \tikzstyle{lbl}=[font=\scriptsize, text=black!60, align=center]
+
+  % \pvf{}
+  \node[io]   (aod)  at (0,0)    {\ttfamily\scriptsize xAOD::TrackParticle\\\ttfamily\scriptsize Container};
+  \node[hist] (feat) at (3.4,0)  {Track\\features\\\scriptsize $(5,N_{\text{trk}})$};
+  \node[hist] (ten)  at (6.8,0)  {Input\\tensor\\\scriptsize $(12,7,N_{\text{trk}})$};
+  \node[hist] (out)  at (10.2,0) {Vertex\\histogram\\\scriptsize $(12\,000)$};
+  \node[hist] (pk)   at (13.6,0) {Peaks\\\scriptsize $z,\sigma,h$};
+  \node[io]   (vtx)  at (17.0,0) {\ttfamily\scriptsize xAOD::Vertex\\\ttfamily\scriptsize Container};
+
+  \draw[->, thick, draw=black!60] (aod)  -- (feat);
+  \draw[->, thick, draw=black!60] (feat) -- (ten);
+  \draw[->, thick, draw=black!60] (ten)  -- (out);
+  \draw[->, thick, draw=black!60] (out)  -- (pk);
+  \draw[->, thick, draw=black!60] (pk)   -- (vtx);
+
+  \node[lbl, anchor=base] at (1.7,1.05)  {PVFinderTrackSelectionTool};
+  \node[lbl, anchor=base] at (5.1,1.05)  {PVFinderTensorBuilderTool};
+  \node[lbl, anchor=base] at (8.5,1.05)  {PVFinderInferenceTool};
+  \node[lbl, anchor=base] at (11.9,1.05) {PVFinderPeakFinderTool};
+  \node[lbl, anchor=base] at (15.3,1.05) {PVFinderVertexBuilderTool};
+
+  % GNN
+  \node[gnn] (graph) at (9.5,-4.0)  {GNN graph\\\scriptsize tracks $(N_{\text{trk}},8)$, vertices $(N_{\text{vtx}},2)$\\\scriptsize edges $(2,E)$, attributes $(E,3)$};
+  \node[gnn] (score) at (14.3,-4.0) {Edge\\scores\\\scriptsize $(E)$};
+
+  \draw[->, dashed, draw=black!60] (aod.south) |- (graph.west);
+  \draw[->, dashed, draw=black!60] ([xshift=-7mm]vtx.south) -- ([xshift=-7mm,yshift=-1.5cm]vtx.south) -| (graph.north);
+  \node[lbl, anchor=center] at (7.6,-2.95) {GNNTTVAGraphBuilderTool};
+
+
+  \draw[->, thick, draw=black!60] (graph) -- (score);
+  \node[lbl, anchor=center] at (12.25,-2.95) {GNNTTVAInferenceTool};
+
+  \draw[->, dashed, draw=black!60] (score.east) -| ([xshift=7mm]vtx.south);
+  \node[lbl, anchor=east] at (17.5,-3.65) {Link tracks};
+
+  \draw[decorate, decoration={brace, amplitude=6pt, mirror}, draw=accent, line width=0.9pt]
+    ([yshift=-1.15cm]graph.west) -- ([yshift=-1.15cm]score.east)
+    node[midway, below=8pt, text=accent, font=\small]{InDetGNNTrackVertexAssociationTool};
+\end{tikzpicture}
+    }
+    \caption{Flow of data in \pvf{} Athena tool. Solid lines represent separate tools. The three dashed lines represent the TTVA tool, which is a configurable property, but represented by InDetGNNTrackVertexAssociationTool here. }
+    \label{fig:athena-diagram}
+\end{figure}
+
+The PVFinderTrackSelectionTool takes in tracks and applies the TightPrimary cut and extracts the parameters that \pvf{} uses. PVFinderTensorBuilerTool turns this data structure into the tensor that is read by ONNXRuntime to do inference. After inference, peak finding is ported from the python as a tool and then PVFinderVertexBuilderTools converts the \pvf{}-native Peaks object into an xAODVertex, filling in quantities that are not native to \pvf{} such as fit quality with sensible nulls. GNNTTVATrackBuilderTool takes tracks and vertices to produce the graph that is is read by ONNXRuntime to do inference.
+
+Both models' inference is done with OnnxRuntimeInferenceTool. \pvf{} checkpoints were exported with torch.onnx.export at opset 17, while the GNN checkpoints needed the dynamo exporter and opset 20. The ONNX file and the execution provider (CPU, CUDA) are configurable properties of the inference tools, so changing these requires no compilation.
+
+The Athena implementation was verified against the python implementation on fifty events using the PU200 checkpoint, in which 5037 peaks were found and 962060 edges were considered by the GNN. Using the CPU, for the peaks, the maximum |dz| was 7.7e-06 mm, maximum |dsigma| was 5.9e-08 mm, and bin agreement was exact. This is at the level of floating point rounding. For the GNN, max|dlogit| was 1.8e-03, but no decisions flipped for the 962060 edges at the 0.5, 0.9, 0.99, and 0.999 cutoffs. As for the GPU, apart from one peak where |dz| was 1.6e-3 mm and |dsigma| was 2.0e-3 mm, all peaks agreed to better than 6e-6 mm, with bin agreement and edge agreement exact at each cutoff.
+
+
+
+
+\subsection{Timing studies}
+
+
+Timing studies were conducted by setting \pvf{} and AMVF as the Vertex Finder tool in InDetPriVxFinder and timing them on the same events from a tracks to the complete vertex container with the associated tracks. The timing is done by a Gaudi auditor hooking the start and end of each algorithm's execute.
+
+Figure~\ref{fig:athena_timing_gpu} shows the timing comparison when \pvf{} PU200 model is run with CPU and GPU. All were run on the same lxplus-gpu node with the CPU being Intel Xeon Silver 4216 @ 2.10 GHz and the GPU being NVIDIA Tesla T4. The samples are four run 3 collision data and six run 4 monte carlo, 200-500 events from each. \pvf{} is faster at all pile up ranges, and roughly 9 times faster at $\mu = 200$.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/athena_cpu_gpu_amvf.png}
+    \caption{Average per-event wall time for AMVF and \pvf{} on both CPU and GPU. 200-500 events from four Run 3 data samples and six Run 4 monte carlo samples are used.}
+    \label{fig:athena_timing_gpu}
+\end{figure}
+
+Additionally, Table~\ref{tab:athena-timing-breakdown} breaks down the run time by each tool, averaging each time over 597 events. The CPU inference takes up 98.6\% of the run time while with CUDA it is 56.1\%. The majority of the non-inference time is accounted for by track selection at 39.3\%. The GPU version is also 32 times faster.
+
+\begin{table}[t]
+    \centering
+    \caption{Per-event timing of InDetNNPriVxFinderTool, averaged over the three Run~4 PU200 samples.}
+    \begin{tabular}{lrr}
+      \toprule
+      Stage & CPU (ms) & GPU (ms) \\
+      \midrule
+      Track selection & 30.54 & 29.96 \\
+      Tensor building & 0.10 & 0.10 \\
+      Inference & 2188.67 & 37.56 \\
+      Peak finding & 0.05 & 0.05 \\
+      Vertex building & 0.29 & 0.22 \\
+      Track-to-vertex association & 181.65 & 8.30 \\
+      \quad Graph building & 2.83 & 2.50 \\
+      \quad GNN inference & 177.89 & 5.20 \\
+      \quad Edge selection & 0.68 & 0.41 \\
+      \midrule
+      Total & 2401.28 & 76.18 \\
+      \bottomrule
+    \end{tabular}
+    \label{tab:athena-timing-breakdown}
+\end{table}
