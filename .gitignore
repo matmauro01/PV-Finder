@@ -56,6 +56,7 @@ Thumbs.db
 presentations/**
 !presentations/**/
 !presentations/**/*.tex
+!presentations/mattia/11_11_2026/PVFinder_additional_studies_2026-11-11.pdf
 final_paper/
 gnn_info/
 temp/

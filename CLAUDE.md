@@ -39,7 +39,7 @@ All enforced automatically on `git commit`:
 - Conventional commit message format (rejects non-compliant messages)
 - Ruff lint + format (auto-fixes where possible)
 - File size limit (500 lines for Python files)
-- Large file blocker (no files > 500KB)
+- Large file blocker (no files > 500KB; presentation PDFs under presentations/ are exempt)
 
 ## Code Rules
 
