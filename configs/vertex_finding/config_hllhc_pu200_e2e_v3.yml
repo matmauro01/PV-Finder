@@ -5,8 +5,8 @@
 #   - UNet channels: 96 → 280 (large capacity increase)
 #   - n_latent_channels: 1 → 4 (MLP outputs 4 spatial views, richer UNet input)
 #   - Phase 2 epochs: 400 → 200 (converges earlier, saves compute)
-#   - Phase 2 LR: 1e-4 → 5e-5 (halved for larger model stability)
-#   - Phase 2 warmup: 5 → 7 epochs
+#   - Phase 2 LR: 1e-4 (same as v2 — initial 5e-5 was too conservative)
+#   - Phase 2 warmup: 5 epochs
 #
 # Total params: ~3.55M (9.9x of v1 default 358K, 5.2x of v2 HLLHC 680K)
 #
@@ -44,8 +44,8 @@ phase1_learning_rate: 0.001
 # LR halved from v2 (1e-4 → 5e-5) for larger model stability.
 
 phase2_epochs: 200
-phase2_learning_rate: 0.00005
-phase2_warmup_epochs: 7
+phase2_learning_rate: 0.0001
+phase2_warmup_epochs: 5
 phase2_cosine_eta_min_frac: 0.01
 
 # ===================================================
@@ -66,7 +66,7 @@ log_folder: /data/home/matmauro/codice/PV-Finder/outputs/logs/
 # MLflow
 
 experimentname: "HLLHC PU200 — E2E v3 (10x scaled UNet_v2, 4ch latent)"
-runname: "hllhc_pu200_e2e_v3_280ch_4lat"
+runname: "hllhc_pu200_e2e_v3_280ch_4lat_lr1e4"
 
 # ===================================================
 # Model
