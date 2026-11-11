@@ -1,5 +1,12 @@
 # Presentations
 
+The November 11, 2026 deck on the reviewer-requested additional studies is
+[`presentations/mattia/11_11_2026`](../presentations/mattia/11_11_2026/slides.tex)
+(16 pages: overview, one slide per study, next steps). Build with
+`bash presentations/mattia/11_11_2026/build.sh`; it writes
+`PVFinder_additional_studies_2026-11-11.pdf`. Images come from
+`outputs/11_09_2026_output/` and are copied into its `images/` folder locally.
+
 The latest Mattia deck is
 [`presentations/mattia/09_14_2026`](../presentations/mattia/09_14_2026/README.md).
 It refreshes the August 7 deck for a September 14, 2026 presentation, retaining
