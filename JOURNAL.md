@@ -5095,3 +5095,17 @@ Found and fixed on the way: the ntuple d0 sign is opposite to the
 x0/y0-implied convention (measured against the true vertex). Code:
 `adaptive_beamline_fit` in `hs_position_estimators.py`; details in
 `docs/evaluation/itk_hs_resolution_2026-11-09.md`.
+
+## 2026-11-11 — Ideal target readout (perfect-network test)
+
+Ran the training targets through the production peak finder on the Run 2 and
+HL-LHC PU200 events of the Run 2 vs Run 4 study, for the professor's question
+whether finer output bins are needed. PV-Finder sigma_vtx-vtx is 2.0x its
+target's in Run 2 and 1.5-1.7x at HL-LHC (0.218 vs 0.137-0.145 mm); a 0.02 mm
+grid moves the ideal only to 0.124 mm, and the 0.04 mm grid encodes the HS
+position to 0.8 um (PV-Finder 12.4 um). Headroom is in the network, not the
+grid. HL-LHC HS targets are 1-2-bin spikes and fail the 3-bin minimum width,
+so the target readout uses a 1-bin variant. Code
+`src/pv_finder/diagnostics/run2_vs_run4/target_readout.py`,
+`scripts/target_readout.py`; doc section in
+`docs/evaluation/run2_vs_run4_resolution_2026-11-09.md`.

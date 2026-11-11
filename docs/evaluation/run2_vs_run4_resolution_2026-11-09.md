@@ -38,3 +38,59 @@ sigmoid σ is not a separation measure there (merge length negative).
 `configs/qibin_test_main_indices_v2.p`, not identity. The
 `outputs/08_04_2026_output/eval_v6_heldout` peak lists correspond to integral
 0.5 (not 0.2 as JOURNAL 2026-08-04 says).
+
+## 2026-11-11: ideal target readout
+
+Question (Mattia's professor): is the smaller Run 2 → HL-LHC gain of the
+AMVF/PV-Finder ratio a sign that PV-Finder does not use the better HL-LHC
+tracks fully, so that finer output bins are needed?
+
+Test: the training target is what a perfect network would output. It goes
+through the same peak finder and the same metrics as PV-Finder and AMVF, on
+the same events. Run 2: the stored `target_y` of the 2,550 test events. HL-LHC:
+targets rebuilt from the r16443 truth for the 1,920 PU200 events with the v6
+converter rule (A, B, C = 0.14318, 0.362, -0.01797 from the training h5); the
+rebuild equals the stored v6 training targets exactly (max |diff| 0 in
+float16). A 0.02 mm grid version keeps the same physical peak-finder windows.
+Code: `src/pv_finder/diagnostics/run2_vs_run4/target_readout.py`,
+`scripts/target_readout.py`, `tests/test_target_readout.py`; outputs
+`outputs/11_11_2026_output/target_readout/results.json`.
+
+The production setting needs 3 bins above threshold. HL-LHC HS targets are
+1-2-bin spikes (sigma 3-10 um), so it drops 4% of HS targets (23% on the
+0.02 mm grid). The `w1` rows use a 1-bin minimum and find every HS.
+
+| Sample, peak setting | Arm | sigma_vtx-vtx [mm] | core p68 [um] | HS, ITk [um] | eff @0.1694 / fake per evt |
+|---|---|---|---|---|---|
+| Run 2, Run 2 setting | target | 0.203 +- 0.003 | 5.1 | 0.09 | 99.6% / 0.00 |
+| | PV-Finder | 0.410 +- 0.005 | 69.5 | 28.9 | 80.9% / 2.0 |
+| | AMVF | 0.789 +- 0.008 | 66.8 | 18.7 | 75.7% / 2.5 |
+| Run 2, note setting, 1-bin min | target | 0.180 +- 0.003 | 5.5 | 0.09 | 99.2% / 0.00 |
+| HL PU200, Run 2 setting | target | 0.145 +- 0.001 | 2.1 | 0.77 (HS found 94.6%) | 99.9% / 0.00 |
+| | PV-Finder | 0.241 +- 0.001 | 61.1 | 13.5 | 84.0% / 24.3 |
+| HL PU200, note setting | target | 0.145 +- 0.001 | 3.6 | 0.77 (HS found 95.9%) | 99.6% / 0.00 |
+| | target, 1-bin min | 0.137 +- 0.001 | 3.6 | 0.82 | 99.7% / 0.00 |
+| | target, 1-bin min, 0.02 mm grid | 0.124 +- 0.001 | 1.9 | 0.01 | 99.9% / 0.00 |
+| | PV-Finder | 0.218 +- 0.002 | 55.1 | 12.4 | 83.2% / 18.7 |
+| | AMVF | 0.305 +- 0.002 | 56.5 | 10.2 | 79.8% / 19.7 |
+
+Track-based ideal precision (median, from the study above): pile-up vertices
+75.6 um (Run 2) and 44.4 um (HL), HS 16.4 and 6.0 um.
+
+**Answer.** The headroom is in the network, not in the grid.
+- PV-Finder's sigma_vtx-vtx is 2.0 times its own target's in Run 2 and 1.5-1.7
+  times at HL-LHC. So PV-Finder is *closer* to its ideal output at HL-LHC than
+  in Run 2.
+- From Run 2 to HL-LHC, PV-Finder improves 1.70 times (0.410 to 0.241 mm,
+  same setting), like the detector (1.70). The target itself improves only
+  1.3-1.4 times, because its sigma_vtx-vtx is set by the target widths and by
+  how close two peaks can be and still be found separately.
+- A 0.02 mm grid improves the ideal by 10% (0.137 to 0.124 mm), far from the
+  0.218 mm PV-Finder reaches. The 0.04 mm grid already carries the HS
+  position to 0.8 um and all vertices to 3.6 um. PV-Finder reaches 12.4 and
+  55 um. The precision is lost in the network output.
+- There is headroom: a network that reproduced its target would reach about
+  0.14 mm instead of 0.22 mm. Getting there means changing the network and its
+  loss, not the binning. The target positions come from truth, so the
+  achievable position precision is the track-based limit (HS median 6 um),
+  not the target's 0.8 um.
