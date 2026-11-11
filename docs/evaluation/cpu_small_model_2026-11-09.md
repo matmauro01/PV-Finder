@@ -76,7 +76,11 @@ schedule costs anything.
 | Run | Config | GPU | Started |
 |---|---|---|---|
 | s5 | `config_hllhc_alleta_v6_small_s5.yml` | 1 | 2026-11-09 21:19 |
-| s8 | `config_hllhc_alleta_v6_small_s8.yml` | 3 | 2026-11-09 21:19 |
+| s8 | `config_hllhc_alleta_v6_small_s8.yml` | 3 | 2026-11-09 21:19 (Phase 2 resumed 2026-11-10 after a cuDNN init crash) |
+| s5, 2+2 | `config_hllhc_alleta_v6_small_s5_2p2ep.yml` | 1 | 2026-11-10, about 16 h |
+
+s5 (1+1) full validation loss 0.016352; v6 had 0.016638 after its first
+Phase-2 epoch and 0.015755 at the end.
 
 ## Evaluation
 
@@ -86,4 +90,23 @@ r16638 with the v6 methodology (integral 0.30, min height 0.03, centroid 3,
 with the same script and code version, and `scripts/compare_heldout_evals.py`
 reports paired differences with event-bootstrap errors.
 
-Results: pending.
+## Results
+
+Held-out PU200, 1,920 events per file, fixed 0.1694 mm window. Paired
+differences vs v6, event-bootstrap errors
+(`outputs/11_10_2026_output/small_model_eval/compare_*.json`):
+
+| File | Model | Eff | dEff (pt) | FP/event | dFP | sigma vtx-vtx (mm) |
+|---|---|---:|---:|---:|---:|---:|
+| r16443 | v6 | 0.8316 | | 18.73 | | 0.2290 +- 0.0032 |
+| r16443 | s5 (1+1) | 0.8283 | -0.33 +- 0.04 | 17.88 | -0.85 +- 0.07 | 0.2344 +- 0.0033 |
+| r16638 | v6 | 0.8325 | | 18.50 | | 0.2278 +- 0.0031 |
+| r16638 | s5 (1+1) | 0.8299 | -0.26 +- 0.04 | 17.71 | -0.79 +- 0.07 | 0.2329 +- 0.0031 |
+
+s5 with 1+1 epochs is inside the 0.5-point maximum but misses the 0.2-point
+target. It has 0.8 fewer fakes per event, so part of the loss is a shift
+along the efficiency-fake curve, and sigma is 5 um worse (about 1 sigma).
+Its validation loss (0.01635) sits between v6 after one Phase-2 epoch and v6
+at the end, so the shorter schedule is the first suspect. The s5 2+2 run
+tests this; s8 (1+1) is evaluated when its Phase 2 finishes. Comparing at
+matched fake rate (lowering s5's integral threshold) is the cheap next check.

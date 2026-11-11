@@ -4813,3 +4813,270 @@ rather than inviting "then train it longer", and restated "the old sample was
 contaminated" as the non-uniform selection it actually describes.
 
 58 pages, clean build, pushed at b8f560f.
+
+
+## 2026-09-08 — September 14 presentation refresh
+
+Created `presentations/mattia/09_14_2026/` from the August 7 deck. Preserved
+the Philadelphia theme, institutional logos, five-part structure and method
+diagrams. Reduced slide prose and moved detailed diagnostic and historical
+material to backup. One LaTeX source builds a lean presentation (`slides_talk.pdf`)
+and a reading version (`slides.pdf`) with explanatory paragraphs. Both keep
+37 main pages and 16 supporting slides plus the backup divider.
+
+Read the project documentation and canonical technical note. Verified GitLab
+main at `7a95d88`; incorporated the newer local September 7 note revisions.
+Corrected timing units and scope, PU200 AMVF efficiency, sample means and
+independence claims, GNN diagnostic framing and categories, fake-filter costs,
+and claims about physical limits, capacity and HGTD timing. Linked the original
+public note for the history. `FACT_CHECK.md` and `source_manifest.json` record
+the corrections and exact sources. No training or inference was run.
+
+The build script performs two passes per PDF and checks for TeX errors,
+unresolved references and overfull boxes. Both decks were rendered for visual
+review; diagram subtitle parsing and paragraph/table spacing were corrected.
+All used assets are bundled, so the new deck builds without the old deck or
+the separate technical-note checkout. The original presentation, technical
+note and unrelated analysis edits were left untouched.
+
+## 2026-09-08 — Focus the presentation next steps on integration
+
+Updated both September 14 decks so the next-steps slide contains only Athena
+integration of PV-Finder and GNN track association. Removed the reconstruction
+improvement and full-chain validation study lists, including their reading
+notes, and aligned the section divider with the integration focus.
+
+## 2026-09-10 — Address professor comments on the September 14 slides
+
+Reviewed all 45 non-popup PDF annotation objects in `slides_talk_comments.pdf`.
+Applied targeted wording, definition and layout changes to both shared-source
+decks. Added track features, consistent Efficiency/Unique efficiency definitions,
+larger plots and legends, clearer GNN training/assignment explanations, and the
+Athena status explicitly supplied by Mattia. Next steps remain integration only.
+
+Recovered the original collision-data sigmoid-fit errors with exact parameter
+closure; added the saved AMVF PU200 fit error and event-bootstrap statistical
+errors to the standard comparison. Appended a signed-residual Gaussian-fit
+backup: its poor fit quality and fit-range dependence support keeping the
+existing 68% containment metric. A second backup shows AMVF purity-threshold
+sensitivity, clearly before Fake/Split classification. The complete 50%-rule
+AMVF Clean rates remain open. All existing main and backup page numbers remain
+unchanged; the new diagnostics occupy PDF pages 55 and 56.
+
+`COMMENTS_REVIEW.md` and `professor_comments.json` account for every annotation.
+`REVIEW_NUMBERS.json` and `review_support.py` preserve reproducible statistical
+checks and new scientific figures from saved evaluations. No model training or
+inference was run; original source results, the annotated PDF, the technical
+note and unrelated analysis edits were preserved.
+
+Both final PDFs compile cleanly at 56 pages, with no overfull boxes or LaTeX
+warnings. All revised pages in both variants were visually reviewed. Eight
+existing matcher-equivalence tests pass; the new reproduction helper passes
+Ruff checks. All 32 asset hashes and the original annotation PDF hash are
+recorded and verified in the updated provenance manifest.
+
+## 2026-09-10 — Compute the AMVF 50% purity result for the slides
+
+Closed the remaining professor comment by replaying the original AMVF
+classifier at 50% and 70% purity on the exact 1,920 r16443 PU200 entries,
+using stored ROOT track assignments and the original float32 pT convention.
+Both cuts include the Fake plurality rule and largest-sum(pT²) Split handling.
+The 70% replay reproduces all six saved counts event by event; every changed
+vertex independently satisfies the Merged-to-Clean transition at 50%.
+
+At 50% purity: 113,088 Clean vertices, 60.17 ± 0.11% Clean/reco and
+52.91 ± 0.12% Clean/truth. At 70%: 66,127 Clean, 35.18 ± 0.10% Clean/reco and
+30.94 ± 0.11% Clean/truth. Lowering the cut promotes 46,961 Merged vertices;
+Split (41,594), Fake (135), reconstructed (187,960) and reference truth
+(213,738) counts remain unchanged. Statistical errors use 10,000 paired
+event-bootstrap resamples with seed 20260910. No model inference or training
+was run; the replay ran inside tmux with a 32 GB virtual-memory limit.
+
+`compute_amvf_purity.py` and `AMVF_PURITY_RESULTS.json` in the September 14
+deck directory preserve the computation and source hashes. Per-event arrays
+and a compact vertex-category cache are under
+`outputs/09_10_2026_output/amvf_purity/`. Updated slide 33's caveat and backup
+slide 56 in both decks, leaving the main comparison at 70% for both chains.
+All 45 annotation records are now addressed. Updated the deck documentation,
+manifest and wiki; corrected two wiki labels that had incorrectly called
+pre-Fake/Split threshold-pass fractions Clean rates.
+
+Both rebuilt PDFs have 56 pages and zero LaTeX warnings or overfull boxes.
+The two changed slides were visually reviewed in both variants; PDF text
+comparison confirms only pages 33 and 56 changed. Ruff checks pass for the
+replay script, and all 32 bundled assets plus the new replay code/data hashes
+were verified against the recorded provenance.
+
+## 2026-09-13 — Distinguish final slide decks from the annotated original
+
+Checked the actual PDFs after Mattia reported seeing professor comments.
+Both revised 56-page PDFs contain link annotations only, with no review
+comments, highlights or strikeouts. Confirmed the updated Athena wording on
+pages 17/35 and the AMVF 50% results on pages 33/56. The preserved
+`slides_talk_comments.pdf` is the older 54-page deck with review annotations.
+
+Added clearly named `PVFinder_2026-09-14_Presentation_FINAL.pdf` and
+`PVFinder_2026-09-14_Reading_FINAL.pdf` copies, verified byte-identical to the
+current presentation and reading PDFs. Updated the build script to regenerate
+these names and pointed the deck README to them. Bash syntax validation passes.
+No slide content changed.
+
+---
+
+## 2026-09-25 — Promote fullmu GNN into the 25 September deck
+
+Full-pileup GNN training (`ttva_gnn_hllhc_fullmu_v1_20260924`) finished on
+24 September. Best validation-loss checkpoint is shard epoch 213. Ran the
+deck-matched evaluation pipeline (integral 0.3, top-1 / no score cut,
+reco n_trk>=2) on the diagnostic 25k sample in tmux `fullmu_deck_eval`, writing
+`outputs/09_25_2026_output/gnn_fullmu_deck_eval/`.
+
+Updated `presentations/mattia/09_25_2026/opening_slides/slides.tex` tables
+(slides 7–8) and replaced GNN figures/caches with the fullmu results. Archived
+prior v4 noaug epoch-107 review artifacts under
+`review/archive_v4_noaug_epoch107_20260925/`. Documented in opening_slides
+README/SOURCES/PAPER_AUDIT/QUESTIONS/TTVA_RECONCILIATION and rewritten
+`docs/evaluation/gnn_full_pileup_training_2026-09-24.md`; noted the deck
+checkpoint in `docs/evaluation/vertex_association.md`.
+
+Headline deltas vs AMVF at 185–200: efficiency +0.75 pp and purity +1.05 pp
+(was +0.37 / +0.80). After-GNN positional efficiency 71.07% (was 70.05%);
+unmatched reco/event 15.05 (was 12.92). Diagnostic sample only; reserved
+validation/test freeze still outstanding.
+
+
+---
+
+## 2026-11-09 — Figures and Table 1 for the short ATLAS paper
+
+Built `src/pv_finder/diagnostics/paper_figures/` to regenerate the PI's paper
+figures from saved outputs with one command (no inference). Outputs in
+`outputs/11_09_2026_output/paper_figures/`; page `docs/evaluation/paper_figures.md`.
+
+- Fig. 1, 2: TikZ diagrams of PV-Finder and the GNN TTVA (standalone `.tex`, PDF, PNG).
+- Fig. 3, 4: ITk r16443. Categories at the fixed 0.1694 mm window reproduce the
+  note's main table exactly. Δz overlay with both fits, PVF 0.229 ± 0.003 mm,
+  AMVF 0.305 ± 0.006 mm (refit, reproduces the fair-comparison 0.3047).
+- Fig. 5, 6: no Run 3 MC exists here. Substitutes from the 13 TeV low-pile-up
+  simulation (AMVF now on the same 2 550 events: 0.790 ± 0.021 mm) and Run 3
+  data (PVF 0.348, AMVF 0.816 mm on the same events).
+- Fig. 7: no per-event Athena timing locally; `timing.py` plots it once a CSV exists.
+- Table 1: arXiv:2412.15090 Table 6 already is this table; values checked
+  against Athena 25.0.79 and 24.0.150 on CVMFS.
+
+Found: the PI's Fig. 4 caption describes a PVF-minus-AMVF separation, but the
+fit is to pairs within one algorithm. The note's `fig:mc` categories used the
+pre-April-23 matcher (clean/merged split differs, efficiency and fakes do not).
+The note's timing text says PV-Finder is faster at all pile-up, which holds only
+on GPU; on CPU it is about 2.4 s/event against about 0.6-0.8 s for AMVF at μ ≈ 200.
+
+---
+
+## 2026-11-09 — Matching-window rule, split-inclusive efficiency, ITk HS resolution, data/MC
+
+PI decisions implemented: one fixed 0.1694 mm window for every non-HS vertex
+study, 0.1 mm for HS studies. Note not edited; edits listed in
+`docs/evaluation/matching_window_audit_2026-11-09.md`.
+
+**Window.** Added `MATCH_WINDOW_MM = 0.1694` and `HS_MATCH_WINDOW_MM = 0.1` to
+`src/pv_finder/utils/constants.py`. `run_eval_pvf_run3.py` and
+`run_eval_pvf.py` gained `--match-window-mm` (default 0.1694; `0` restores the
+old behaviour of reusing PV-Finder's fitted sigma_vtx-vtx for both
+algorithms); the pkl records `match_window_mm` (and, run3 script,
+`match_window_source`). `scan.py` `HEADLINE_WINDOW_MM` (0.5, mislabelled as the
+headline) renamed `SENSITIVITY_WINDOW_MM`, alias kept. Audit lists 11 code and
+~12 note places that use another window. Replayed the note's fake-filter
+checks at 0.1694 mm (`scripts/fixed_window_replay.py`): height floor -1.13
+fake/evt for -0.15 pts, GBT -1.42 for -0.30 (note at ~0.229 mm: -1.06/-0.21,
+-1.37/-0.34); old-window rows reproduce the note exactly.
+
+**Split-inclusive efficiency.** `compare_res_reco(..., return_reco_cls=True)`
+(opt-in 4th return) and `truth_found_incl_split`; fair matcher gains
+`n_truth_{matched,primary}_incl_split`, scan gains `eff_incl_split`,
+`eff_strict_incl_split`; run3 eval prints and stores them, plus AMVF
+truth-side efficiency. Rule: truth inside a split reco's window also counts.
+By construction of the greedy pass this adds nothing; measured identical on
+1,920 events (PVF 83.16 +- 0.08 %, AMVF 79.80 +- 0.09 %, one-to-one 73.43 /
+70.07) and checked in 5 new tests. HS at 0.1 mm unchanged (1,918 / 1,916).
+
+**ITk HS resolution** (`itk_resolution.py`, `scripts/itk_hs_resolution*.py`):
+iterative 3-RMS of z_reco - z_HS, closest vertex within 0.1 mm. PU200:
+PVF 12.38 +- 0.35 um, AMVF 10.24 +- 0.28 um (track-matched 10.15). Flat in
+density and mu. See `docs/evaluation/itk_hs_resolution_2026-11-09.md`.
+
+**Data/MC** (`docs/evaluation/data_mc_validation_2026-11-09.md`): no Run 3 MC
+exists; Fig. 6.2 redrawn with Run 2 MC on all panels; AMVF-as-reference on MC
+adds +1.30 +- 0.03 no-reference peaks/evt and +2.36 pts recovery vs truth at
+0.416 mm, which explains most of the data-vs-MC gap in tab:lowpu.
+
+Full test suite: 213 passed. No commits.
+
+**Run 2 vs HL-LHC gap** (`docs/evaluation/run2_vs_run4_resolution_2026-11-09.md`):
+same code, identical events. AMVF/PVF sigma_vtx-vtx 1.93 +- 0.03 (Run 2 MC) vs
+1.26-1.33 (PU200); no methodological factor moves it by > 0.06 and matched
+density makes HL smaller (1.14). AMVF sigma improves 2.6x vs PVF 1.7x and
+ideal vertex precision 1.7x; AMVF config difference suspected, not verified.
+
+## 2026-11-09/10 — Hard-scatter studies, AMVF HS-selection reconciliation, z0 baseline for Fig. 7.2
+
+New model-free metric module `src/gnn/evaluation/hs_metrics.py`. It contains a vectorized
+classifier that is identical to `classify_assignments`, tested on 40 random events, plus
+the HS definitions, z0 baselines and a truth-guided reference. Drivers:
+`gnn/diagnostics/hs_chain_study.py`, `hs_chain_summary.py` and `plot_hs_chain.py`. They
+replay the saved histograms and v4-e107 / fullmu-e213 top-1 edges on r16443 entries 0-24999.
+There is no inference. Every note number replays (146,269 Clean, 78.09% / 73.66% stages,
+1,918/1,916 HS reco). Windows: 0.1 mm for HS, 0.1694 mm for all other vertex matching.
+
+At PU200 (1,920 events), the v4 GNN at t=0.98 vs AMVF gives: Clean-HS 96.35 vs 92.50%;
+HS-track fraction 74.87 vs 74.11% (+0.76 +- 0.29); HS reco+selection under the ITk rule
+96.30% vs 92.86% (stored primary) / 78.80% (re-ranked). The note's 80.7% is a re-ranking
+artefact. The stored primary differs from the re-ranked leader in 428/1,920 events.
+Capping track pT at 15 GeV in the re-ranking reproduces the primary in 92.9% of events.
+Step table: 80.68 -> 78.91 (ITk match) -> 78.80 (0.1 mm) -> 92.92 (stored primary)
+-> 93.56 (mu 190-200). No Run 3 MC exists. On the 13 TeV ID ttbar mu 0-80 MC, the AMVF
+stored primary gives 98.33%. The z0-nearest baseline gives clean/truth 31.90% (3-sigma
+variant 33.06%) vs AMVF 30.94% and GNN 68.43%. At low mu the v4 GNN loses HS tracks
+under a score cut, while fullmu e213 does not. See
+`docs/evaluation/hs_chain_studies_2026-11-09.md`. Tests: `tests/test_hs_metrics.py`
+(49 pass). No commits.
+
+## 2026-11-10 — Smaller PV-Finder for CPU, and the additional-studies summary
+
+Started the CPU study: a model about 10 times faster on CPU than v6 with no
+measurable physics loss (target below 0.2 efficiency points). Trained s5
+(112 U-Net channels, 1 latent, 671k parameters) and s8 (80 channels, 440k)
+with the v6 recipe on 1+1 epochs instead of 2+2, on GPUs 1 and 3. s5
+finished (full validation loss 0.01635; v6 0.01664 after one Phase-2
+epoch, 0.01576 final). s8 crashed at the start of Phase 2 with
+`CUDNN_STATUS_NOT_INITIALIZED` on the shared GPU and was resumed from its
+Phase-1 checkpoint.
+
+ONNX Runtime profiling (1 thread, real PU200 events) showed the softplus on
+the per-track MLP output takes 30% of v6 and 50% of s8 CPU time, because it
+runs on padded slots. Added `PackedTracksToHist`, which runs only real tracks
+and is exact (max |diff| 3.8e-6 on v6, tests added). Speed-ups against v6 as
+deployed, same invocation: v6 packed 1.4x, s5 6.4x, s8 9.0x. Static INT8
+gives at most 1.25x and was not pursued.
+
+The first v6 baseline re-evaluation was invalidated: the default matching
+window changed to a fixed 0.1694 mm while it ran, so its two files used
+different windows. Both v6 and s5 are re-evaluated with one code version in
+`outputs/11_10_2026_output/small_model_eval/`.
+
+Split `run_eval_pvf.py` back under 500 lines (GBT filter into
+`gbt_peak_filter.py`, CLI into `run_eval_pvf_cli.py`, no behaviour change,
+test added). Wrote the one-page status PDF of the additional studies in
+`docs/additional_studies/`. The note on GitLab was not edited: gitlab.cern.ch
+is unreachable from sneezy. Proposed note edits are in the study docs.
+
+## 2026-11-10 (later) — s5 held-out result, s5 2+2 launched
+
+Held-out PU200 (r16443 / r16638, 0.1694 mm window, same code version for
+both models), s5 (112 ch, 1 latent, 1+1 epochs) vs v6: efficiency
+-0.33 +- 0.04 / -0.26 +- 0.04 points, fakes -0.85 / -0.79 per event, sigma
+vtx-vtx +5 um (about 1 sigma). Inside the 0.5-point limit, misses the
+0.2-point target. s5's validation loss lies between v6 after one and after
+two Phase-2 epochs, so the schedule is the first suspect: launched s5 on the
+exact v6 2+2 schedule (`config_hllhc_alleta_v6_small_s5_2p2ep.yml`, GPU 1,
+tmux small_s5_2p2, about 16 h). s8 Phase 2 at 42%. Results in
+`docs/evaluation/cpu_small_model_2026-11-09.md`; summary PDF updated.

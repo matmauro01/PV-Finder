@@ -1,0 +1,80 @@
+\documentclass[10pt]{extarticle}
+\usepackage[a4paper,margin=1.3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{amsmath}
+\usepackage{tabularx,booktabs,xcolor,colortbl,array}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{empty}
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.18}
+\newcommand{\done}{\cellcolor{green!14}Done}
+\newcommand{\prt}{\cellcolor{yellow!22}Partial}
+\newcommand{\run}{\cellcolor{blue!10}Running}
+\newcommand{\blk}{\cellcolor{red!12}Blocked}
+\newcommand{\no}{\cellcolor{gray!15}Declined}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\begin{document}
+\begin{center}
+{\large\bfseries PV-Finder: additional studies requested for ANA-IDTR-2026-01}\\[2pt]
+{\small Status on 10 November 2026. HL-LHC numbers: 1\,920 PU200 $t\bar t$ events
+(r16443, $185\leq\mu\leq200$). Errors: paired event bootstrap or Clopper--Pearson.}
+\end{center}
+\vspace{-4pt}
+\small
+\begin{tabularx}{\linewidth}{@{}p{3.55cm}p{0.9cm}p{1.15cm}Y@{}}
+\toprule
+\textbf{Study} & \textbf{Note} & \textbf{Status} & \textbf{Result / next step} \\
+\midrule
+Matching window & 2.4, 4.1 & \done & Keep $0.1694$~mm ($3\times$ the 68\% position residual)
+for all vertices, $0.1$~mm for HS only. Code default is now $0.1694$~mm. Audit lists every
+other window used in the note; the GNN finder-cap and oracle bars still need a rerun at
+$0.1694$~mm. \\
+Split vertices in efficiency & 2.4.2, 4.1 & \done & Cannot change the efficiency: with
+closest-first matching, every truth vertex next to a split vertex is already matched
+(proven by tests). PV-Finder $83.16\%$ vs AMVF $79.80\%$, $+3.36\pm0.06$ points; at
+$0.1$~mm $+3.12\pm0.06$. \\
+HS studies vs pile-up & 4.1, 7.4--7.5 & \done & HS reco ($0.1$~mm): $99.9\%$ / $99.8\%$.
+Clean HS: GNN $96.4\%$, AMVF $92.5\%$. HS tracks on HS vertex: $74.9\%$ / $74.1\%$
+(purity $91.3\%$ / $88.4\%$). Reco+selected: GNN $96.3\%$, AMVF $92.9\%$. All vs $\mu$
+in ATLAS style. \\
+AMVF HS selection vs ITk $\sim$93\% & 7.5 & \done & Reconciled: the stored AMVF primary
+gives $92.9\pm0.6\%$. The quoted $80.7\%$ re-ranked the stored track lists by
+$\sum p_\mathrm{T}^2$, which picks a different vertex in 428/1\,920 events. \\
+ITk HS longitudinal resolution & 4.1.1 & \done & Athena iterative-RMS definition: PV-Finder
+$12.4\pm0.4$~\textmu m, AMVF $10.2\pm0.3$~\textmu m (reproduces ITk $\approx10$~\textmu m),
+flat in $\mu$. PV-Finder is probably limited by its 40~\textmu m output bins. \\
+Run 2 vs Run 4 gap & 6.1 & \prt & Not a methodology effect (binning, range, statistics,
+events: $<0.06$ in the ratio). AMVF/PV-Finder $\sigma_\mathrm{vtx\text{-}vtx}$: 1.93 (Run 2),
+1.33 (PU200). PV-Finder scales with detector precision; AMVF improved more, consistent with
+an extra limit in its Run 2 configuration (not verifiable from the ntuples). \\
+Data--MC validation & 6.2, 7.6 & \prt & No Run 3 MC exists (only Run 2 $t\bar t$). MC now
+on all Fig.~6.2 panels. AMVF as reference in MC biases recovery by $+2.4\pm0.1$ points and
+explains the data--MC gap in unmatched peaks. Run 3 needs mc23 $t\bar t$ ntuples. \\
+$z_0$ association baseline & 7.1 & \done & Added to Fig.~7.2 (clean/truth): nearest $z_0$
+$31.9\%$, within $3\sigma(z_0)$ $33.1\%$, AMVF $30.9\%$, GNN $68.4\%$. Caption drafted. \\
+Fig.~7.2 and HS vs pile-up & 7.5 & \done & Stages and HS metrics in 10 $\mu$ bins. The
+full-$\mu$ GNN keeps HS selection at 94--98\% in every bin; the PU200-trained GNN drops at
+low $\mu$. \\
+Timing vs pile-up & 5.1.2 & \blk & Needs per-event Athena timing (algorithm, device, $\mu$,
+ms) from the integration team. Plotting code ready. \\
+AMVF weights vs GNN & 7.4 & \no & Weights are not stored in our ntuples, and a comparison
+in AMVF-weight space would favour AMVF. Paragraph drafted explaining this. \\
+GNN on more data & 7.3 & Queued & Starts after the small-model study. \\
+Paper figures, Table~1 & -- & \prt & Figs.~1--4 and Table~1 (= ITk paper Table~6) done,
+captions corrected. Figs.~5--6 need Run 3 MC; Fig.~7 needs timing data. \\
+Small model for CPU & 5 & \run & Exact packed-track inference: $1.4\times$ faster for free.
+CPU speed-up vs production: s5 $6.4\times$, s8 $9.0\times$. s5 (1+1 epochs) held-out: efficiency $-0.33\pm0.04$ / $-0.26\pm0.04$ points, $-0.8$ fakes/event, $\sigma$ $+5$~\textmu m: inside the 0.5 limit, misses the 0.2 target. s5 on the full 2+2 schedule running ($\sim$16~h);
+s8 still training. INT8 gives $\leq1.25\times$. \\
+Repositories & -- & \prt & GitHub up to date. GitLab note unreachable from sneezy;
+note edits drafted, to apply via lxplus. \\
+\bottomrule
+\end{tabularx}
+
+\vspace{5pt}
+\noindent\textbf{Needs input:} Run 3 mc23 $t\bar t$ ntuples with truth and AMVF vertices;
+per-event Athena timing; confirmation of the ``Run 2 MC'' campaign label; GitLab access for
+the note edits.
+\end{document}
