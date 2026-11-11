@@ -18,3 +18,9 @@ Running list from the November 11, 2026 walkthrough with Mattia. Not on the slid
 
 ## Definitions
 - If asked: recompute AMVF Clean with fit weights from a fresh Athena ntuple (ours are unweighted track counts).
+
+## 5. HS longitudinal resolution
+- 3D adaptive fit on GNN tracks: 9.27 um vs AMVF 10.25 um (common 1,915 events). Our fit on AMVF's own tracks gives 9.50 um, better than AMVF's stored 10.25: cause not established (track sharing in the multi-vertex fit?). Quote the same-fitter comparison (9.27 vs 9.50) as the robust one.
+- Athena: run the standard ATLAS adaptive vertex fitter on the PV-Finder seed and the GNN tracks, to confirm.
+- Ntuple d0 sign is opposite to the x0/y0 convention: report to the ntuple producer and check in Athena.
+- Decide the production GNN working point for the fit (all assigned tracks 9.27, score >= 0.98 9.72).
