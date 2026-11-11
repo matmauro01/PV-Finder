@@ -1,0 +1,42 @@
+# ITk full-pileup control: same GAT, loss, truth graphs and kNN as v4 noaug.
+# Source r16443, mu=0..200; first 25k presentation events excluded.
+# 60k train / 7.5k validation / 7.5k reserved test, stratified in 10-mu bins.
+# Only 1,500 fixed validation events are used for the learning curve.
+# 216 shard epochs = 18 complete passes over 12 x 5,000 training graphs.
+# 1.08 million event presentations matches v4's 180k x 6 passes.
+# Physical GPU 2 is exposed as cuda:0 by the campaign wrapper.
+data_files:
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_00.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_01.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_02.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_03.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_04.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_05.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_06.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_07.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_08.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_09.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_10.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_11.pt
+val_file: /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/validation_monitor.pt
+batch_size: 32
+num_workers: 2
+model_config:
+  track_input_size: 8
+  pv_input_size: 2
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3
+  dropout: 0.25
+n_epochs: 216
+learning_rate: 0.001
+lr_schedule:
+  type: cosine
+  eta_min: 0.00001
+grad_clip: 1.0
+device_id: 0
+save_weights: true
+save_frequency: 1
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_hllhc_fullmu_v1_20260924
+experimentname: TTVA_GNN
+runname: ttva_gat_alleta_k20_fullmu_v1_60k

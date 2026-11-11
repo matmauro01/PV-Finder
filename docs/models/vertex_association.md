@@ -138,6 +138,14 @@ evaluated on. Every peak-finding CLI takes `--centroid-halfwidth`; pass it.
 
 ## Trained weights
 
+The [full-pileup retraining run of 24 September 2026](../evaluation/gnn_full_pileup_training_2026-09-24.md)
+uses μ=0–200 ITk data, with separate train/validation/test events. It is an
+experiment in progress and does not replace the existing v4 checkpoint.
+The historical clean-vertex and HS claims below predate the
+[September metric audit](../../presentations/mattia/09_25_2026/opening_slides/TTVA_RECONCILIATION.md):
+clean-vertex yield is not track efficiency, and AMVF's quoted 80.7% HS result
+used a non-native selection. Use the audit for the current interpretation.
+
 - `model_weights/gnn_ttva_epoch100.pyt` — **the baseline checkpoint**,
   byte-identical (md5) to `test_GATConv_edgeattr_BCE_100.pyt` (Nov 2025).
   Loads into `TTVAGATModel()` defaults with `strict=True`.
