@@ -33,8 +33,8 @@
 8. $z_0$ baseline in Fig.~7.2 & \textcolor{mygreen}{Done} & Nearest $z_0$ $31.9\%$, AMVF $30.9\%$, GNN $68.4\%$ \\
 9. Timing vs $\mu$ & \textcolor{myorange}{Input} & Per-event Athena timing from integration \\
 10. AMVF weights vs GNN & \textcolor{black!55}{Answered} & Compared against truth instead \\
-11. Paper figures, Table 1 & \textcolor{mygreen}{Done} & Figs.~1--4 and Table 1 \\
-12. Small model for CPU & \textcolor{mygreen}{Done} & s5: $6.4\times$ faster on CPU \\
+11. Paper figures, Table 1 & \textcolor{mygreen}{Done} & Figs.~1--4 and Table 1; Figs.~5--7 next \\
+12. Small model for CPU & \textcolor{myblue}{Training} & s5: $6.4\times$ faster on CPU \\
 \bottomrule
 \end{tabular}
 \end{frame}
@@ -174,7 +174,7 @@
 %----------------------------------------------------------------------
 \begin{frame}{12. Smaller PV-Finder for CPU}
 \req{Faster CPU inference without loss of performance.}
-\did{\item Narrower U-Net (s5: 112 channels), same training as v6.
+\did{\item Narrower U-Net (s5: 112 channels), same data and loss as v6, 1+1 epochs.
 \item Packed inference: only real tracks, no padding.}
 \why{\item INT8 quantization: $\leq1.25\times$.}
 \vspace{.2em}
