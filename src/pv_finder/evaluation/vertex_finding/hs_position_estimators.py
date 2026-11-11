@@ -94,3 +94,166 @@ def robust_weighted_z0_mean(
         keep = new_keep
         mean = weighted_z0_mean(z0[keep], err[keep])
     return mean
+
+
+ANNEALING = (64.0, 16.0, 4.0, 2.0, 1.5, 1.0)
+
+
+def adaptive_z_fit(
+    z0: np.ndarray,
+    z0_err: np.ndarray,
+    seed: float,
+    chi2_cut: float = 9.0,
+    temperatures: tuple[float, ...] = ANNEALING,
+    prior: np.ndarray | None = None,
+    chi2_extra: np.ndarray | None = None,
+    tol: float = 1e-7,
+    max_iter: int = 50,
+) -> float:
+    """Adaptive (annealed) one-dimensional vertex fit of ``z`` [mm].
+
+    AMVF-style track weights ``w = 1 / (1 + exp((chi2 - chi2_cut) / (2T)))``
+    with ``chi2 = ((z0 - z) / z0_err)**2``, recomputed at each temperature of
+    the deterministic-annealing schedule until ``z`` moves by less than
+    ``tol``. ``z`` is the inverse-variance mean with these weights, multiplied
+    by ``prior`` (e.g. GNN edge scores) when given. ``chi2_extra`` is a fixed
+    per-track chi2 term added before weighting (e.g. the transverse d0 term
+    of :func:`beamline_z_measurements`). Starts from ``seed``;
+    returns ``seed`` when no track is usable or all weights vanish.
+    """
+    z0 = np.asarray(z0, dtype=np.float64)
+    err = np.asarray(z0_err, dtype=np.float64)
+    ok = np.isfinite(z0) & np.isfinite(err) & (err > 0.0)
+    if prior is not None:
+        pr = np.asarray(prior, dtype=np.float64)
+        ok &= np.isfinite(pr) & (pr > 0.0)
+        pr = pr[ok]
+    else:
+        pr = 1.0
+    if chi2_extra is not None:
+        extra = np.asarray(chi2_extra, dtype=np.float64)
+        ok &= np.isfinite(extra)
+    if not ok.any():
+        return float(seed)
+    extra = extra[ok] if chi2_extra is not None else 0.0
+    z0, ivar = z0[ok], 1.0 / err[ok] ** 2
+    z = float(seed)
+    for t in temperatures:
+        for _ in range(max_iter):
+            chi2 = (z0 - z) ** 2 * ivar + extra
+            arg = np.clip((chi2 - chi2_cut) / (2.0 * t), -700.0, 700.0)
+            w = pr * ivar / (1.0 + np.exp(arg))
+            sw = np.sum(w)
+            if not sw > 0.0:
+                return float(z)
+            z_new = float(np.sum(w * z0) / sw)
+            done = abs(z_new - z) < tol
+            z = z_new
+            if done:
+                break
+    return z
+
+
+def beamline_z_measurements(
+    d0: np.ndarray,
+    z0: np.ndarray,
+    var_d0: np.ndarray,
+    var_z0: np.ndarray,
+    cov_d0z0: np.ndarray,
+    beam_sigma_xy: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per-track z measurement for a vertex constrained to the beamline.
+
+    The vertex sits on the beam axis (transverse spread ``beam_sigma_xy``),
+    so a track's perigee residual is ``(d0, z0 - z)`` with covariance
+    ``[[var_d0 + s_b^2, cov], [cov, var_z0]]`` (d0 relative to the beam
+    position). Profiling out the d0 component gives an equivalent 1D
+    measurement ``z0 - cov / V_dd * d0`` with variance ``var_z0 - cov^2 / V_dd``
+    and a fixed chi2 term ``d0^2 / V_dd``, so the 2D chi2 equals
+    ``extra + (z_eff - z)^2 / var_eff``. Returns ``(z_eff, err_eff, extra)``.
+    """
+    v_dd = np.asarray(var_d0, dtype=np.float64) + beam_sigma_xy**2
+    cov = np.asarray(cov_d0z0, dtype=np.float64)
+    d0 = np.asarray(d0, dtype=np.float64)
+    z_eff = np.asarray(z0, dtype=np.float64) - cov / v_dd * d0
+    var_eff = np.asarray(var_z0, dtype=np.float64) - cov**2 / v_dd
+    return z_eff, np.sqrt(np.clip(var_eff, 1e-12, None)), d0**2 / v_dd
+
+
+def adaptive_beamline_fit(
+    d0: np.ndarray,
+    z0: np.ndarray,
+    phi: np.ndarray,
+    theta: np.ndarray,
+    var_d0: np.ndarray,
+    var_z0: np.ndarray,
+    cov_d0z0: np.ndarray,
+    seed_z: float,
+    beam_xy: tuple[float, float] = (0.0, 0.0),
+    beam_sigma_xy: float = 0.012,
+    chi2_cut: float = 9.0,
+    temperatures: tuple[float, ...] = ANNEALING,
+    prior: np.ndarray | None = None,
+    tol: float = 1e-7,
+    max_iter: int = 50,
+) -> tuple[float, float, float]:
+    """Adaptive 3D vertex fit (x, y, z) [mm] with a beam-spot constraint.
+
+    Straight-line linearisation of the perigee parameters (defined at the
+    point of closest approach to the beam axis): a vertex at (x, y, z)
+    predicts ``d0 = -x sin(phi) + y cos(phi)`` and
+    ``z0 = z - (x cos(phi) + y sin(phi)) cot(theta)``. Both signs were measured
+    on the r16443 ntuple by regressing d0 and z0 - z_true of the true HS tracks
+    on the true HS (x, y) (slopes -0.86 and +0.80 against the opposite-sign
+    and this model); note that ``RecoTrack_x0/y0`` satisfy
+    ``d0 = x0 sin(phi) - y0 cos(phi)``, the opposite sign, so they are not the
+    point of closest approach in the usual convention. Each track enters with
+    its 2x2 (d0, z0) covariance; the transverse position has a Gaussian prior
+    at ``beam_xy`` of width ``beam_sigma_xy``. Track weights follow
+    :func:`adaptive_z_fit` (annealed, chi2 from the 2D residual), optionally
+    multiplied by ``prior``. Returns ``(x, y, z)``; the seed when no track is
+    usable.
+    """
+    d0, z0, phi, theta = (np.asarray(a, dtype=np.float64) for a in (d0, z0, phi, theta))
+    vdd, vzz, vdz = (
+        np.asarray(a, dtype=np.float64) for a in (var_d0, var_z0, cov_d0z0)
+    )
+    det = vdd * vzz - vdz**2
+    ok = np.isfinite(d0 + z0 + phi + theta + det) & (det > 0.0) & (vdd > 0.0)
+    pr = np.ones_like(d0) if prior is None else np.asarray(prior, dtype=np.float64)
+    ok &= np.isfinite(pr) & (pr > 0.0)
+    x = np.array([beam_xy[0], beam_xy[1], float(seed_z)])
+    if not ok.any():
+        return float(x[0]), float(x[1]), float(x[2])
+    d0, z0, phi, theta, pr = d0[ok], z0[ok], phi[ok], theta[ok], pr[ok]
+    # Inverse covariances, (n, 2, 2).
+    vinv = np.empty((len(d0), 2, 2))
+    vinv[:, 0, 0] = vzz[ok] / det[ok]
+    vinv[:, 1, 1] = vdd[ok] / det[ok]
+    vinv[:, 0, 1] = vinv[:, 1, 0] = -vdz[ok] / det[ok]
+    cot = 1.0 / np.tan(theta)
+    s, c = np.sin(phi), np.cos(phi)
+    a = np.zeros((len(d0), 2, 3))
+    a[:, 0, 0], a[:, 0, 1] = -s, c  # measured: d0 = -x sin(phi) + y cos(phi)
+    a[:, 1, 0], a[:, 1, 1], a[:, 1, 2] = -c * cot, -s * cot, 1.0
+    m = np.stack([d0, z0], axis=1)
+    at_vinv = np.einsum("nij,nik->njk", a, vinv)  # (n, 3, 2)
+    info_trk = np.einsum("njk,nkl->njl", at_vinv, a)  # (n, 3, 3)
+    rhs_trk = np.einsum("njk,nk->nj", at_vinv, m)  # (n, 3)
+    p_info = np.diag([beam_sigma_xy**-2, beam_sigma_xy**-2, 0.0])
+    p_rhs = p_info @ np.array([beam_xy[0], beam_xy[1], 0.0])
+    for t in temperatures:
+        for _ in range(max_iter):
+            r = m - np.einsum("nij,j->ni", a, x)
+            chi2 = np.einsum("ni,nij,nj->n", r, vinv, r)
+            arg = np.clip((chi2 - chi2_cut) / (2.0 * t), -700.0, 700.0)
+            w = pr / (1.0 + np.exp(arg))
+            info = p_info + np.einsum("n,njl->jl", w, info_trk)
+            if not np.sum(w) > 0.0 or abs(np.linalg.det(info)) < 1e-300:
+                return float(x[0]), float(x[1]), float(x[2])
+            x_new = np.linalg.solve(info, p_rhs + np.einsum("n,nj->j", w, rhs_trk))
+            done = abs(x_new[2] - x[2]) < tol
+            x = x_new
+            if done:
+                break
+    return float(x[0]), float(x[1]), float(x[2])

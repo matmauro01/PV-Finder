@@ -165,3 +165,59 @@ Diagnostics:
   tracks (`hs_resolution_vs_ntrk_estimators.png`).
 - Mean residuals are below 0.8 um for every working estimator (no bias).
 - Refit fallbacks to the centroid (no assigned track): 2 events.
+
+### Adaptive vertex fit (added later on 2026-11-11)
+
+`adaptive_beamline_fit` (`hs_position_estimators.py`): an AMVF-style adaptive
+fit of (x, y, z) with a beam-spot constraint (ntuple `BeamPos*`, sigma_xy
+12 um). Tracks enter with their (d0, z0) perigee covariance, linearised along a
+straight line: d0 = -x sin(phi) + y cos(phi), z0 = z - (x cos(phi) +
+y sin(phi)) cot(theta). Weights 1 / (1 + exp((chi2 - 9) / 2T)), annealing
+T = 64, 16, 4, 2, 1.5, 1, seeded at the PV-Finder histogram peak. The 1D
+version (`adaptive_z_fit`, z0 only) is kept for comparison.
+
+**Why 3D matters.** ITk tracks reach |eta| = 4 (median |cot theta| 3.2,
+90th percentile 18), so a 10-15 um transverse offset of the vertex from the
+beam axis moves z0 by tens to hundreds of um. With the true HS (x, y) the
+1D fit of the true HS tracks improves from 12.33 to 10.43 um (384 events).
+The d0 sign was measured on the ntuple (regression of d0 on the true-vertex
+prediction: slope -0.86 for the opposite convention). The `RecoTrack_x0/y0`
+branches follow the opposite sign and are not used.
+
+Common set (1,915 events), iterative 3-RMS, 2,000 paired bootstraps:
+
+| Estimator | Resolution [um] | minus AMVF | minus simple refit (12.02) |
+|---|---:|---:|---:|
+| AMVF (stored vertex) | 10.25 +- 0.30 | | |
+| 1D adaptive, GNN t >= 0.98 | 11.99 +- 0.35 | +1.74 +- 0.35 | -0.03 +- 0.21 |
+| 1D adaptive, true HS tracks | 11.23 +- 0.31 | +0.98 +- 0.33 | -0.79 +- 0.30 |
+| **3D adaptive, all GNN-assigned tracks** | **9.27 +- 0.25** | **-0.98 +- 0.21** | -2.75 +- 0.35 |
+| 3D adaptive, GNN score as prior | 9.28 +- 0.24 | -0.96 +- 0.21 | -2.73 +- 0.34 |
+| 3D adaptive, GNN t >= 0.95 | 9.42 +- 0.25 | -0.83 +- 0.21 | -2.60 +- 0.34 |
+| 3D adaptive, GNN t >= 0.98 | 9.72 +- 0.26 | -0.53 +- 0.23 | -2.30 +- 0.33 |
+| 3D adaptive, all tracks within 1 mm (no GNN) | 9.28 +- 0.28 | -0.97 +- 0.23 | -2.74 +- 0.36 |
+| 3D adaptive, AMVF's own HS track list | 9.50 +- 0.25 | -0.75 +- 0.19 | -2.52 +- 0.35 |
+| 3D adaptive, true HS tracks | 9.09 +- 0.23 | -1.16 +- 0.23 | -2.93 +- 0.34 |
+
+Versus HS truth nTrk (um; bins 2-20, 20-30, 30-40, 40-50, 50-60, 60-80, 80-130):
+
+| | 2-20 | 20-30 | 30-40 | 40-50 | 50-60 | 60-80 | 80-130 |
+|---|---|---|---|---|---|---|---|
+| histogram peak | 10.3 | 18.0 | 15.4 | 12.0 | 13.0 | 11.2 | 9.8 |
+| 3D adaptive, all GNN tracks | 13.6 | 13.5 | 11.2 | 9.4 | 9.0 | 8.2 | 6.7 |
+| AMVF | 12.3 | 16.1 | 12.8 | 10.8 | 9.5 | 8.4 | 7.5 |
+
+HS track lists (GNN t >= 0.98 vs AMVF closest vertex, summed over events):
+76,472 shared, 9,686 GNN only, 11,950 AMVF only; true HS tracks on the list
+78,772 (GNN) and 78,118 (AMVF) of 105,448.
+
+**Reading.** The remaining gap after the 1D refit was the fit model, not the
+association: on the same tracks, the 3D fit beats AMVF's stored position
+(9.50 vs 10.25 um), and GNN-assigned tracks do as well as true HS tracks to
+within 0.2 um. The adaptive weights do most of the track cleaning (all tracks
+within 1 mm give 9.28 um), so the GNN score cut matters little for the
+position; looser cuts help because they keep more HS tracks. The fit costs
+about 1.8 ms per event in numpy (60 tracks, 6 temperatures); a compiled
+version is negligible next to inference. Why AMVF's stored z is less precise
+than a single-vertex fit of its own tracks is not established (track sharing
+between vertices in the multi-vertex fit is a candidate).

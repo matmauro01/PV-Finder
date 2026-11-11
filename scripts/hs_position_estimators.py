@@ -47,6 +47,8 @@ from gnn.diagnostics.hs_chain_study import (  # noqa: E402
     ROOT,
 )
 from pv_finder.evaluation.vertex_finding.hs_position_estimators import (  # noqa: E402
+    adaptive_beamline_fit,
+    adaptive_z_fit,
     parabolic_peak,
     robust_weighted_z0_mean,
     weighted_z0_mean,
@@ -67,15 +69,21 @@ BRANCHES = [
     "ActualNumOfInt", "RecoTrack_z0", "RecoTrack_ErrZ0", "RecoTrack_d0",
     "RecoTrack_ErrD0", "TruthVertex_z",
     "TruthVertex_nTracks", "TruthVertex_assocTracks", "TruthVertex_type",
-    "RecoVertex_z", "RecoVertex_nTracks",
+    "RecoVertex_z", "RecoVertex_nTracks", "RecoVertex_assocTracks",
+    "RecoTrack_phi", "RecoTrack_theta", "RecoTrack_ErrD0Z0", "BeamPosX",
+    "BeamPosY", "BeamPosSigmaX",
 ]  # fmt: skip
 METHODS = ("refit", "robust", "robseed", "robseed_d0")
 SETS = tuple(f"t{c:03d}" for c in CUTS) + ("truth",)
 EST = (
     ["centroid", "parab_lin", "parab_log"]
     + [f"{m}_{t}" for t in SETS for m in METHODS]
+    + ["ada_t098", "ada_t000", "ada_score", "ada_win1mm", "ada_truth"]
+    + [f"ada3d_{v}" for v in ("t098", "t095", "t000", "score", "win1mm", "truth")]
+    + ["ada3d_amvftrk"]
     + ["target_centroid", "target_parab_log", "amvf"]
 )
+REFIT_REF = "robseed_t098"  # 2026-11-11 headline simple refit (12.02 um)
 D0_SIG_MAX = 3.0
 
 
@@ -96,7 +104,7 @@ def process_chunk(start: int, entries: list[int], ref: dict[int, np.ndarray]) ->
         hists = f["histograms"]
     with np.load(EDGES["v4"] / f"best_edges_{start:05d}.npz") as f:
         off, scores, targets = f["offsets"], f["scores"], f["targets"]
-    rows, info = [], []
+    rows, info, ovl = [], [], []
     for e in entries:
         loc = e - start
         ev = data[loc]
@@ -149,6 +157,65 @@ def process_chunk(start: int, entries: list[int], ref: dict[int, np.ndarray]) ->
                     if sp.any()
                     else r["centroid"]
                 )
+        if k >= 0:
+            zk, sel_k = peaks[k], targets[lo:hi] == k
+            for name, sel, pr in (
+                ("ada_t098", sel_k & (scores[lo:hi] >= 0.98), None),
+                ("ada_t000", sel_k, None),
+                ("ada_score", sel_k, scores[lo:hi]),
+                ("ada_win1mm", np.abs(z0 - zk) <= 1.0, None),
+                ("ada_truth", truth_sel, None),
+            ):
+                prior = None if pr is None else pr[sel]
+                r[name] = adaptive_z_fit(z0[sel], ez0[sel], zk, prior=prior) - hz
+            trk = {
+                f: ak.to_numpy(ev[f"RecoTrack_{f}"]).astype(np.float64)
+                for f in ("d0", "phi", "theta", "ErrD0", "ErrD0Z0")
+            }
+            beam = (float(ev["BeamPosX"]), float(ev["BeamPosY"]))
+            sig_b = float(ev["BeamPosSigmaX"])
+            amvf_sel = np.zeros(len(z0), dtype=bool)
+            rz_all = ak.to_numpy(ev["RecoVertex_z"]).astype(np.float64)
+            rn_all = ak.to_numpy(ev["RecoVertex_nTracks"])
+            cand = np.flatnonzero(rn_all >= 2)
+            if len(cand):
+                ka3 = cand[np.argmin(np.abs(rz_all[cand] - hz))]
+                at = ak.to_numpy(ev["RecoVertex_assocTracks"][ka3]).astype(np.int64)
+                amvf_sel[at[(at >= 0) & (at < len(z0))]] = True
+            sc = scores[lo:hi]
+            for name, sel, pr in (
+                ("ada3d_t098", sel_k & (sc >= 0.98), None),
+                ("ada3d_t095", sel_k & (sc >= 0.95), None),
+                ("ada3d_t000", sel_k, None),
+                ("ada3d_score", sel_k, sc),
+                ("ada3d_win1mm", np.abs(z0 - zk) <= 1.0, None),
+                ("ada3d_truth", truth_sel, None),
+                ("ada3d_amvftrk", amvf_sel, None),
+            ):
+                if not sel.any():
+                    r[name] = r["centroid"]
+                    continue
+                fit = adaptive_beamline_fit(
+                    trk["d0"][sel], z0[sel], trk["phi"][sel], trk["theta"][sel],
+                    trk["ErrD0"][sel] ** 2, ez0[sel] ** 2, trk["ErrD0Z0"][sel], zk,
+                    beam_xy=beam, beam_sigma_xy=sig_b,
+                    prior=None if pr is None else pr[sel],
+                )  # fmt: skip
+                r[name] = fit[2] - hz
+            ovl.append(
+                [
+                    int((sel_k & (sc >= 0.98) & amvf_sel).sum()),
+                    int((sel_k & (sc >= 0.98) & ~amvf_sel).sum()),
+                    int((~(sel_k & (sc >= 0.98)) & amvf_sel).sum()),
+                    int((sel_k & (sc >= 0.98) & truth_sel).sum()),
+                    int((amvf_sel & truth_sel).sum()),
+                    int(truth_sel.sum()),
+                    int(amvf_sel.sum()),
+                    int((sel_k & (sc >= 0.98)).sum()),
+                ]
+            )
+        else:
+            ovl.append([0] * 8)
         target = r2h._build_truth_histogram(tz, tn)[0].astype(np.float32)
         tpk, _, tbin, _ = pv_locations_updated_res_fast(target, *PEAK_ARGS)
         kt = _closest(tpk.astype(np.float64), hz)
@@ -164,7 +231,11 @@ def process_chunk(start: int, entries: list[int], ref: dict[int, np.ndarray]) ->
         info.append(
             [e, float(ev["ActualNumOfInt"]), tn[h], *[n_fallback[c] for c in CUTS]]
         )
-    return {"res": np.array(rows), "info": np.array(info, dtype=np.float64)}
+    return {
+        "res": np.array(rows),
+        "info": np.array(info, dtype=np.float64),
+        "ovl": np.array(ovl, dtype=np.int64),
+    }
 
 
 def bootstrap(res: np.ndarray, n_boot: int, seed: int) -> np.ndarray:
@@ -185,6 +256,16 @@ def time_refit(n: int = 20000) -> float:
     t0 = time.perf_counter()
     for _ in range(n):
         robust_weighted_z0_mean(z, e, seed=0.0)
+    return 1e6 * (time.perf_counter() - t0) / n
+
+
+def time_adaptive(n: int = 5000) -> float:
+    """Mean cost [us] of the adaptive fit on a 60-track vertex."""
+    rng = np.random.default_rng(0)
+    z, e = rng.normal(0, 0.03, 60), rng.uniform(0.01, 0.1, 60)
+    t0 = time.perf_counter()
+    for _ in range(n):
+        adaptive_z_fit(z, e, 0.0)
     return 1e6 * (time.perf_counter() - t0) / n
 
 
@@ -216,6 +297,10 @@ def analyse(res: np.ndarray, info: np.ndarray, n_boot: int) -> dict:
             "minus_amvf_um": 1e3 * (it.rms - iterative_rms(rc[:, j["amvf"]], HS_R).rms),
             "minus_amvf_err_um": 1e3
             * float(np.std(boot[:, k] - boot[:, j["amvf"]], ddof=1)),
+            "minus_refit_um": 1e3
+            * (it.rms - iterative_rms(rc[:, j[REFIT_REF]], HS_R).rms),
+            "minus_refit_err_um": 1e3
+            * float(np.std(boot[:, k] - boot[:, j[REFIT_REF]], ddof=1)),
             "minus_centroid_um": 1e3
             * (it.rms - iterative_rms(rc[:, j["centroid"]], HS_R).rms),
             "minus_centroid_err_um": 1e3
@@ -226,6 +311,7 @@ def analyse(res: np.ndarray, info: np.ndarray, n_boot: int) -> dict:
         for name in EST
     }
     out["refit_cost_us"] = time_refit()
+    out["adaptive_cost_us"] = time_adaptive()
     return out
 
 
@@ -257,14 +343,25 @@ def main() -> None:
         parts = [f.result() for f in futs]
     res = np.concatenate([x["res"] for x in parts])
     info = np.concatenate([x["info"] for x in parts])
+    ovl = np.concatenate([x["ovl"] for x in parts])
     print(f"{len(res)} events extracted in {time.monotonic() - t0:.0f} s", flush=True)
-    np.savez_compressed(args.out / "events.npz", res=res, info=info, est=np.array(EST))
+    np.savez_compressed(
+        args.out / "events.npz", res=res, info=info, ovl=ovl, est=np.array(EST)
+    )
     out = analyse(res, info, args.n_boot)
+    o = ovl[np.isfinite(res[:, EST.index("centroid")])].sum(axis=0)
+    out["hs_track_lists_t098"] = {
+        "gnn_and_amvf": int(o[0]), "gnn_not_amvf": int(o[1]),
+        "amvf_not_gnn": int(o[2]), "gnn_true_hs": int(o[3]),
+        "amvf_true_hs": int(o[4]), "true_hs": int(o[5]),
+        "amvf_total": int(o[6]), "gnn_total": int(o[7]),
+    }  # fmt: skip
     (args.out / "results.json").write_text(json.dumps(out, indent=2) + "\n")
     for name, v in out["estimators"].items():
         print(
             f"{name:18s} {v['rms_um']:6.2f} +- {v['boot_err_um']:.2f}  "
             f"vs AMVF {v['minus_amvf_um']:+6.2f} +- {v['minus_amvf_err_um']:.2f}  "
+            f"vs refit {v['minus_refit_um']:+6.2f} +- {v['minus_refit_err_um']:.2f}  "
             f"vs centroid {v['minus_centroid_um']:+6.2f} +- "
             f"{v['minus_centroid_err_um']:.2f}  mean {v['mean_um']:+.2f}"
         )

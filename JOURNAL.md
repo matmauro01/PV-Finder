@@ -5080,3 +5080,18 @@ two Phase-2 epochs, so the schedule is the first suspect: launched s5 on the
 exact v6 2+2 schedule (`config_hllhc_alleta_v6_small_s5_2p2ep.yml`, GPU 1,
 tmux small_s5_2p2, about 16 h). s8 Phase 2 at 42%. Results in
 `docs/evaluation/cpu_small_model_2026-11-09.md`; summary PDF updated.
+
+## 2026-11-11 — HS position: adaptive 3D vertex fit after the GNN
+
+Goal: parity with AMVF on the HS longitudinal resolution (ITk definition).
+Histogram peak 12.38 um, simple z0 refit of GNN tracks 12.02 um, AMVF 10.25 um
+(1,915 common events). A 1D adaptive fit of z0 does not help (11.99 um; 11.23
+with true HS tracks). The missing piece is the vertex transverse position: ITk
+tracks reach |eta| = 4, so z0 to the beam axis is off by offset x cot(theta).
+A 3D adaptive fit with the beam-spot constraint on the GNN-assigned tracks
+gives **9.27 +- 0.25 um, 0.98 +- 0.21 um better than AMVF**; 9.72 um at the
+t = 0.98 working point. On AMVF's own track list the same fit gives 9.50 um.
+Found and fixed on the way: the ntuple d0 sign is opposite to the
+x0/y0-implied convention (measured against the true vertex). Code:
+`adaptive_beamline_fit` in `hs_position_estimators.py`; details in
+`docs/evaluation/itk_hs_resolution_2026-11-09.md`.

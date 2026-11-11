@@ -37,6 +37,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--dir", required=True, type=Path)
     p.add_argument("--best", required=True)
+    p.add_argument("--adaptive", default=None, help="adaptive-fit estimator key")
+    p.add_argument("--name", default="hs_resolution_vs_ntrk_estimators")
     args = p.parse_args()
     res = json.loads((args.dir / "results.json").read_text())
     use_atlas_style()
@@ -54,6 +56,12 @@ def main() -> None:
         ),
         ("amvf", "AMVF", ALGO_COLORS["amvf"], "s", True),
     )
+    if args.adaptive:
+        series = (
+            *series[:2],
+            (args.adaptive, "PV-Finder + GNN, adaptive vertex fit", "black", "D", True),
+            series[2],
+        )
     ref = res["vs_ntrk"]["amvf"]
     ry, re_ = 1e3 * _col(ref, "rms"), 1e3 * _col(ref, "rms_err")
     for n, (key, label, color, marker, filled) in enumerate(series):
@@ -87,7 +95,7 @@ def main() -> None:
         desc_xy=(0.05, 0.88),
     )
     ax.legend(loc="upper right", frameon=False, fontsize="small")
-    save_figure(fig, args.dir, "hs_resolution_vs_ntrk_estimators")
+    save_figure(fig, args.dir, args.name)
 
 
 if __name__ == "__main__":
