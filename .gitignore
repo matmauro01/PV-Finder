@@ -61,3 +61,10 @@ final_paper/
 gnn_info/
 temp/
 ANA-IDTR-2026-01-INT1-main/
+# EB deck (13 November 2026): PDF, build script, images, theme and logos, so it rebuilds from a clone
+!presentations/mattia/11_13_2026_EB/PVFinder_EB_2026-11-13.pdf
+!presentations/mattia/11_13_2026_EB/build.sh
+!presentations/mattia/11_13_2026_EB/*.sty
+!presentations/mattia/11_13_2026_EB/images/*
+!presentations/mattia/11_13_2026_EB/logo-*/**
+presentations/mattia/11_13_2026_EB/.build/

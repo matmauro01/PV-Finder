@@ -1,0 +1,515 @@
+% EB presentation, 13 November 2026. Build: bash build.sh
+% Every result number is a macro from numbers.tex (scripts/eb_numbers.py).
+\def\talkbuild{1}
+\input{preamble.tex}
+\input{numbers.tex}
+
+\newcommand{\img}[2]{\includegraphics[width=\linewidth,height=#1\textheight,keepaspectratio]{images/#2}}
+
+\begin{document}
+\framelogo{}
+
+\begin{frame}[plain]\titlepage\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Motivation}
+\begin{columns}[c]\begin{column}{.55\linewidth}
+\textbf{Find the primary vertices and their tracks at the HL-LHC.}
+\par\vspace{1em}
+\begin{itemize}\setlength\itemsep{.7em}
+\item About $200$ interactions per crossing along a few cm of beam line.
+\item PV-Finder: a neural network turns tracks into a vertex-density histogram.
+\item A graph neural network (GNN) assigns tracks to the vertices.
+\item Compared with AMVF on the same events, with the same definitions.
+\end{itemize}
+\end{column}\begin{column}{.42\linewidth}\centering
+\bigvalue{$\langle\mu\rangle=200$}{HL-LHC, ITk}
+\par\vspace{1.2em}
+\begin{enumerate}\setlength\itemsep{.35em}\small
+\item[\textcolor{pennred}{\textbf{I.}}] Method
+\item[\textcolor{pennred}{\textbf{II.}}] Vertex finding at PU200
+\item[\textcolor{pennred}{\textbf{III.}}] Track association and hard scatter
+\item[\textcolor{pennred}{\textbf{IV.}}] Low pile-up and collision data
+\item[\textcolor{pennred}{\textbf{V.}}] Timing and deployment
+\end{enumerate}
+\end{column}\end{columns}
+\end{frame}
+
+\partdivider{I}{Method}{Tracks, network, peaks and track association}
+
+%----------------------------------------------------------------------
+\begin{frame}{From Tracks to a Vertex Histogram}
+\relax
+{\centering\resizebox{.95\linewidth}{!}{\begin{tikzpicture}[x=1cm,y=1cm]
+  \tikzset{
+    term/.style={pvbox, draw=black!35, fill=black!4, minimum width=2.2cm, minimum height=1.35cm, font=\small},
+    net/.style ={pvbox, draw=mydarkblue!55, fill=mydarkblue!10, minimum width=2.2cm, minimum height=1.35cm, font=\small},
+    map/.style ={pvbox, draw=myorange!70!black, fill=myorange!14, minimum width=2.2cm, minimum height=1.35cm, font=\small},
+    sub/.style ={font=\scriptsize, text=black!50, inner sep=1.5pt}}
+  \fill[pennred!4, rounded corners=12pt] (1.45,-1.20) rectangle (9.65,1.20);
+  \draw[pennred!35, dashed, line width=0.9pt, rounded corners=12pt] (1.45,-1.20) rectangle (9.65,1.20);
+  \node[fill=white, inner sep=2.5pt, font=\scriptsize, text=pennred] at (5.55,1.20) {one network, trained end to end};
+  \node[term] (tracks) at (0,0)    {Track\\features};
+  \node[net]  (mlp)    at (2.85,0) {Masked\\MLP};
+  \node[map]  (lat)    at (5.55,0) {Latent\\map};
+  \node[net]  (unet)   at (8.25,0) {1-D\\U-Net};
+  \node[map]  (out)    at (11.10,0){Vertex\\histogram};
+  \node[term] (pv)     at (14.60,0){Primary\\vertices};
+  \node[sub, below=2pt] at (tracks.south) {$(7,\,N_\text{trk})$};
+  \node[sub, below=2pt] at (out.south)    {$1{,}000$ bins / interval};
+  \node[sub, below=2pt] at (pv.south)     {$z$ positions};
+  \draw[pvflow] (tracks) -- (mlp); \draw[pvflow] (mlp) -- (lat);
+  \draw[pvflow] (lat) -- (unet);   \draw[pvflow] (unet) -- (out);
+  \draw[pvflow, draw=pennred!80] (out) -- (pv);
+  \node[font=\scriptsize, text=pennred, align=center, anchor=south] at (12.85,0.14) {peak\\finding};
+\end{tikzpicture}}\par}
+\par\vspace{1em}
+\begin{columns}[t]
+\begin{column}{.31\linewidth}\textbf{Inputs}\\[.5em]\small
+$d_0,z_0,\sigma_{d_0},\sigma_{z_0},\mathrm{cov}(d_0,z_0)$ and the interval bounds.
+\end{column}
+\begin{column}{.31\linewidth}\textbf{Network}\\[.5em]\small
+Per-track MLP, summed over tracks, then a U-Net. Independent of track order.
+\end{column}
+\begin{column}{.32\linewidth}\textbf{Output}\\[.5em]\small
+Twelve $40$ mm intervals: $12{,}000$ bins of $0.04$ mm over $|z|<240$ mm.
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Peak Finding and the Working Point}
+\begin{columns}[c]\begin{column}{.5\linewidth}\centering
+\img{.55}{method_example_e2e.png}
+\end{column}\begin{column}{.47\linewidth}
+\small
+\textbf{One configuration for all HL-LHC results}
+\par\vspace{.6em}\centering
+\begin{tabular}{lr}\toprule
+Amplitude threshold & $0.01$\\
+Minimum width & $3$ bins\\
+Minimum integral & $0.30$\\
+Minimum height & $0.03$\\
+Position & local centroid\\
+GNN score cut $t$ & $\gnnT$\\
+Matching window & $\windowMM$ mm\\
+Hard-scatter window & $\hsWindowMM$ mm\\\bottomrule
+\end{tabular}
+\par\vspace{.6em}\raggedright
+Peaks split at local minima; centroid over $\pm3$ bins of the maximum.
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Track-to-Vertex Association with a GNN}
+\begin{columns}[c]\begin{column}{.52\linewidth}
+\small
+\textcolor{mydarkblue}{\textbf{Track nodes:}} $d_0,z_0$, errors, $\theta,\phi,p_T$.\\[.6em]
+\textcolor{myorange}{\textbf{Vertex nodes:}} PV-Finder position and peak height.\\[.6em]
+\textbf{Edges:} each track to its $k=20$ nearest vertices, with
+\[\frac{z_0-z_{\rm PV}}{\sqrt{\sigma_{z_0}^2+\sigma_{\rm PV}^2}},\quad \frac{d_0}{\sigma_{d_0}},\quad |z_0-z_{\rm PV}|.\]
+\textbf{Output:} a score per edge. A track goes to its best vertex if the score passes $t=\gnnT$.\\[.6em]
+Graph attention network, $\gnnParams$ parameters.
+\end{column}\begin{column}{.45\linewidth}\centering\resizebox{.85\linewidth}{!}{\begin{tikzpicture}[x=0.85cm, y=0.85cm]
+  \foreach \y/\n in {3.6/1, 2.4/2, 1.2/3, 0.0/4} {
+    \filldraw[fill=mydarkblue!14, draw=mydarkblue!70, thick] (0,\y) circle (8pt) node[font=\scriptsize] {\(t_\n\)};}
+  \foreach \y/\n in {3.0/1, 1.8/2, 0.6/3} {
+    \filldraw[fill=myorange!20, draw=myorange!80!black, thick] (4,\y) circle (8pt) node[font=\scriptsize] {\(v_\n\)};}
+  \foreach \s/\t in {3.6/3.0, 3.6/1.8, 2.4/3.0, 2.4/1.8, 1.2/1.8, 1.2/0.6, 0.0/1.8, 0.0/0.6} {
+    \draw[black!40, thick] (0.3,\s) -- (3.7,\t);}
+  \draw[pennred, very thick] (0.3,2.4) -- (3.7,3.0);
+  \node[font=\tiny, text=pennred] at (2.0,3.35) {edge score \(\in[0,1]\)};
+  \node[font=\tiny, text=black!55] at (0.0,-0.75) {tracks};
+  \node[font=\tiny, text=black!55] at (4.0,-0.75) {PV-Finder vertices};
+\end{tikzpicture}}\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{HL-LHC Samples}
+\begin{columns}[c]\begin{column}{.5\linewidth}
+\textbf{$\sqrt{s}=14$ TeV $t\bar t$, ITk, $|\eta|<4$}
+\par\vspace{.8em}
+\begin{itemize}\setlength\itemsep{.6em}\small
+\item Density network: $\nTrainEvt$M training events near $\mu=200$.
+\item GNN: $\gnnTrainEvt$ training events.
+\item Evaluation on held-out files, flat in $\mu$ from $0$ to $200$.
+\item PU200 results: $\nEvtPU$ events at $185\leq\mu\leq200$, $\langle\mu\rangle=\meanMu$.
+\item $\truthPerEvt$ truth vertices per event with $\geq2$ tracks.
+\end{itemize}
+\end{column}\begin{column}{.47\linewidth}\centering
+\img{.55}{mu_distribution.pdf}
+\end{column}\end{columns}
+\context{Tracks: $p_T\geq0.9$ GeV, $|d_0|\leq1$ mm, $\sigma(d_0)\leq0.35$ mm, $|z_0|\leq200$ mm.}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Matching Window: $\windowMM$ mm}
+\begin{columns}[c]\begin{column}{.55\linewidth}\centering
+\img{.6}{window_residuals.png}
+\end{column}\begin{column}{.42\linewidth}
+\small\textbf{Single-vertex position residual}
+\par\vspace{.6em}
+$68\%$ of matched vertices lie within:
+\par\vspace{.5em}\centering
+\begin{tabular}{lr}\toprule
+PV-Finder & $\pSixEightPVF~\mu$m\\
+AMVF & $\pSixEightAMVF~\mu$m\\\bottomrule
+\end{tabular}
+\par\vspace{.7em}\raggedright
+Window $=3\times\pSixEightAMVF~\mu\mathrm{m}\simeq\windowMM$ mm, the same for both algorithms.
+\par\vspace{.5em}
+Hard scatter: $\hsWindowMM$ mm, as in the ITk performance studies.
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Vertex Categories}
+\context{Match reconstructed to truth vertices by $z$, closest first, one to one.}
+{\centering\resizebox{.95\linewidth}{!}{\begin{tikzpicture}[x=1cm, y=1cm]
+  \tikzset{
+    truthv/.style={circle, inner sep=0pt, minimum size=9.2pt, fill=black!78, draw=black!88, line width=0.5pt},
+    recov/.style ={rectangle, rounded corners=1.5pt, inner sep=0pt, minimum width=8pt, minimum height=10pt, line width=0.6pt},
+    band/.style  ={dashed, line width=0.5pt},
+    note/.style  ={font=\scriptsize, text=black!55, align=center, anchor=north},
+    head/.style  ={font=\small\bfseries}}
+  \foreach \cx/\lab/\col in {2.05/Clean/{mygreen!60!black}, 6.05/Merged/{myorange!85!black},
+                             10.05/Split/{myblue}, 14.05/Fake/{myred}} {
+    \node[pvcard, minimum width=3.5cm, minimum height=3.6cm] at (\cx,1.40) {};
+    \node[head, text=\col] at (\cx,2.88) {\lab};
+    \draw[\col, line width=1.1pt] (\cx-0.45,2.66) -- (\cx+0.45,2.66);
+    \draw[pvguide] (\cx-1.55,2.15) -- (\cx+1.55,2.15);
+    \draw[pvguide] (\cx-1.55,0.85) -- (\cx+1.55,0.85);}
+  \node[font=\scriptsize, text=black!45, anchor=east] at (0.18,2.15) {truth};
+  \node[font=\scriptsize, text=black!45, anchor=east] at (0.18,0.85) {reco};
+  \fill[mygreen!10] (1.42,1.85) rectangle (2.82,2.45); \draw[band, draw=mygreen!35] (1.42,1.85) rectangle (2.82,2.45);
+  \node[truthv] at (2.00,2.15) {}; \node[recov, fill=mygreen!45, draw=mygreen!65!black] at (2.12,0.85) {};
+  \draw[pvpoint, draw=mygreen!60!black] (2.12,1.03) -- (2.02,1.93);
+  \node[note] at (2.05,0.35) {one reco,\\one truth};
+  \fill[myorange!10] (5.15,1.85) rectangle (6.55,2.45); \draw[band, draw=myorange!40] (5.15,1.85) rectangle (6.55,2.45);
+  \node[truthv] at (5.72,2.15) {}; \node[truthv] at (6.42,2.15) {};
+  \node[recov, fill=myorange!55, draw=myorange!85!black] at (5.85,0.85) {};
+  \draw[pvpoint, draw=myorange!85!black] (5.85,1.03) -- (5.75,1.93);
+  \draw[pvpoint, draw=myorange!85!black, dash pattern=on 2.4pt off 1.8pt] (5.97,1.03) -- (6.35,1.93);
+  \node[note] at (6.05,0.35) {the second truth\\is credited too};
+  \fill[myblue!8] (9.92,1.85) rectangle (11.32,2.45); \draw[band, draw=myblue!30] (9.92,1.85) rectangle (11.32,2.45);
+  \node[truthv] at (10.00,2.15) {};
+  \node[recov, fill=mygreen!45, draw=mygreen!65!black] at (9.80,0.85) {};
+  \node[recov, fill=myblue!45, draw=myblue!80!black] at (10.62,0.85) {};
+  \draw[pvpoint, draw=mygreen!60!black] (9.80,1.03) -- (9.94,1.93);
+  \draw[myblue!70, dotted, line width=1.0pt] (10.62,1.03) -- (10.16,1.85);
+  \node[font=\small, text=myblue!80!black] at (10.52,1.53) {$\times$};
+  \node[note] at (10.05,0.35) {a closer reco\\already took it};
+  \fill[myred!8] (13.75,1.85) rectangle (15.15,2.45); \draw[band, draw=myred!35] (13.75,1.85) rectangle (15.15,2.45);
+  \node[truthv] at (13.05,2.15) {};
+  \node[recov, fill=myred!50, draw=myred!80!black] at (14.45,0.85) {};
+  \draw[myred!65, dotted, line width=1.0pt] (14.45,1.03) -- (14.45,1.92);
+  \node[font=\small, text=myred] at (14.45,2.15) {$\times$};
+  \node[note] at (14.05,0.35) {no truth inside\\the window};
+\end{tikzpicture}}\par}
+\par\vspace{.6em}\small
+\textbf{Efficiency:} truth vertices with a reconstructed vertex within the window (clean or merged) / all truth vertices with $\geq2$ tracks.
+\end{frame}
+
+\partdivider{II}{Vertex finding at PU200}{Before track association, same events as AMVF}
+
+%----------------------------------------------------------------------
+\begin{frame}{PU200: PV-Finder against AMVF}
+\begin{columns}[c]\begin{column}{.55\linewidth}\centering
+\img{.62}{categories_pu200.png}
+\end{column}\begin{column}{.42\linewidth}
+\centering\small
+\begin{tabular}{lrr}\toprule
+ & PV-Finder & AMVF\\\midrule
+Efficiency [\%] & $\effPVF$ & $\effAMVF$\\
+Fake / event & $\fakePVF$ & $\fakeAMVF$\\
+Split / event & $\splitPVF$ & $\splitAMVF$\\\bottomrule
+\end{tabular}
+\par\vspace{1em}
+\bigvalue{$+\effDiff\pm\effDiffErr$}{points of efficiency over AMVF}
+\par\vspace{.8em}\raggedright\footnotesize
+Hard-scatter window ($\hsWindowMM$ mm): $\effHSwPVF\%$ vs $\effHSwAMVF\%$.
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Vertex Yield across Pile-up}
+\begin{columns}[c]\begin{column}{.62\linewidth}\centering
+\img{.68}{categories_vs_mu.png}
+\end{column}\begin{column}{.35\linewidth}
+\small
+\textbf{Reconstructed vertices per event, by category}
+\par\vspace{.8em}
+Clean vertices dominate at every $\mu$ up to $200$.
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Vertex--Vertex Resolution}
+\begin{columns}[c]\begin{column}{.5\linewidth}\centering
+\img{.55}{deltaz_pu200.png}\\[.2em]\footnotesize $\Delta z$ between reconstructed vertices, PU200
+\end{column}\begin{column}{.47\linewidth}\centering
+\img{.55}{sigma_vs_mu.png}\\[.2em]\footnotesize $\svtx$ versus $\mu$
+\end{column}\end{columns}
+\par\vspace{.4em}
+\takeaway{PU200: $\svtx=\sigPVF\pm\sigPVFErr$ mm for PV-Finder, $\sigAMVF\pm\sigAMVFErr$ mm for AMVF.}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Hard-Scatter Vertex Reconstruction}
+\begin{columns}[c]\begin{column}{.6\linewidth}\centering
+\img{.66}{hs_reco_eff_vs_mu.png}
+\end{column}\begin{column}{.37\linewidth}
+\small A reconstructed vertex within $\hsWindowMM$ mm of the hard-scatter vertex.
+\par\vspace{1.2em}\centering
+\bigvalue{$\hsRecoPVF\%$}{PV-Finder at PU200}
+\par\vspace{.8em}
+{\Large $\hsRecoAMVF\%$}\\[.3em]\small AMVF
+\end{column}\end{columns}
+\end{frame}
+
+\partdivider{III}{Track association and hard scatter}{After the GNN: categories, hard scatter and position}
+
+%----------------------------------------------------------------------
+\begin{frame}{Full Chain at PU200}
+\begin{columns}[c]\begin{column}{.6\linewidth}\centering
+\img{.66}{clean_yield_pu200.png}
+\end{column}\begin{column}{.37\linewidth}
+\small\textbf{Clean vertices / truth vertices}
+\par\vspace{.6em}
+Clean: $\geq70\%$ of the vertex tracks from one interaction.
+\par\vspace{.8em}\centering
+\begin{tabular}{lr}\toprule
+PV-Finder + GNN & $\cleanTruthGNN\%$\\
+Nearest $z_0$ & $\cleanTruthZnear\%$\\
+$z_0$ within $3\sigma$ & $\cleanTruthZsig\%$\\
+AMVF & $\cleanTruthAMVF\%$\\\bottomrule
+\end{tabular}
+\end{column}\end{columns}
+\takeaway{The GNN more than doubles the clean-vertex yield of AMVF and of $z_0$-based assignment.}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Full Chain across Pile-up}
+\begin{columns}[c]\begin{column}{.65\linewidth}\centering
+\img{.7}{clean_yield_vs_mu.png}
+\end{column}\begin{column}{.32\linewidth}
+\small Clean vertices / truth vertices versus $\mu$ for each stage of the chain and for AMVF.
+\par\vspace{.8em}
+Lower panel: ratio to AMVF.
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Hard-Scatter Vertex after Track Association}
+\begin{columns}[c]\begin{column}{.47\linewidth}
+\centering\small
+\begin{tabular}{lrr}\toprule
+PU200 & GNN & AMVF\\\midrule
+Clean HS vertex & $\cleanHSGNN\%$ & $\cleanHSAMVF\%$\\
+HS tracks on HS vertex & $\hsTrkGNN\%$ & $\hsTrkAMVF\%$\\
+HS vertex purity & $\hsPurGNN\%$ & $\hsPurAMVF\%$\\
+HS selected ($\sum p_T^2$) & $\hsSelGNN\%$ & $\hsSelAMVF\%$\\\bottomrule
+\end{tabular}
+\par\vspace{.8em}\raggedright\footnotesize
+ATLAS definitions; tracks counted, not fit-weighted. HS vertex: most HS tracks. Selected: largest $\sum p_T^2$ and within $\hsWindowMM$ mm. AMVF: its stored primary vertex.
+\end{column}\begin{column}{.5\linewidth}\centering
+\img{.6}{hs_selection_eff_vs_mu.png}
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Hard-Scatter Longitudinal Resolution}
+\begin{columns}[c]\begin{column}{.55\linewidth}\centering
+\img{.66}{hs_resolution_vs_ntrk.png}
+\end{column}\begin{column}{.42\linewidth}
+\small
+\textbf{Vertex fit on the GNN tracks}
+\par\vspace{.5em}
+Adaptive 3D fit with the beam-spot constraint, seeded at the PV-Finder peak.
+\par\vspace{.5em}
+ITk definition: iterative RMS of $z_{\rm reco}-z_{\rm HS}$, $\hsResNcommon$ events with the HS found by both.
+\par\vspace{.8em}\centering
+\bigvalue{$\hsResGNN\pm\hsResGNNErr~\mu$m}{PV-Finder + GNN}
+\par\vspace{.5em}
+{\Large $\hsResAMVF\pm\hsResAMVFErr~\mu$m}\\[.3em]\small AMVF
+\end{column}\end{columns}
+\end{frame}
+
+\partdivider{IV}{Low pile-up and collision data}{Run 2 simulation, Run 2 and Run 3 data}
+
+%----------------------------------------------------------------------
+\begin{frame}{Low Pile-up: Simulation and Collision Data}
+\begin{columns}[c]\begin{column}{.49\linewidth}\centering
+\img{.5}{datamc_run2_resolution.png}\\[.2em]\footnotesize Run 2 data and simulation
+\end{column}\begin{column}{.49\linewidth}\centering
+\img{.5}{datamc_run3_resolution.png}\\[.2em]\footnotesize Run 3 data and simulation
+\end{column}\end{columns}
+\par\vspace{.3em}\centering\footnotesize
+\begin{tabular}{lccc}\toprule
+ & Simulation & Run 2 data & Run 3 data\\\midrule
+PV-Finder $\svtx$ [mm] & $\sigMC$ & $\sigRunTwo$ & $\sigRunThree$\\\bottomrule
+\end{tabular}
+\par\vspace{.2em}
+Simulation: efficiency $\effMC\%$, $\noRefMCtruth$ fake vertices per event; AMVF $\svtx=\sigMCAMVF$ mm.
+\end{frame}
+
+\partdivider{V}{Timing and deployment}{Athena integration, CPU and GPU}
+
+%----------------------------------------------------------------------
+\begin{frame}{Athena: Timing on CPU and GPU}
+\begin{columns}[c]\begin{column}{.58\linewidth}\centering
+\img{.62}{athena_cpu_gpu_amvf.png}
+\end{column}\begin{column}{.39\linewidth}
+\small
+\textbf{Same events, tracks to vertices with track links}
+\par\vspace{.6em}
+Intel Xeon Silver 4216, NVIDIA T4.
+\par\vspace{.6em}\centering
+\begin{tabular}{lr}\toprule
+At $\mu=200$ & ms/event\\\midrule
+PV-Finder + GNN, GPU & $\athGPUms$\\
+PV-Finder + GNN, CPU & $\athCPUms$\\
+AMVF, CPU & $\sim\athAMVF$\\\bottomrule
+\end{tabular}
+\par\vspace{.6em}
+\textcolor{pennred}{GPU chain $\sim\athGPUfactor\times$ faster than AMVF.}
+\end{column}\end{columns}
+\context{Implemented in Athena by Trey Warner. Tools and validation in the backup.}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{A Smaller Network for CPU}
+\begin{columns}[t]\begin{column}{.52\linewidth}
+\small\textbf{Same data and loss, narrower U-Net}
+\par\vspace{.5em}\centering
+\begin{tabular}{lrrr}\toprule
+ & v6 & s5 & s8\\\midrule
+U-Net channels & 280 & 112 & 80\\
+CPU time [ms] & $\cpuVsixPad$ & $\cpuSFivePack$ & $\cpuSEightPack$\\
+Speed-up & $1$ & $\spdSFive\times$ & $\spdSEight\times$\\
+$\Delta$efficiency [pt] & & $\sFiveDEffA$ & $\sEightDEffA$\\
+$\Delta$fake / event & & $\sFiveDFake$ & $\sEightDFake$\\\bottomrule
+\end{tabular}
+\par\vspace{.5em}\raggedright\footnotesize
+ONNX Runtime, one thread, one PU200 event. Small models use packed inference: tracks only, no padding, identical output.
+\end{column}\begin{column}{.45\linewidth}
+\small\textbf{Projected Athena time at $\mu=200$, CPU}
+\par\vspace{.5em}\centering
+\begin{tabular}{lr}\toprule
+Chain & ms/event\\\midrule
+v6 + GNN & $\athCPUms$\\
+s5 + GNN & $\sim\projSFive$\\
+s8 + GNN & $\sim\projSEight$\\
+AMVF & $\sim\athAMVF$\\\bottomrule
+\end{tabular}
+\par\vspace{.6em}\raggedright\footnotesize
+Packed inference alone: $\spdVsixPack\times$ for v6 at no cost.
+\end{column}\end{columns}
+\takeaway{The small network brings the CPU chain to the speed of AMVF at $\mu=200$.}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Summary}
+\begin{itemize}\setlength\itemsep{.75em}
+\item At PU200, PV-Finder finds $\effPVF\%$ of truth vertices, $+\effDiff$ points over AMVF, with fewer fakes.
+\item Vertex--vertex resolution $\sigPVF$ mm against $\sigAMVF$ mm for AMVF.
+\item With GNN track association: $\cleanTruthGNN\%$ clean vertices per truth vertex, against $\cleanTruthAMVF\%$ for AMVF.
+\item Hard scatter: selected in $\hsSelGNN\%$ of events ($\hsSelAMVF\%$ AMVF); position resolution $\hsResGNN~\mu$m ($\hsResAMVF~\mu$m AMVF).
+\item Validated on Run 2 and Run 3 collision data.
+\item Running in Athena on CPU and GPU.
+\end{itemize}
+\par\vspace{.6em}
+\textbf{Next:} freeze the HL-LHC density model and GNN, and complete the paper draft.
+\end{frame}
+
+%----------------------------------------------------------------------
+\backupbegin
+
+\begin{frame}{Backup: Efficiency Difference versus Matching Window}
+\begin{columns}[c]\begin{column}{.6\linewidth}\centering
+\img{.68}{window_scan_eff_diff.png}
+\end{column}\begin{column}{.37\linewidth}
+\small PV-Finder minus AMVF efficiency, same events, for windows from $0.1$ to $1$ mm.
+\par\vspace{.8em}
+PV-Finder is ahead at every window.
+\end{column}\end{columns}
+\end{frame}
+
+\begin{frame}{Backup: Run 2 and HL-LHC Resolution}
+\begin{columns}[c]\begin{column}{.52\linewidth}\centering
+\img{.6}{sigma_summary.png}
+\end{column}\begin{column}{.45\linewidth}
+\small
+\textbf{AMVF / PV-Finder $\svtx$:} $\ratioRunTwo$ in Run 2 simulation, $\sigRatioHL$ at PU200.
+\par\vspace{.6em}
+Track-based vertex precision: $\idealPURunTwo~\mu$m (Run 2), $\idealPUHL~\mu$m (HL-LHC).
+\par\vspace{.6em}
+\textbf{Training target through the same peak finding:}
+\par\vspace{.3em}\centering\footnotesize
+\begin{tabular}{lrr}\toprule
+$\svtx$ [mm] & Run 2 & PU200\\\midrule
+Target & $\tgtSigRunTwo$ & $\tgtSigHL$\\
+PV-Finder & $\sigMCPVFr$ & $\sigPVF$\\
+PV-Finder / target & $\pvfOverTgtRunTwo$ & $\pvfOverTgtHL$\\\bottomrule
+\end{tabular}
+\par\vspace{.4em}\raggedright
+A $0.02$ mm grid moves the target from $\tgtSigHLwone$ to $\tgtSigHLfine$ mm.
+\end{column}\end{columns}
+\end{frame}
+
+\begin{frame}{Backup: AMVF Hard-Scatter Selection}
+\begin{columns}[c]\begin{column}{.55\linewidth}\centering
+\img{.62}{amvf_hs_selection_vs_mu.png}
+\end{column}\begin{column}{.42\linewidth}
+\small
+\textbf{AMVF stored primary vertex:} $\hsSelAMVF\%$ at PU200, as in the ITk performance paper.
+\par\vspace{.6em}
+Re-ranking the stored track lists by $\sum p_T^2$ gives $\hsSelAMVFrerank\%$: a few very high-$p_T$ tracks change the leading vertex.
+\end{column}\end{columns}
+\end{frame}
+
+\begin{frame}{Backup: Hard-Scatter Tracks and Clean HS versus Pile-up}
+\begin{columns}[c]\begin{column}{.49\linewidth}\centering
+\img{.62}{hs_clean_fraction_vs_mu.png}
+\end{column}\begin{column}{.49\linewidth}\centering
+\img{.62}{hs_track_fraction_vs_mu.png}
+\end{column}\end{columns}
+\end{frame}
+
+\begin{frame}{Backup: Low Pile-up Vertex Yield and the Reference}
+\begin{columns}[c]\begin{column}{.52\linewidth}\centering
+\img{.62}{datamc_run2_yield.png}
+\end{column}\begin{column}{.45\linewidth}
+\small
+\textbf{PV-Finder peaks without a reference vertex, per event}
+\par\vspace{.5em}\centering
+\begin{tabular}{lr}\toprule
+Simulation, truth reference & $\noRefMCtruth$\\
+Simulation, AMVF reference & $\noRefMCamvf$\\
+Run 2 data, AMVF reference & $\noRefRunTwo$\\
+Run 3 data, AMVF reference & $\noRefRunThree$\\\bottomrule
+\end{tabular}
+\par\vspace{.6em}\raggedright
+In data the reference is AMVF; simulation with the same reference reproduces the data.
+\end{column}\end{columns}
+\end{frame}
+
+\begin{frame}{Backup: Athena Integration}
+\relax
+{\centering\resizebox{.94\linewidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+\foreach \x/\id/\txt in {0/trk/{xAOD tracks},3.4/sel/{Track selection\\+ tensor building},6.8/net/{ONNX inference\\+ peak finding},10.2/vtx/{xAOD vertices}}{
+\node[pvbox,draw=mydarkblue!60,fill=mydarkblue!7,minimum width=2.9cm,minimum height=1.1cm] (\id) at (\x,0) {\txt};}
+\draw[pvflow] (trk)--(sel);\draw[pvflow] (sel)--(net);\draw[pvflow] (net)--(vtx);
+\node[pvbox,draw=pennred!70,fill=pennred!7,text width=5.0cm,minimum height=1.0cm] (gnn) at (6.8,-2.0) {GNN: build graph $\to$ score edges\\$\to$ select track links};
+\draw[pvflow] (trk.south) -- (0,-.95) -| ([xshift=-12mm]gnn.north);
+\draw[pvflow] (vtx.south) -- (10.2,-2.0) -- (gnn.east);
+\node[pvbox,draw=mygreen!60!black,fill=mygreen!7,text width=3.1cm,minimum height=1.0cm] (links) at (0,-2.0) {Vertices with\\linked tracks};
+\draw[pvflow,draw=mygreen!60!black] (gnn.west)--(links.east);
+\end{tikzpicture}}\par}
+\par\vspace{.8em}\small
+\texttt{InDetNNPriVxFinderTool} and \texttt{InDetGNNTrackVertexAssociationTool}, with the same \texttt{IVertexFinder} interface as AMVF. ONNX Runtime on CPU or CUDA, set by configuration. Athena output agrees with the Python implementation to floating-point precision.
+\par\vspace{.5em}{\scriptsize\color{black!55}\treysource.}
+\end{frame}
+
+\backupend
+\end{document}
