@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Held-out evaluation of the CPU small-model candidates (Nov 2026).
+#
+# Evaluates one checkpoint on both held-out flat-mu files (r16443, r16638) with
+# exactly the production methodology of outputs/08_05_2026_output/eval_v6_mu_window
+# (integral 0.30, min height 0.03, centroid half-width 3, 300 pairwise bins,
+# mu in [185, 215], first 25000 entries). Run production v6 through this same
+# script so every model is measured with the same code version, then compare
+# with scripts/compare_heldout_evals.py (paired, per event).
+#
+# Usage, from the repo root inside tmux:
+#   NAME=v6 CKPT=model_weights/hllhc_alleta_v6_mse_2ep_phase2_epoch_2_fullstate.pth \
+#     WIDTH=280 LATENT=4 DEVICE=1 bash scripts/eval_small_models_heldout.sh
+set -euo pipefail
+cd /data/home/matmauro/codice/PV-Finder
+source venv/bin/activate
+ulimit -v 33554432
+
+: "${NAME:?}" "${CKPT:?}" "${WIDTH:?}" "${LATENT:?}"
+DEVICE=${DEVICE:-1}
+HIDDEN=${HIDDEN:-128}
+OUT=${OUT:-outputs/11_09_2026_output/small_model_eval}
+ROOT_DIR=data/run4_all_etas/Run4_MC21_ITk_LatestJuly2026
+
+for tag in r16443 r16638; do
+    outdir="$OUT/$NAME/$tag"
+    mkdir -p "$outdir"
+    cmd=(python -u src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py
+        --root "$ROOT_DIR/ATLAS_PVFinderData_601229_e8481_s4494_${tag}_PU200.root"
+        --e2e-model "$CKPT" --e2e-type v2
+        --e2e-unet-channels "$WIDTH" --e2e-latent-channels "$LATENT"
+        --e2e-hidden "$HIDDEN" "$HIDDEN" "$HIDDEN" "$HIDDEN" "$HIDDEN"
+        --max-events 25000 --mu-min 185 --mu-max 215
+        --peak-threshold 0.01 --integral-threshold 0.30 --min-height 0.03
+        --centroid-halfwidth 3 --pairwise-bins 300
+        --output-dir "$outdir" --device "$DEVICE"
+        --dataset-name "HL-LHC PU200 held-out ($tag)")
+    { printf '%q ' "${cmd[@]}"; echo; echo "# git $(git rev-parse HEAD)"; echo "# eval-code diff sha1 $(git diff HEAD -- src/pv_finder/evaluation | sha1sum | cut -c1-12)"; } > "$outdir/INVOCATION.txt"
+    "${cmd[@]}" 2>&1 | tee "$outdir/eval.log" | grep -E "Eff=|Error|Traceback" || true
+done
