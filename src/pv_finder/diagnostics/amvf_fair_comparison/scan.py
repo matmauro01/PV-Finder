@@ -35,14 +35,15 @@ from pv_finder.diagnostics.amvf_fair_comparison.matching import (
 )
 from pv_finder.utils.pairwise_dz import DEFAULT_PAIRWISE_BINS, PAIRWISE_RANGE_MM
 
-# Pre-registered common window for the headline table.  Chosen before looking at
-# any result, on three grounds, none of which is either algorithm's fit:
-#   * round physical value, conventional for a distance-based vertex match;
-#   * >= 1.6x the fitted sigma_vtx-vtx of *both* algorithms (0.22 and 0.30 mm),
-#     so neither has its own core cut into;
-#   * about half the mean inter-vertex spacing at peak PU200 density
-#     (~1.0 vertex/mm), so accidental matches stay subdominant.
-HEADLINE_WINDOW_MM: float = 0.5
+# Labelled SENSITIVITY window tabulated next to the primary one.  It is not the
+# headline: the primary window is derived in run_fair_comparison.py as 3 x the
+# worse core position resolution (0.1694 mm, utils.constants.MATCH_WINDOW_MM).
+# 0.5 mm is kept only as a round-number check; at 0.5 mm the displaced-list
+# control already "finds" about 45 % of truth.  (Before 2026-11-09 this constant
+# was named HEADLINE_WINDOW_MM with a comment calling it the pre-registered
+# headline window, which it has not been since 2026-08-05.)
+SENSITIVITY_WINDOW_MM: float = 0.5
+HEADLINE_WINDOW_MM: float = SENSITIVITY_WINDOW_MM  # deprecated alias
 
 # Displacement for the second accidental-floor control, in mm.  Large compared
 # with any matching window, small compared with the ~45 mm beam-spot sigma, so
@@ -111,7 +112,8 @@ def per_event_counts(
     n = len(reco)
     out = {
         k: np.zeros(n, dtype=np.int64)
-        for k in ("n_truth", "n_reco", "matched", "primary", "clean", "merged",
+        for k in ("n_truth", "n_reco", "matched", "primary", "matched_incl_split",
+                  "primary_incl_split", "clean", "merged",
                   "split", "fake", "excused", "excused_ctrl",
                   "excused_ctrl_shift")
     }  # fmt: skip
@@ -121,6 +123,8 @@ def per_event_counts(
         out["n_reco"][i] = m.n_reco
         out["matched"][i] = m.n_truth_matched
         out["primary"][i] = m.n_truth_primary
+        out["matched_incl_split"][i] = m.n_truth_matched_incl_split
+        out["primary_incl_split"][i] = m.n_truth_primary_incl_split
         out["clean"][i] = m.reco_clean
         out["merged"][i] = m.reco_merged
         out["split"][i] = m.reco_split
@@ -154,6 +158,15 @@ def _metrics(c: dict[str, np.ndarray], idx: np.ndarray) -> dict[str, float]:
         # with the window, so the absolute efficiency must never be quoted
         # without saying which of the two it is.
         "eff_strict": float(c["primary"][idx].sum() / n_truth) if n_truth else 0.0,
+        # Split-inclusive variants: a truth inside the window of a split reco
+        # also counts as found.  Equal to eff / eff_strict by construction of
+        # the greedy matcher; kept separate so the identity is measured.
+        "eff_incl_split": float(c["matched_incl_split"][idx].sum() / n_truth)
+        if n_truth
+        else 0.0,
+        "eff_strict_incl_split": float(c["primary_incl_split"][idx].sum() / n_truth)
+        if n_truth
+        else 0.0,
         "fake_per_evt": float(fake / n_evt),
         "fake_corr_per_evt": float((fake - excused) / n_evt),
         "excused_per_evt": float(excused / n_evt),
@@ -173,7 +186,7 @@ def _metrics(c: dict[str, np.ndarray], idx: np.ndarray) -> dict[str, float]:
 
 
 METRIC_KEYS = (
-    "eff", "eff_strict", "fake_per_evt", "fake_corr_per_evt", "surplus_per_evt",
+    "eff", "eff_strict", "eff_incl_split", "eff_strict_incl_split", "fake_per_evt", "fake_corr_per_evt", "surplus_per_evt",
     "excused_per_evt", "excused_ctrl_per_evt", "excused_ctrl_shift_per_evt",
     "excused_net_per_evt", "reco_per_evt", "split_per_evt",
 )  # fmt: skip

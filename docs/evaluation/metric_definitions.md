@@ -146,6 +146,45 @@ not the efficiency at any pileup.** Quote `Eff` with its μ window; never quote
 > `total_truth_*` and `n_events` are all all-events too. Only `per_event`
 > lets you rebuild the μ-window summary — select on the stored per-event `mu`.
 
+### 3.3a Split-inclusive efficiency (added 2026-11-09)
+
+Reviewers asked that split vertices be included in the efficiency. **In this
+matcher "split" is a reco-side label**: an unassigned reco vertex whose window
+contains at least one truth vertex (step 4 of §3.1). There is no truth-side
+"split" label.
+
+**Counting rule.** A truth vertex also counts as found if it lies inside the
+window of at least one reco vertex labelled split; it is counted once however
+many reco vertices credit it. This gives two extra, clearly named numerators:
+
+| Name | Numerator | Code |
+|---|---|---|
+| `eff_incl_split` | truth clean or merged, or credited by a split reco | `truth_found_incl_split` (`efficiency_res_optimized_atlas.py`), `MatchCounts.n_truth_matched_incl_split` |
+| `eff_strict_incl_split` | truth clean (one-to-one), or credited by a split reco | same, `n_truth_primary_incl_split` |
+
+**Both equal the existing numerators exactly, by construction.** After the
+closest-first pass no unassigned reco and unassigned truth can lie within each
+other's window, because that pair would have been assigned. So every truth
+inside a split vertex's window is already a one-to-one primary. Crediting
+split vertices adds nothing. A corollary: the merged-credit numerator equals
+"truth with at least one reco within w" (the replay rule the note's checks
+use). The identity is *measured*, not assumed: the counts are computed
+independently and `tests/test_amvf_fair_matching.py` checks them on random,
+grid-snapped (tied) and per-reco-window events.
+
+Measured on the note's 1,920 PU200 events at 0.1694 mm (2,000-replica paired
+bootstrap, `outputs/11_09_2026_output/split_inclusive_efficiency/`):
+
+| | PV-Finder | AMVF | difference |
+|---|---|---|---|
+| eff = eff_incl_split | 83.16 ± 0.08 % | 79.80 ± 0.09 % | +3.36 ± 0.06 |
+| eff_strict = eff_strict_incl_split | 73.43 ± 0.09 % | 70.07 ± 0.09 % | +3.37 ± 0.06 |
+| truth vertices with a split reco in window | 1,021 (0.48 %) | 351 (0.16 %) | |
+
+`run_eval_pvf_run3.py` now prints `Eff incl. split` and stores
+`overall_efficiency_incl_split` and per-event `t_found_incl_split`.
+Split vertices remain *costs* on the reco side (fake + split = surplus).
+
 ### 3.4 σ_vtx-vtx
 
 Peaks are re-found with `--integral-threshold-res` (default 0.5, independent of
@@ -266,7 +305,24 @@ the assigning.
 
 ## 5. The matching window, in detail
 
-### 5.1 The window is derived from our own resolution
+### 5.0 Current rule (PI decision, November 2026)
+
+- **All non-hard-scatter vertex studies use a fixed 0.1694 mm window**, the
+  same for every algorithm: `pv_finder.utils.constants.MATCH_WINDOW_MM`.
+  It is 3 × the larger 68th-percentile core position residual of the two
+  algorithms at PU200 (PV-Finder 55.05 µm, AMVF 56.45 µm; optimal one-to-one
+  assignment within 1 mm), 3 × 0.05645 = 0.1694 mm.
+- **Hard-scatter studies use 0.1 mm** (`HS_MATCH_WINDOW_MM`), the ITk paper
+  (arXiv:2412.15090) §5.5 criterion.
+- `run_eval_pvf_run3.py` and `run_eval_pvf.py` default to
+  `--match-window-mm 0.1694` since 2026-11-09 and record `match_window_mm` in
+  the pkl. `--match-window-mm 0` restores the legacy behaviour described in
+  §5.1 (reuse PV-Finder's fitted σ_vtx-vtx); outputs before 2026-11-09 were all
+  produced that way.
+- Justification and the list of remaining inconsistencies:
+  [matching_window_audit_2026-11-09.md](matching_window_audit_2026-11-09.md).
+
+### 5.1 Legacy: the window was derived from our own resolution
 
 ```
 sigma, serr, popt = fit_dz(dz_arr)          # run_eval_pvf_run3.py:468
@@ -563,7 +619,7 @@ list with empty vertices dropped.
 
 ## 8. Every trap
 
-### 8.1 The matching window is our own σ, applied to AMVF too
+### 8.1 The matching window was our own σ, applied to AMVF too (legacy; default fixed 2026-11-09, §5.0)
 
 §5.1. The window is `sigma_vtx_vtx / 0.04` bins
 (`run_eval_pvf_run3.py:492`) and is passed to `compare_res_reco` for

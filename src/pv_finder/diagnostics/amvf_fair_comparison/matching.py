@@ -8,7 +8,15 @@ computes and the caller here never uses, and returns the *truth-side*
 efficiency, which the production eval computes for PV-Finder and silently
 discards for AMVF.
 
-``tests/test_amvf_fair_matching.py`` asserts the two agree count-for-count.  Do
+``tests/test_amvf_fair_matching.py`` asserts the two agree count-for-count.
+
+Split vertices and the efficiency.  "Split" here is a reco-side label: an
+unassigned reco vertex whose window contains at least one truth vertex.  After
+the closest-first pass no unassigned reco and unassigned truth can lie within
+each other's window (that pair would have been assigned), so every truth inside
+a split vertex's window is already a one-to-one primary.  Crediting split
+vertices in the efficiency therefore adds nothing to either numerator; the
+``*_incl_split`` fields measure this on every event instead of assuming it.  Do
 not take a number from this module without that test passing: the whole point of
 the study is that the comparison is symmetric, which is worth nothing if the
 matcher itself has drifted from the reference.
@@ -45,6 +53,12 @@ class MatchCounts(NamedTuple):
     n_reco: int
     n_truth_matched: int
     n_truth_primary: int
+    # Split-inclusive numerators (the reviewers' request): a truth vertex also
+    # counts as found if it lies inside the window of a reco labelled "split".
+    # Computed independently below; equal to n_truth_matched / n_truth_primary
+    # by construction of the greedy pass (see the module docstring).
+    n_truth_matched_incl_split: int
+    n_truth_primary_incl_split: int
     reco_clean: int
     reco_merged: int
     reco_split: int
@@ -81,6 +95,8 @@ def match_vertices(
             n_reco=n_reco,
             n_truth_matched=0,
             n_truth_primary=0,
+            n_truth_matched_incl_split=0,
+            n_truth_primary_incl_split=0,
             reco_clean=0,
             reco_merged=0,
             reco_split=0,
@@ -116,14 +132,17 @@ def match_vertices(
 
     # Pass 2: classify reco.  Order matters — a reco claims its unmatched
     # neighbours, which removes them from the pool for later reco.
+    primary_mask = truth_to_reco >= 0
     reco_clean = reco_merged = reco_split = reco_fake = 0
     fake_idx: list[int] = []
+    split_credit = np.zeros(n_truth, dtype=bool)
     for ri in range(n_reco):
         if reco_to_truth[ri] == -1:
             # Unassigned: its truth neighbours were all claimed by a closer reco
             # ("split"), or it had none at all ("fake").
             if neighbors[ri]:
                 reco_split += 1
+                split_credit[neighbors[ri]] = True
             else:
                 reco_fake += 1
                 fake_idx.append(ri)
@@ -136,12 +155,15 @@ def match_vertices(
         else:
             reco_clean += 1
 
-    n_truth_matched = int(np.count_nonzero(truth_to_reco >= 0))
+    matched_mask = truth_to_reco >= 0
+    n_truth_matched = int(np.count_nonzero(matched_mask))
     return MatchCounts(
         n_truth=n_truth,
         n_reco=n_reco,
         n_truth_matched=n_truth_matched,
         n_truth_primary=n_truth_primary,
+        n_truth_matched_incl_split=int(np.count_nonzero(matched_mask | split_credit)),
+        n_truth_primary_incl_split=int(np.count_nonzero(primary_mask | split_credit)),
         reco_clean=reco_clean,
         reco_merged=reco_merged,
         reco_split=reco_split,

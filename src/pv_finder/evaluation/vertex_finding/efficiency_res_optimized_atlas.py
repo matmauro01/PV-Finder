@@ -1,5 +1,7 @@
 """Peak finding, NMS, and vertex matching for PV-Finder evaluation."""
 
+from __future__ import annotations
+
 from collections import namedtuple
 
 import numpy as np
@@ -221,7 +223,9 @@ def suppress_neighbor_peaks(
 #####################################################################################
 
 
-def compare_res_reco(target_PVs_loc, pred_PVs_loc, reco_res, debug):
+def compare_res_reco(
+    target_PVs_loc, pred_PVs_loc, reco_res, debug, *, return_reco_cls: bool = False
+):
     """Classify reco and truth vertices into clean/merged/split/fake/missed.
 
     Uses greedy closest-first matching: all (reco, truth) pairs within the
@@ -240,10 +244,14 @@ def compare_res_reco(target_PVs_loc, pred_PVs_loc, reco_res, debug):
         Matching window per reco vertex (bin units), same length as pred_PVs_loc.
     debug : int
         Print debug output if > 0.
+    return_reco_cls : bool, keyword-only
+        If True, also return the per-reco label array ("clean", "merged",
+        "split", "fake") as a fourth element. Default False keeps the
+        historical 3-tuple for every existing caller.
 
     Returns
     -------
-    (PerformanceInfo, truth_classification, localdensity)
+    (PerformanceInfo, truth_classification, localdensity[, reco_classification])
     """
     n_truth = len(target_PVs_loc)
     n_reco = len(pred_PVs_loc)
@@ -331,8 +339,59 @@ def compare_res_reco(target_PVs_loc, pred_PVs_loc, reco_res, debug):
     reco_clean = int(np.sum(reco_cls == "clean"))
     reco_fake = int(np.sum(reco_cls == "fake"))
 
-    return (
-        PerformanceInfo(reco_merged, reco_split, reco_clean, reco_fake),
-        truth_cls,
-        localdensity,
-    )
+    perf = PerformanceInfo(reco_merged, reco_split, reco_clean, reco_fake)
+    if return_reco_cls:
+        return perf, truth_cls, localdensity, reco_cls
+    return perf, truth_cls, localdensity
+
+
+def truth_found_incl_split(
+    target_PVs_loc: np.ndarray,
+    pred_PVs_loc: np.ndarray,
+    reco_res: np.ndarray,
+    truth_cls: np.ndarray,
+    reco_cls: np.ndarray,
+) -> dict[str, int]:
+    """Truth-side counts for the split-inclusive efficiency definitions.
+
+    Counting rule (explicit, because "split" is a *reco-side* label here): a
+    truth vertex is *credited by a split vertex* if it lies inside the matching
+    window of at least one reco vertex labelled "split" by
+    :func:`compare_res_reco`.  Each truth vertex is counted at most once, however
+    many reco vertices credit it.  Two numerators follow:
+
+    * ``found_incl_split``: truth labelled clean or merged, or credited by a
+      split vertex (merged-credit efficiency + split credit);
+    * ``primary_incl_split``: truth labelled clean (its own one-to-one reco), or
+      credited by a split vertex (one-to-one efficiency + split credit).
+
+    In this matcher a split reco is, by construction, one whose window contains
+    only truth vertices already taken in the one-to-one pass: had it contained an
+    untaken truth, the closest-first pass would have paired them.  Both
+    numerators therefore equal the existing ones (``found_split_only == 0`` and
+    ``primary_split_only == 0``).  They are computed here independently, not
+    aliased, so that this property is measured on every event rather than
+    assumed; ``tests/test_amvf_fair_matching.py`` checks it.
+    """
+    # Same dtype and the same ``<=`` comparison as compare_res_reco, so that a
+    # pair on the window edge is inside here exactly when it was inside there.
+    target = np.asarray(target_PVs_loc)
+    pred = np.asarray(pred_PVs_loc)
+    res = np.asarray(reco_res)
+    split_idx = np.flatnonzero(np.asarray(reco_cls) == "split")
+    credited = np.zeros(len(target), dtype=bool)
+    for ri in split_idx:
+        credited |= np.abs(target - pred[ri]) <= res[ri]
+    truth_cls = np.asarray(truth_cls)
+    found = (truth_cls == "clean") | (truth_cls == "merged")
+    primary = truth_cls == "clean"
+    return {
+        "n_truth": int(len(target)),
+        "found": int(found.sum()),
+        "primary": int(primary.sum()),
+        "split_credited": int(credited.sum()),
+        "found_incl_split": int((found | credited).sum()),
+        "primary_incl_split": int((primary | credited).sum()),
+        "found_split_only": int((credited & ~found).sum()),
+        "primary_split_only": int((credited & ~primary).sum()),
+    }

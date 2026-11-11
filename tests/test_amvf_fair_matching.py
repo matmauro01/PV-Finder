@@ -20,7 +20,10 @@ sys.path.insert(
     0, str(Path(__file__).parents[1] / "src/pv_finder/evaluation/vertex_finding")
 )
 
-from efficiency_res_optimized_atlas import compare_res_reco  # noqa: E402
+from efficiency_res_optimized_atlas import (  # noqa: E402
+    compare_res_reco,
+    truth_found_incl_split,
+)
 
 from pv_finder.diagnostics.amvf_fair_comparison.matching import (  # noqa: E402
     excused_by_low_ntrk,
@@ -112,3 +115,91 @@ def test_window_monotonicity() -> None:
     truth, reco = _random_event(rng, 0.3)
     fakes = [match_vertices(truth, reco, w).reco_fake for w in (0.1, 0.3, 0.5, 1.0)]
     assert fakes == sorted(fakes, reverse=True)
+
+
+# --- Split-inclusive efficiency (reviewer request, 2026-11-09) -------------
+#
+# "Split" is a reco-side label: an unassigned reco with >= 1 truth in its
+# window.  The counting rule under test: a truth vertex inside the window of a
+# split reco also counts as found, at most once.  The claim the note relies on
+# is that this adds nothing to either numerator; these tests measure it rather
+# than assume it, including at distance ties, the window edge and with
+# per-reco windows of different sizes.
+
+
+def test_split_credit_hand_example() -> None:
+    """One truth, two reco on top of it: one clean, one split; no extra credit."""
+    truth = np.array([0.0, 5.0], dtype=np.float64)
+    reco = np.array([0.02, -0.05, 9.0], dtype=np.float64)
+    perf, tcls, _, rcls = compare_res_reco(
+        truth, reco, np.full(3, 0.1), 0, return_reco_cls=True
+    )
+    assert list(rcls) == ["clean", "split", "fake"]
+    assert list(tcls) == ["clean", "missed"]
+    c = truth_found_incl_split(truth, reco, np.full(3, 0.1), tcls, rcls)
+    assert c["split_credited"] == 1  # truth 0 sits in the split window...
+    assert c["found_incl_split"] == c["found"] == 1  # ...but was already found
+    assert c["primary_incl_split"] == c["primary"] == 1
+    assert c["found_split_only"] == c["primary_split_only"] == 0
+    got = match_vertices(truth, reco, 0.1)
+    assert got.n_truth_matched_incl_split == got.n_truth_matched == 1
+    assert got.n_truth_primary_incl_split == got.n_truth_primary == 1
+
+
+def test_return_reco_cls_is_opt_in() -> None:
+    """Existing callers keep the 3-tuple; the flag adds the reco labels only."""
+    truth = np.array([0.0], dtype=np.float32)
+    reco = np.array([0.01], dtype=np.float32)
+    assert len(compare_res_reco(truth, reco, np.full(1, 0.1), 0)) == 3
+    out = compare_res_reco(truth, reco, np.full(1, 0.1), 0, return_reco_cls=True)
+    assert len(out) == 4 and list(out[3]) == ["clean"]
+
+
+@pytest.mark.parametrize("window", [0.10, 0.1694, 0.30, 0.50, 1.00])
+def test_split_credit_adds_nothing(window: float) -> None:
+    """Split credit never adds a truth vertex, on realistic and on gridded events."""
+    rng = np.random.default_rng(20261109)
+    n_split_seen = n_credited_seen = 0
+    for k in range(150):
+        truth, reco = _random_event(rng, window)
+        if k % 3 == 0:
+            # Snap to the 0.04 mm output grid to force exact distance ties.
+            truth = (np.round(truth / 0.04) * 0.04).astype(np.float32)
+            reco = (np.round(reco / 0.04) * 0.04).astype(np.float32)
+        res = np.full(len(reco), window, dtype=np.float32)
+        perf, tcls, _, rcls = compare_res_reco(
+            truth, reco, res, 0, return_reco_cls=True
+        )
+        c = truth_found_incl_split(truth, reco, res, tcls, rcls)
+        assert c["found_split_only"] == 0
+        assert c["primary_split_only"] == 0
+        assert c["found_incl_split"] == int(np.sum(tcls != "missed"))
+        assert c["primary_incl_split"] == int(np.sum(tcls == "clean"))
+        got = match_vertices(truth, reco, window)
+        assert got.n_truth_matched_incl_split == c["found_incl_split"]
+        assert got.n_truth_primary_incl_split == c["primary_incl_split"]
+        n_split_seen += perf.reco_split
+        n_credited_seen += c["split_credited"]
+    # Guard against a vacuous pass: splits must occur and must cover truth.
+    assert n_split_seen > 0 and n_credited_seen > 0
+
+
+def test_split_credit_with_per_reco_windows() -> None:
+    """The identity also holds when every reco has its own window size."""
+    rng = np.random.default_rng(3)
+    for _ in range(100):
+        truth, reco = _random_event(rng, 0.3)
+        res = rng.uniform(0.05, 0.6, size=len(reco)).astype(np.float32)
+        _, tcls, _, rcls = compare_res_reco(truth, reco, res, 0, return_reco_cls=True)
+        c = truth_found_incl_split(truth, reco, res, tcls, rcls)
+        assert c["found_split_only"] == 0 and c["primary_split_only"] == 0
+
+
+def test_found_equals_any_reco_within_window() -> None:
+    """Merged-credit found == 'some reco within w', the replay rule used in the note."""
+    rng = np.random.default_rng(11)
+    for _ in range(100):
+        truth, reco = _random_event(rng, 0.1694)
+        got = match_vertices(truth, reco, 0.1694)
+        any_within = (np.abs(truth[:, None] - reco[None, :]) <= 0.1694).any(axis=1)
+        assert got.n_truth_matched == int(any_within.sum())

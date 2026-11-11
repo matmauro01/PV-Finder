@@ -30,6 +30,7 @@ from pv_finder.models.autoencoder_models import (  # noqa: E402
     trackstoHists_UNet_1000,
 )
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2  # noqa: E402
+from pv_finder.utils.constants import MATCH_WINDOW_MM  # noqa: E402
 from pv_finder.utils.pairwise_dz import (  # noqa: E402
     DEFAULT_PAIRWISE_BINS,
     PAIRWISE_RANGE_MM,
@@ -45,6 +46,7 @@ from efficiency_res_optimized_atlas import (  # noqa: E402
     compare_res_reco,
     pv_locations_updated_res,
     suppress_neighbor_peaks,
+    truth_found_incl_split,
 )
 from plots_pvf import (  # noqa: E402
     plot_category_counts_both,
@@ -489,9 +491,15 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
 
     # --- Performance metrics ---
-    sig_bins = sigma / BIN_WIDTH
+    # Fixed common window (0.1694 mm, utils.constants) unless --match-window-mm
+    # <= 0 asks for the legacy behaviour of reusing PV-Finder's fitted sigma.
+    win_mm = args.match_window_mm if args.match_window_mm > 0 else sigma
+    win_src = "fixed" if args.match_window_mm > 0 else "fitted PVF sigma (legacy)"
+    sig_bins = win_mm / BIN_WIDTH
     tsrc = "MC truth (TruthVertex, nTracks>=2)" if has_truth else "AMVF (nTracks>=2)"
-    print(f"\n--- Performance (window={sigma:.4f} mm={sig_bins:.1f} bins) ---")
+    print(f"\n--- Performance (window={win_mm:.4f} mm={sig_bins:.1f} bins, "
+          f"{win_src}) ---")  # fmt: skip
+    tot_found_split = 0  # truth found under the split-inclusive definition
     print(f"  Truth source: {tsrc}")
     tot_c = tot_m = tot_s = tot_f = tot_tc = tot_tm = tot_tmiss = tot_truth = 0
     per_event: list[dict] = []
@@ -523,9 +531,12 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
                 event.event_idx, nt, 0, 0, 0, 0, 0, 0.0, 0, 0, nt,
                 mu, event.beam_z, n_amvf0, ac0, am0, as0, af0))  # fmt: skip
             continue
-        res, tc_arr, _ = compare_res_reco(
-            t_bins, p_bins, sig_bins * np.ones(np_), debug=0
+        res, tc_arr, _, rc_arr = compare_res_reco(
+            t_bins, p_bins, sig_bins * np.ones(np_), debug=0, return_reco_cls=True
         )
+        inc = truth_found_incl_split(t_bins, p_bins, sig_bins * np.ones(np_),
+                                     tc_arr, rc_arr)  # fmt: skip
+        tot_found_split += inc["found_incl_split"]
         ntc = int(np.sum(tc_arr == "clean"))
         ntm = int(np.sum(tc_arr == "merged"))
         ntmiss = int(np.sum(tc_arr == "missed"))
@@ -546,16 +557,21 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             amvf_bins = mm_to_bins(event.amvf_z)
             n_amvf = len(amvf_bins)
             ac = am = as_ = af = 0
+            amvf_found = 0
             if n_amvf > 0:
-                res_a, _, _ = compare_res_reco(
+                res_a, tc_a, _ = compare_res_reco(
                     t_bins, amvf_bins, sig_bins * np.ones(n_amvf), debug=0
                 )
                 ac, am, as_, af = (res_a.reco_clean, res_a.reco_merged,
                                    res_a.reco_split, res_a.reco_fake)  # fmt: skip
+                amvf_found = int(np.sum(tc_a != "missed"))
         per_event.append(_evt_rec(
             event.event_idx, nt, np_, res.reco_clean, res.reco_merged,
             res.reco_split, res.reco_fake, eff, ntc, ntm, ntmiss,
             mu, event.beam_z, n_amvf, ac, am, as_, af))  # fmt: skip
+        per_event[-1].update(t_found_incl_split=inc["found_incl_split"],
+                             t_primary_incl_split=inc["primary_incl_split"],
+                             amvf_t_found=amvf_found if has_truth else None)  # fmt: skip
         if i < 5 or i % 50 == 0:
             print(f"  evt {i:3d}: t={nt} p={np_} C={res.reco_clean} "
                   f"M={res.reco_merged} S={res.reco_split} "
@@ -589,6 +605,8 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
             ("  merged", am, ant), ("  split", as_, ant), ("  fake", af, ant)]:
         pct = f"{100*cnt/ref:5.1f}%" if ref and ref > 0 else "  --"
         print(f"  {lbl:<24} {cnt:>7.2f}  {pct}")
+    fsp = sum(r.get("t_found_incl_split", 0) for r in sevts)
+    print(f"  Eff incl. split={fsp/ft if ft else 0.0:.4f} ({fsp}/{ft})")
     print(f"  Eff={feff:.4f} ({ftc+ftm}/{ft})  FP={ffp:.4f}/evt  "
           f"sigma={sigma:.4f} mm  (overall eff={overall_eff:.4f} "
           f"{tot_tc+tot_tm}/{tot_truth})")
@@ -601,6 +619,8 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
                 ("  merged", aam, ant), ("  split", aas, ant), ("  fake", aaf, ant)]:
             pct = f"{100*cnt/ref:5.1f}%" if ref and ref > 0 else "  --"
             print(f"  {lbl:<24} {cnt:>7.2f}  {pct}")
+        afd = sum(r.get("amvf_t_found") or 0 for r in sevts)
+        print(f"  AMVF Eff={afd/ft if ft else 0.0:.4f} ({afd}/{ft}), same window")
     # fmt: on
 
     print("\n--- Generating Plots ---")
@@ -620,6 +640,8 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     results = dict(
         mode="e2e" if has_e2e else "pipeline", sigma_vtx_vtx_mm=sigma,
         overall_efficiency=overall_eff, fp_rate_per_evt=fp_rate, has_truth=has_truth,
+        match_window_mm=win_mm, match_window_source=win_src,
+        overall_efficiency_incl_split=tot_found_split / tot_truth if tot_truth else 0.0,
         n_events=nsc, total_truth_pvs=tot_truth,
         total_clean=tot_c, total_merged=tot_m, total_split=tot_s, total_fake=tot_f,
         total_truth_clean=tot_tc, total_truth_merged=tot_tm, total_truth_missed=tot_tmiss,
@@ -680,6 +702,11 @@ def _cli() -> argparse.Namespace:
     a.add_argument("--smooth-sigma", type=float, default=0.0)
     a.add_argument("--nms-min-sep", type=float, default=0.0)
     a.add_argument("--nms-max-ratio", type=float, default=0.3)
+    a.add_argument("--match-window-mm", type=float, default=MATCH_WINDOW_MM,
+                   dest="match_window_mm",
+                   help="Fixed truth-matching window (mm) for PV-Finder and AMVF. "
+                        "<= 0 reuses PV-Finder's fitted sigma_vtx-vtx (legacy, "
+                        "unfair to AMVF; see docs/evaluation/metric_definitions.md)")  # fmt: skip
     a.add_argument("--mu-min", type=int, default=55)
     a.add_argument("--mu-max", type=int, default=65)
     a.add_argument("--peak-threshold", type=float, default=THRESHOLD)

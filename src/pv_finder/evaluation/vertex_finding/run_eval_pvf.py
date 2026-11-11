@@ -44,6 +44,7 @@ from efficiency_res_optimized_atlas import (  # noqa: E402
     compare_res_reco,
     pv_locations_updated_res,
 )
+from gbt_peak_filter import filter_peaks, load_gbt_model  # noqa: E402
 from plots_pvf import (  # noqa: E402
     plot_category_counts,
     plot_performance,
@@ -51,6 +52,7 @@ from plots_pvf import (  # noqa: E402
     plot_resolution,
     plot_stats,
 )
+from run_eval_pvf_cli import build_parser  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants — must match training
@@ -198,6 +200,11 @@ def main(args: argparse.Namespace) -> None:
     if not args.e2e_model and not args.k2h_model:
         raise ValueError("Provide --k2h-model or --e2e-model.")
 
+    gbt_model = None
+    if args.gbt_filter_model:
+        gbt_model = load_gbt_model(args.gbt_filter_model)
+        print(f"\n  Loaded GBT filter; keeping peaks with p >= {args.gbt_threshold}")
+
     print("\n--- Loading Models ---")
     k2h = e2e = None
     if args.e2e_model:
@@ -251,12 +258,24 @@ def main(args: argparse.Namespace) -> None:
                 ph = run_e2e(h5f["tracks"][s0:s1], e2e, device)
             else:
                 ph = run_k2h(h5f["kde_split"][s0:s1, 0, :], k2h, device)
-            p_pvs = pv_locations_updated_res(
-                ph, THRESHOLD, args.integral_threshold, MIN_WIDTH
-            )[0]
-            p_pvs_r = pv_locations_updated_res(
-                ph, THRESHOLD, INTEGRAL_THRESHOLD_RES, MIN_WIDTH
-            )[0]
+            p_pvs_res = pv_locations_updated_res(
+                ph, args.threshold, args.integral_threshold, MIN_WIDTH
+            )
+            p_pvs = p_pvs_res[0]
+            p_hts = p_pvs_res[1]
+
+            p_pvs_r_res = pv_locations_updated_res(
+                ph, args.threshold, INTEGRAL_THRESHOLD_RES, MIN_WIDTH
+            )
+            p_pvs_r = p_pvs_r_res[0]
+            p_hts_r = p_pvs_r_res[1]
+
+            if gbt_model is not None:
+                p_pvs = filter_peaks(p_pvs, p_hts, ph, gbt_model, args.gbt_threshold)
+                p_pvs_r = filter_peaks(
+                    p_pvs_r, p_hts_r, ph, gbt_model, args.gbt_threshold
+                )
+
             p_pvs_r_sh = p_pvs_r.copy()
             np.random.shuffle(p_pvs_r_sh)
             for ii in range(len(p_pvs_r_sh)):
@@ -303,13 +322,17 @@ def main(args: argparse.Namespace) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
     ds = args.dataset_name or "MC"
     plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
+                    n_bins=60,
         title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
     print(f"  Saved: {outdir / 'resolution_plot.png'}")
 
     # Performance metrics
-    sig_bins = sigma / BIN_WIDTH
+    # Fixed common window (utils.constants.MATCH_WINDOW_MM) unless
+    # --match-window-mm <= 0 requests the legacy reuse of the fitted sigma.
+    win_mm = args.match_window_mm if args.match_window_mm > 0 else sigma
+    sig_bins = win_mm / BIN_WIDTH
     src = "ROOT (nTracks>=2)" if root_z is not None else "h5 pv (no ntrks filter)"
-    print(f"\n--- Performance Metrics (window={sigma:.4f} mm={sig_bins:.1f} bins) ---")
+    print(f"\n--- Performance Metrics (window={win_mm:.4f} mm={sig_bins:.1f} bins) ---")
     print(f"  Truth source: {src}")
     tot_c = tot_m = tot_s = tot_f = tot_tc = tot_tm = tot_tmiss = tot_truth = 0
     per_event = []
@@ -331,7 +354,7 @@ def main(args: argparse.Namespace) -> None:
             root_rv_z = np.asarray(root_rv_z_all[ridx], dtype=np.float64)
             amvf_bins = mm_to_bins(root_rv_z[rv_n >= 2])
         else:
-            t_pvs, p_cmp, win, mu = h5t, p_pvs, sigma, None
+            t_pvs, p_cmp, win, mu = h5t, p_pvs, win_mm, None
 
         nt = len(t_pvs)
         if nt == 0:
@@ -442,6 +465,7 @@ def main(args: argparse.Namespace) -> None:
     results = dict(
         mode="e2e" if args.e2e_model else "stage2",
         sigma_vtx_vtx_mm=sigma, overall_efficiency=overall_eff, fp_rate_per_evt=fp_rate,
+        match_window_mm=win_mm,
         n_events=nsc, total_truth_pvs=tot_truth,
         total_clean=tot_c, total_merged=tot_m, total_split=tot_s, total_fake=tot_f,
         total_truth_clean=tot_tc, total_truth_merged=tot_tm, total_truth_missed=tot_tmiss,
@@ -458,32 +482,7 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="PV-Finder MC evaluation",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    parser = build_parser(
+        _DEFAULT_H5, _DEFAULT_ROOT, _DEFAULT_QIBIN, INTEGRAL_THRESHOLD
     )
-    parser.add_argument(
-        "--h5",
-        default=_DEFAULT_H5,
-        help="HDF5 file path",
-    )
-    parser.add_argument("--k2h-model", default=None, dest="k2h_model")
-    parser.add_argument("--k2h-type", default="v1", choices=["v1", "v2"],
-                        dest="k2h_type", help="K2H model class (v1=UNet_1000, v2=UNet_1000_v2)")  # fmt: skip
-    parser.add_argument("--e2e-model", default=None, dest="e2e_model")
-    parser.add_argument("--e2e-type", default="v1", choices=["v1", "v2"],
-                        dest="e2e_type", help="E2E model class (v1=trackstoHists_UNet_1000, v2=TracksToHist_v2)")  # fmt: skip
-    parser.add_argument("--root-truth", default=_DEFAULT_ROOT, dest="root_truth",
-        help=f"ROOT truth for nTracks>=2 filter + mu + AMVF reco count. "
-             f"Default: {_DEFAULT_ROOT}. Pass empty string to disable. "
-             f"qibin map auto-loaded from {_DEFAULT_QIBIN}.")  # fmt: skip
-    parser.add_argument("--indices", default="configs/test_main_indices_2550evt.p",
-                        help="Test event indices pickle")  # fmt: skip
-    parser.add_argument("--output-dir", default="outputs/eval_pvf", dest="output_dir")
-    parser.add_argument("--device", type=int, default=0, help="CUDA device (-1=CPU)")
-    parser.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD,
-                        dest="integral_threshold",
-                        help=f"Peak-finder integral threshold (default {INTEGRAL_THRESHOLD})")  # fmt: skip
-    parser.add_argument("--title", default="", help="Plot title (used for all plots)")
-    parser.add_argument("--dataset-name", default="", dest="dataset_name")
     main(parser.parse_args())

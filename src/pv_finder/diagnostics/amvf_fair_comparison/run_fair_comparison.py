@@ -30,7 +30,7 @@ from pv_finder.diagnostics.amvf_fair_comparison.cache import (  # noqa: E402
     load_cache,
 )
 from pv_finder.diagnostics.amvf_fair_comparison.scan import (  # noqa: E402
-    HEADLINE_WINDOW_MM,
+    SENSITIVITY_WINDOW_MM,
     accidental_efficiency,
     core_position_resolution,
     crossings,
@@ -342,7 +342,7 @@ def _cli() -> argparse.Namespace:
                         "resolution of the two algorithms")  # fmt: skip
     a.add_argument("--core-pct", type=float, default=68.0)
     a.add_argument("--sensitivity-windows", type=float, nargs="*",
-                   default=[HEADLINE_WINDOW_MM],
+                   default=[SENSITIVITY_WINDOW_MM],
                    help="extra windows to tabulate as labelled sensitivity "
                         "points (0.5 mm is the round-number choice)")  # fmt: skip
     a.add_argument("--n-boot", type=int, default=400, help="replicas per scan point")
