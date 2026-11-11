@@ -87,3 +87,19 @@ For the five or six HL-LHC datasets, give:
 
 ## Answers to the paper-draft questions
 Tracked in `paper_questions_2026-11-11.md`.
+
+## Added 11 November 2026 (later)
+- **Note edits (lean, mostly finished work):**
+  1. 0.17 mm window with justification plot; HS also given at 0.1 mm.
+  2. Split-inclusive efficiency: one sentence.
+  3. HS longitudinal resolution from the 3D adaptive fit: one paragraph and one figure.
+  4. Timing claim restricted to GPU.
+  5. MC on the Fig. 6.2 panels, and the AMVF-reference bias.
+  6. z0 baselines in Fig. 7.2.
+  7. AMVF HS selection 92.9% plus HS numbers.
+  8. AMVF-weights paragraph.
+  Edits are in red `[MM: ...]` on a GitLab branch with a merge request.
+- **Small model:** best performance within a 0.2-point drop (0.5 at most) that is faster than AMVF on CPU at mu = 200, full chain including the GNN. Distillation from v6 if needed.
+- **Data access:** Trey has read access to `data/`, including the Run 3 link targets.
+- **EB talk, Friday 13 November 2026:** 20-30 min, up to date, no history. Folder `presentations/mattia/11_13_2026_EB/`. All slide numbers come from `numbers.tex`, regenerated after the recompute and freeze.
+- **Timing:** GNN v2 (1-3 days) will not be ready for Friday. The EB talk uses the current full-mu GNN, labelled as such.
