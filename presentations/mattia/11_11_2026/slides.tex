@@ -67,15 +67,15 @@
 \begin{frame}{3. Hard-scatter studies vs pile-up}
 \begin{columns}[T]\begin{column}{.42\linewidth}
 \req{HS reconstruction, clean HS, HS tracks, HS selection vs $\mu$.}
-\did{\item Four HS metrics in 10 $\mu$ bins, 25\,000 events.}
+\did{\item Four HS metrics in 10 $\mu$ bins, 25\,000 events; ATLAS definitions, same code for both.}
 \res{\item HS reco: $99.9\%$ / $99.8\%$.
 \item Clean HS: GNN $96.4\%$, AMVF $92.5\%$.
-\item HS tracks on HS vertex: $74.9\%$ / $74.1\%$.
-\item Purity: $91.3\%$ / $88.4\%$.
+\item HS tracks on HS vertex: $74.9\%$ / $74.1\%$ (purity $91.3\%$ / $88.4\%$).
 \item Reco + selected: $96.3\%$ / $92.9\%$.}
 \end{column}\begin{column}{.56\linewidth}\centering
-\plot{hs_clean_fraction_vs_mu.png}
+\includegraphics[width=\linewidth,height=.58\textheight,keepaspectratio]{images/hs_clean_fraction_vs_mu.png}
 \end{column}\end{columns}
+{\tiny\color{black!60}Clean: ${\geq}70\%$ of the vertex tracks from one interaction, not split (ATLAS Matched; tracks counted, not fit-weighted). HS vertex: most HS tracks. Purity: HS tracks / all tracks on that vertex. Selected: largest $\sum p_\mathrm{T}^2$.\par}
 \end{frame}
 
 %----------------------------------------------------------------------
