@@ -111,3 +111,57 @@ hard-scatter vertices with many tracks. This suggests that the output
 granularity limits the precision for such vertices, but we have not tested
 this directly.
 ```
+
+## 2026-11-11: position estimators
+
+Can the PV-Finder HS resolution be improved without retraining? Same
+definition as above (closest vertex within 0.1 mm, iterative 3-RMS from
++-0.1 mm), on the **1,915 events where both PV-Finder (1,918) and AMVF
+(1,916) reconstruct the HS**, of the 1,920 PU200 events. Errors: paired event
+bootstrap, 2,000 resamples (seed 20261111). No inference: saved histograms and
+saved top-1 GNN edges of the note's checkpoint (v4 noaug e107).
+Code: `scripts/hs_position_estimators.py` (estimators in
+`pv_finder.evaluation.vertex_finding.hs_position_estimators`, tests in
+`tests/test_hs_position_estimators.py`); outputs in
+`outputs/11_11_2026_output/hs_position_estimators/`.
+
+**Headline (post-GNN measurement).** The PV-Finder + GNN HS position is the
+inverse-variance mean of the z0 of the tracks the GNN assigns to the HS peak
+at the production cut (score >= 0.98). Tracks more than 3 sigma(z0) from the
+histogram peak are removed first, then iteratively from the refitted mean
+(at most 5 passes). Cost: 50 us per vertex in Python.
+
+| Estimator (1,915 events) | Resolution [um] | minus AMVF | minus centroid |
+|---|---|---|---|
+| AMVF | 10.25 +- 0.30 | | |
+| PV-Finder + GNN, track refit (t=0.98) | **12.02 +- 0.38** | +1.77 +- 0.36 | -0.36 +- 0.34 |
+| same, t=0.95 | 11.78 +- 0.36 | +1.54 +- 0.35 | -0.60 +- 0.33 |
+| same, all assigned tracks (t=0) | 11.61 +- 0.35 | +1.36 +- 0.34 | -0.77 +- 0.32 |
+| same + d0 significance < 3, t=0.98 | 12.05 +- 0.34 | +1.80 +- 0.31 | -0.33 +- 0.31 |
+| PV-Finder histogram, local centroid (production) | 12.38 +- 0.35 | +2.13 +- 0.36 | |
+| histogram, parabola on log heights | 12.00 +- 0.32 | +1.76 +- 0.34 | -0.38 +- 0.16 |
+| histogram, parabola on heights | 12.85 +- 0.28 | +2.60 +- 0.32 | +0.47 +- 0.20 |
+| Refit of the true HS tracks (ideal association) | 11.18 +- 0.38 | +0.93 +- 0.37 | -1.20 +- 0.35 |
+| Training target read out with the centroid | 0.77 +- 0.06 | | |
+| Training target, parabola on log heights | 0.58 +- 0.02 | | |
+
+Diagnostics:
+
+- **The 0.04 mm bins are not the limit.** The training target of each event,
+  read out with the same peak finder, places the HS to 0.6-0.8 um. The
+  encoding carries the sub-bin position; the network output does not
+  reproduce it to better than about 12 um. Finer output bins alone are not
+  expected to help. This replaces the bin-width interpretation above.
+- **An unseeded refit fails.** The plain weighted mean gives 30 um (t=0.98)
+  and 48 um with the true HS tracks: 15% of true HS tracks have
+  |z0 pull| > 3, mostly secondaries. Seeding the outlier rejection at the
+  histogram peak is what makes the refit work.
+- **Association is not the main gap either.** Even the true HS tracks give
+  11.18 um with this simple refit, 0.9 um above AMVF. The remaining gap is
+  the fit itself (AMVF's adaptive multi-vertex fit with full track
+  parameters), not which tracks are used.
+- Versus HS nTrk, the refit gains most at 20-30 and 60-80 tracks
+  (18.0 -> 15.0 and 11.2 -> 10.1 um) and stays about 1.2 x AMVF above 50
+  tracks (`hs_resolution_vs_ntrk_estimators.png`).
+- Mean residuals are below 0.8 um for every working estimator (no bias).
+- Refit fallbacks to the centroid (no assigned track): 2 events.
