@@ -175,12 +175,18 @@ HLLHC = Regime(
     pairwise_bins=PAIRWISE_BINS,
     density=V6,
     gnn=GNNWorkingPoint(
-        checkpoint="model_weights/ttva_gnn_hllhc_fullmu_v2_20261111/",
+        # Lowest validation-monitor loss of the 540 shard epochs (0.255807;
+        # plateaued, last pass -0.07%); beats v1 e213 on identical events.
+        # docs/evaluation/gnn_v2_freeze_2026-11-12.md
+        checkpoint=(
+            "model_weights/ttva_gnn_hllhc_fullmu_v2_20261111/"
+            "ttva_gat_alleta_k20_fullmu_v2_150k_epoch_527.pyt"
+        ),
         t=None,
         frozen=False,
-        note="full-mu v2 training; checkpoint and t PENDING (Mattia decides t)",
+        note="full-mu v2 e527 (chosen 12 Nov 2026); t PENDING (Mattia decides t)",
     ),
-    pending=("density model (D3)", "GNN checkpoint", "GNN t"),
+    pending=("density model (D3)", "GNN t"),
 )
 LOWPU = Regime(
     name="lowpu",
