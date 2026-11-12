@@ -34,10 +34,12 @@ from pv_finder.diagnostics.amvf_fair_comparison.matching import (
     matched_residuals_optimal,
 )
 from pv_finder.utils.pairwise_dz import DEFAULT_PAIRWISE_BINS, PAIRWISE_RANGE_MM
+from pv_finder.utils.working_points import RESIDUAL_ASSIGNMENT_RADIUS_MM
 
 # Labelled SENSITIVITY window tabulated next to the primary one.  It is not the
 # headline: the primary window is derived in run_fair_comparison.py as 3 x the
-# worse core position resolution (0.1694 mm, utils.constants.MATCH_WINDOW_MM).
+# worse core position resolution (0.1694 mm, rounded to 0.17 mm in
+# pv_finder.utils.working_points.MATCH_WINDOW_MM).
 # 0.5 mm is kept only as a round-number check; at 0.5 mm the displaced-list
 # control already "finds" about 45 % of truth.  (Before 2026-11-09 this constant
 # was named HEADLINE_WINDOW_MM with a comment calling it the pre-registered
@@ -305,7 +307,7 @@ def core_position_resolution(
     truth_ge2: list[np.ndarray],
     reco: list[np.ndarray],
     *,
-    window_mm: float = 1.0,
+    window_mm: float = RESIDUAL_ASSIGNMENT_RADIUS_MM,
     pct: float = 68.0,
     optimal: bool = True,
 ) -> float:

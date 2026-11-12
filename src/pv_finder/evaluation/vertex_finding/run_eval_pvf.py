@@ -54,15 +54,19 @@ from plots_pvf import (  # noqa: E402
 )
 from run_eval_pvf_cli import build_parser  # noqa: E402
 
+from pv_finder.evaluation.vertex_finding.regime_cli import (  # noqa: E402
+    provenance,
+    resolve_regime_args,
+    write_invocation,
+)
+
 # ---------------------------------------------------------------------------
 # Constants — must match training
 # ---------------------------------------------------------------------------
 Z_MIN, Z_MAX = -240.0, 240.0  # mm
 N_BINS_FULL, N_BINS_SUB, N_SUBEVENTS = 12000, 1000, 12
 BIN_WIDTH = (Z_MAX - Z_MIN) / N_BINS_FULL  # 0.04 mm/bin
-THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH = 1e-2, 0.5, 3
-INTEGRAL_THRESHOLD_RES = 0.5  # stricter threshold for the σ_vtx_vtx pairwise Δz fit
-FIT_P0 = [1000.0, 10.0, 30.0, 0.8]  # sigmoid fit initial params [a, b, c, rcc]
+MIN_WIDTH = 3  # peak cuts, window and sigma-fit binning come from --regime
 
 _DEFAULT_H5 = (
     "/share/lazy/qibinlei/"
@@ -187,6 +191,11 @@ def main(args: argparse.Namespace) -> None:
     print("=" * 65)
     print("  PV-Finder MC Evaluation")
     print("=" * 65)
+    regime = resolve_regime_args(args)
+    if MIN_WIDTH != regime.peaks.min_width:
+        raise ValueError("regime min_width differs from the script's MIN_WIDTH")
+    write_invocation(args.output_dir, args)
+    pk = dict(min_height=args.min_height, centroid_halfwidth=args.centroid_halfwidth)
 
     if args.device >= 0 and torch.cuda.is_available():
         device = torch.device(f"cuda:{args.device}")
@@ -258,17 +267,13 @@ def main(args: argparse.Namespace) -> None:
                 ph = run_e2e(h5f["tracks"][s0:s1], e2e, device)
             else:
                 ph = run_k2h(h5f["kde_split"][s0:s1, 0, :], k2h, device)
-            p_pvs_res = pv_locations_updated_res(
-                ph, args.threshold, args.integral_threshold, MIN_WIDTH
-            )
-            p_pvs = p_pvs_res[0]
-            p_hts = p_pvs_res[1]
-
-            p_pvs_r_res = pv_locations_updated_res(
-                ph, args.threshold, INTEGRAL_THRESHOLD_RES, MIN_WIDTH
-            )
-            p_pvs_r = p_pvs_r_res[0]
-            p_hts_r = p_pvs_r_res[1]
+            p_pvs, p_hts = pv_locations_updated_res(
+                ph, args.peak_threshold, args.integral_threshold, MIN_WIDTH, **pk
+            )[:2]
+            # Same peaks unless --integral-threshold-res overrides (diagnostic).
+            p_pvs_r, p_hts_r = pv_locations_updated_res(
+                ph, args.peak_threshold, args.integral_threshold_res, MIN_WIDTH, **pk
+            )[:2]
 
             if gbt_model is not None:
                 p_pvs = filter_peaks(p_pvs, p_hts, ph, gbt_model, args.gbt_threshold)
@@ -297,16 +302,18 @@ def main(args: argparse.Namespace) -> None:
     # Resolution
     print("\n--- Resolution (sigma_vtx_vtx) ---")
     dz_arr = np.array(pairwise_dz, dtype=np.float64)
-    bins_r = np.linspace(-6.0, 6.0, 61)
+    bins_r = np.linspace(-6.0, 6.0, args.pairwise_bins + 1)
     ctrs = 0.5 * (bins_r[:-1] + bins_r[1:])
     cnts, _ = np.histogram(dz_arr, bins=bins_r)
-    sigma, popt = 0.5, None
+    sigma, popt, serr = 0.5, None, float("nan")
+    base = float(np.median(cnts))  # data-driven start, as in run_eval_pvf_run3
+    fit_p0 = [max(base - float(cnts.min()), 1.0), 10.0, max(base, 1.0), 0.5]
     try:
         popt, pcov = curve_fit(
             sigmoid_fit,
             ctrs,
             cnts.astype(float),
-            p0=FIT_P0,
+            p0=fit_p0,
             maxfev=10000,
             bounds=([0, 0, 0, 0], [np.inf, np.inf, np.inf, np.inf]),
         )
@@ -322,7 +329,7 @@ def main(args: argparse.Namespace) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
     ds = args.dataset_name or "MC"
     plot_resolution(dz_arr, sigma, popt, sigmoid_fit, mode_label, outdir,
-                    n_bins=60,
+                    n_bins=args.pairwise_bins,
         title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
     print(f"  Saved: {outdir / 'resolution_plot.png'}")
 
@@ -473,6 +480,11 @@ def main(args: argparse.Namespace) -> None:
         pairwise_dz_mm=dz_arr,
         fit_params=popt.tolist() if popt is not None else None,
         k2h_checkpoint=args.k2h_model, e2e_checkpoint=args.e2e_model,
+        sigma_vtx_vtx_err_mm=serr, peak_threshold=args.peak_threshold,
+        integral_threshold=args.integral_threshold,
+        integral_threshold_res=args.integral_threshold_res, min_height=args.min_height,
+        centroid_halfwidth=args.centroid_halfwidth, pairwise_bins=args.pairwise_bins,
+        provenance=provenance(args),
     )  # fmt: skip
     pkl_path = Path(args.output_dir) / "eval_results.pkl"
     with open(pkl_path, "wb") as fp:
@@ -482,7 +494,5 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = build_parser(
-        _DEFAULT_H5, _DEFAULT_ROOT, _DEFAULT_QIBIN, INTEGRAL_THRESHOLD
-    )
+    parser = build_parser(_DEFAULT_H5, _DEFAULT_ROOT, _DEFAULT_QIBIN)
     main(parser.parse_args())

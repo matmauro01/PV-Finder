@@ -134,7 +134,7 @@ def main() -> None:  # noqa: PLR0915
     # ---- 3. matching grid ------------------------------------------------
     sig = {k: f.sigma for k, f in fits.items()}
     windows = {"fitted_sample": None, "common_0.416": sig["mc"],
-               "fixed_0.1694": MATCH_WINDOW_MM}  # fmt: skip
+               f"fixed_{MATCH_WINDOW_MM:g}": MATCH_WINDOW_MM}  # fmt: skip
     grid: dict[str, object] = {}
     for wname, wval in windows.items():
         wv = {k: (sig[k] if wval is None else wval) for k in S}
@@ -226,7 +226,7 @@ def main() -> None:  # noqa: PLR0915
         t, p, a = _split("truth_ge2"), _split("pvf"), _split("amvf")
         ct = reference.match_events(t, p, MATCH_WINDOW_MM)
         ca = reference.match_events(a, p, MATCH_WINDOW_MM)
-        res["hllhc_r16443_0.1694"] = {
+        res[f"hllhc_r16443_{MATCH_WINDOW_MM:g}"] = {
             "meta": json.loads(str(d["meta"])),
             "delta_amvfref_minus_truthref": reference.paired_delta(
                 ca, ct, n_boot=N_BOOT
@@ -237,7 +237,9 @@ def main() -> None:  # noqa: PLR0915
         }
         print(
             "\nHL-LHC:",
-            json.dumps(res["hllhc_r16443_0.1694"]["delta_amvfref_minus_truthref"]),
+            json.dumps(
+                res[f"hllhc_r16443_{MATCH_WINDOW_MM:g}"]["delta_amvfref_minus_truthref"]
+            ),
         )  # noqa: E501
 
     out.mkdir(parents=True, exist_ok=True)

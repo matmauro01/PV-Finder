@@ -27,6 +27,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from gnn.diagnostics.plot_style import atlas_label, save_figure, use_atlas_style
+from pv_finder.utils.working_points import MATCH_WINDOW_MM, window_tag
+
+W = window_tag(MATCH_WINDOW_MM)  # key suffix of the main matching window
 
 # (label, colour, marker, filled) per series; Okabe-Ito colours, distinct markers
 STYLE = {
@@ -121,7 +124,7 @@ def plot_vs_mu(
 
 def plot_stage_bars(pu: dict, window: str, out: Path) -> None:
     """Fig. 7.2 with z0-baseline and AMVF bars (PU200, reco >= 1 track)."""
-    w_key = {"0p1694": "0.1694", "0p5": "0.5"}[window]
+    w_key = {W: f"{MATCH_WINDOW_MM:g}", "0p5": "0.5"}[window]
     cpt = pu["clean_per_truth"]
     rows = [
         ("Truth vertices ($n_{\\mathrm{trk}}\\geq2$)", 1.0, 0.0, "0.55"),
@@ -196,8 +199,8 @@ def make_all(summary: dict, out: Path, min_tracks: int = 1) -> None:
         "hs_selection_eff_vs_mu" + sfx, note, (0.6, 1.1),
     )  # fmt: skip
     stages = [
-        ("finder", _series_ratio(bins, "one_to_one_per_truth", "peaks_1to1_0p1694")),
-        ("truth", _series_ratio(bins, "clean_per_truth", "truth_0p1694")),
+        ("finder", _series_ratio(bins, "one_to_one_per_truth", f"peaks_1to1_{W}")),
+        ("truth", _series_ratio(bins, "clean_per_truth", f"truth_{W}")),
         ("gnn_v4_t098", _series_ratio(bins, "clean_per_truth", "gnn_v4_t098")),
         ("gnn_fullmu_t098", _series_ratio(bins, "clean_per_truth", "gnn_fullmu_t098")),
         ("z0_nearest", _series_ratio(bins, "clean_per_truth", "z0_nearest")),
@@ -208,7 +211,7 @@ def make_all(summary: dict, out: Path, min_tracks: int = 1) -> None:
         out, "clean_yield_stages_vs_mu" + sfx, note, (0.5, 3.0),
     )  # fmt: skip
     if min_tracks == 1:  # Fig. 7.2 uses the note's populated-vertex convention
-        for window in ("0p1694", "0p5"):
+        for window in (W, "0p5"):
             plot_stage_bars(blk["pu200"], window, out)
 
 

@@ -60,8 +60,9 @@ from pv_finder.evaluation.vertex_finding.itk_resolution import (  # noqa: E402
 from pv_finder.utils.peak_finding_fast import (
     pv_locations_updated_res_fast,  # noqa: E402
 )
+from pv_finder.utils.working_points import HS_MATCH_WINDOW_MM  # noqa: E402
 
-HS_R = 0.1  # mm
+HS_R = HS_MATCH_WINDOW_MM  # 0.1 mm, pv_finder.utils.working_points
 RES_PRESET = (0.14318, 0.362, -0.01797)  # training h5 attrs (r16438 PU200)
 CUTS = (98, 95, 0)
 NTRK_EDGES = np.array([2, 20, 30, 40, 50, 60, 80, 130])

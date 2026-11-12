@@ -38,6 +38,7 @@ import numpy as np
 
 from gnn.evaluation.pv_selection import best_hs_match, sorted_container_order
 from pv_finder.utils.constants import PURITY_THRESHOLD
+from pv_finder.utils.working_points import HS_MATCH_WINDOW_MM
 
 CLEAN, MERGED, SPLIT, FAKE = 0, 1, 2, 3
 CATEGORY_NAMES = ("Clean", "Merged", "Split", "Fake")
@@ -271,7 +272,7 @@ def hs_event_record(
     hs_index: int,
     vertex_z: np.ndarray,
     hs_z: float,
-    window: float = 0.1,
+    window: float = HS_MATCH_WINDOW_MM,
     order: np.ndarray | None = None,
 ) -> np.ndarray:
     """All HS quantities for one event and one vertex list (see HS_FIELDS).

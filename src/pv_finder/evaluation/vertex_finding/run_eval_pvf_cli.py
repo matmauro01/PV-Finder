@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import argparse
 
-from pv_finder.utils.constants import MATCH_WINDOW_MM
+from pv_finder.evaluation.vertex_finding.regime_cli import add_regime_args
 
 
 def build_parser(
     _DEFAULT_H5: str,  # noqa: N803 - names kept from run_eval_pvf.py
     _DEFAULT_ROOT: str,  # noqa: N803
     _DEFAULT_QIBIN: str,  # noqa: N803
-    INTEGRAL_THRESHOLD: float,  # noqa: N803
 ) -> argparse.ArgumentParser:
     """Build the run_eval_pvf.py argument parser (defaults from the caller)."""
     parser = argparse.ArgumentParser(
@@ -38,12 +37,6 @@ def build_parser(
     parser.add_argument("--output-dir", default="outputs/eval_pvf", dest="output_dir")
     parser.add_argument("--device", type=int, default=0, help="CUDA device (-1=CPU)")
     parser.add_argument(
-        "--threshold",
-        type=float,
-        default=1e-2,
-        help="Peak-finder threshold (default 1e-2)",
-    )
-    parser.add_argument(
         "--gbt-filter-model",
         default=None,
         help="Path to peak_classifier_results.pkl to apply GBT hist-only filter",
@@ -54,13 +47,8 @@ def build_parser(
         default=0.7,
         help="Threshold for GBT filter (default 0.7)",
     )
-    parser.add_argument("--match-window-mm", type=float, default=MATCH_WINDOW_MM,
-                        dest="match_window_mm",
-                        help="Fixed truth-matching window in mm; <= 0 reuses the "
-                             "fitted sigma_vtx-vtx (legacy)")  # fmt: skip
-    parser.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD,
-                        dest="integral_threshold",
-                        help=f"Peak-finder integral threshold (default {INTEGRAL_THRESHOLD})")  # fmt: skip
+    # --regime plus every peak/window/sigma-fit argument (regime_cli.py).
+    add_regime_args(parser)
     parser.add_argument("--title", default="", help="Plot title (used for all plots)")
     parser.add_argument("--dataset-name", default="", dest="dataset_name")
     return parser

@@ -37,10 +37,21 @@ from tqdm import tqdm
 
 from gnn.data.event_selection import iterate_entries, resolve_entry_indices
 from pv_finder.data.resolution_presets import RESOLUTION_PRESETS
-from pv_finder.utils.peak_finding import LEGACY_CENTROID_HALFWIDTH
+from pv_finder.evaluation.vertex_finding.regime_cli import (
+    PEAK_KEYS,
+    add_regime_args,
+    provenance,
+    resolve_regime_args,
+)
+from pv_finder.utils.working_points import MATCH_WINDOW_MM
 
 QUANTILES = np.linspace(0.0, 1.0, 101)
-WINDOWS_MM = (0.3, 0.5, 1.0)
+# Window SCAN (allowlisted): the headline finder cap and the oracle use the
+# regime window (0.17 mm); the wider windows are kept for comparison only.
+WINDOWS_MM = (MATCH_WINDOW_MM, 0.3, 0.5, 1.0)
+# GNN-training augmentation calibration (not an evaluation window): the
+# matched-peak statistics that set the augmentation were measured at 0.5 mm.
+AUGMENTATION_WINDOW_MM = 0.5
 
 
 def greedy_match(peak_z: np.ndarray, truth_z: np.ndarray, window: float):
@@ -105,8 +116,8 @@ def part_a(graphs, root_events, res_params, out: dict) -> dict:
                 dz = np.abs(peak_z[:, None] - tz[None, :])
                 stats[w]["multi"] += int(((dz < w).sum(axis=1) >= 2).sum())
 
-        # Augmentation statistics at the reference window (0.5 mm)
-        p_idx, t_idx = greedy_match(peak_z, tz, 0.5)
+        # Augmentation statistics at the calibration window
+        p_idx, t_idx = greedy_match(peak_z, tz, AUGMENTATION_WINDOW_MM)
         sel_missed = np.setdiff1d(np.arange(len(tz)), t_idx)
         missed_ntrk.append(tn[sel_missed])
         matched_ntrk.append(tn[t_idx])
@@ -150,7 +161,7 @@ def part_a(graphs, root_events, res_params, out: dict) -> dict:
     return aug
 
 
-def oracle_rows(graphs, root_events, window: float = 1.0) -> dict:
+def oracle_rows(graphs, root_events, window: float = MATCH_WINDOW_MM) -> dict:
     """Chain ceiling: assign each track to the peak nearest its TRUE vertex.
 
     Tracks whose true vertex has no peak within *window* mm (and truthless
@@ -263,7 +274,7 @@ def part_b(
         tz = ak.to_numpy(event["TruthVertex_z"]).astype(np.float64)
         tn = ak.to_numpy(event["TruthVertex_nTracks"]).astype(np.int64)
         tz = tz[tn >= 2]
-        p_idx, _ = greedy_match(pz.astype(np.float64), tz, 0.5)
+        p_idx, _ = greedy_match(pz.astype(np.float64), tz, AUGMENTATION_WINDOW_MM)
         junk = np.setdiff1d(np.arange(len(pz)), p_idx)
         sig_matched.append(ps[p_idx])
         sig_junk.append(ps[junk])
@@ -280,6 +291,16 @@ def part_b(
 def main() -> None:
     """CLI entry point."""
     args = _parse_args()
+    regime = resolve_regime_args(args)
+    if args.match_window_mm not in WINDOWS_MM:
+        raise ValueError(f"--match-window-mm must be one of {WINDOWS_MM}")
+    if args.min_width is None:
+        args.min_width = regime.peaks.min_width
+    if args.pvf_weights is None:
+        dm = regime.density
+        args.pvf_weights = dm.checkpoint
+        args.unet_channels, args.latent_channels = dm.unet_channels, dm.latent_channels
+        args.hidden_nodes = dm.hidden[0]
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -304,10 +325,17 @@ def main() -> None:
         msg = f"read {len(root_events)} ROOT events for {len(graphs)} graphs"
         raise RuntimeError(msg)
 
-    out: dict = {"config": vars(args)}
+    out: dict = {
+        "config": {k: v for k, v in vars(args).items() if k != "regime_dict"},
+        "provenance": provenance(args),
+    }
     res_params = RESOLUTION_PRESETS[args.resolution_preset]
     aug = part_a(graphs, root_events, res_params, out)
-    out["oracle"] = oracle_rows(graphs, root_events)
+    out["oracle"] = oracle_rows(graphs, root_events, window=args.match_window_mm)
+    out["finder_cap"] = {
+        "window_mm": args.match_window_mm,
+        "value": out["finder_cap_per_window"][str(args.match_window_mm)],
+    }
 
     if args.sigma_events > 0:
         device = torch.device(
@@ -368,17 +396,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--sigma-events", default=0, type=int)
     p.add_argument("--pvf-weights", default=None, type=str)
     p.add_argument("-d", "--device-id", default=0, type=int)
-    p.add_argument("--peak-threshold", default=1e-2, type=float)
-    p.add_argument("--integral-threshold", default=0.40, type=float)
-    p.add_argument("--min-width", default=3, type=int)
-    p.add_argument("--min-height", default=0.03, type=float)
-    p.add_argument(
-        "--centroid-halfwidth",
-        default=LEGACY_CENTROID_HALFWIDTH,
-        type=int,
-        help="Local-centroid half-width in bins; 0 = full-region weighted mean. "
-        "Must match the value the chain graphs were built with.",
-    )
+    # Window and peak cuts from --regime; the centroid must match the value the
+    # chain graphs were built with.
+    add_regime_args(p, PEAK_KEYS + ("match_window_mm",))
+    p.add_argument("--min-width", default=None, type=int)
     p.add_argument("--unet-channels", default=280, type=int)
     p.add_argument("--latent-channels", default=4, type=int)
     p.add_argument("--hidden-nodes", default=128, type=int)

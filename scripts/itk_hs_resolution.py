@@ -46,10 +46,12 @@ from pv_finder.evaluation.vertex_finding.itk_resolution import (  # noqa: E402
     iterative_rms,
     local_pu_density,
 )
+from pv_finder.utils.working_points import HS_MATCH_WINDOW_MM  # noqa: E402
 
 CACHE = "outputs/08_05_2026_output/amvf_fair_comparison/cache_r16443.npz"
-RADII_MM = (0.1, 0.5, 1.0)
-PRIMARY_RADIUS_MM = 0.1
+# Radius scan (allowlisted): stability check of the HS width only.
+RADII_MM = (HS_MATCH_WINDOW_MM, 0.5, 1.0)
+PRIMARY_RADIUS_MM = HS_MATCH_WINDOW_MM  # 0.1 mm (working_points)
 DENSITY_EDGES = np.array([0.0, 0.5, 1.0, 1.5, 2.0, 4.0])
 MU_EDGES = np.arange(0.0, 201.0, 20.0)
 NTRK_EDGES = np.array([2, 20, 30, 40, 50, 60, 80, 130])

@@ -39,8 +39,9 @@ from pv_finder.evaluation.vertex_finding.hs_position_estimators import (
     adaptive_beamline_fit,
 )
 from pv_finder.utils.peak_finding_fast import pv_locations_updated_res_fast
+from pv_finder.utils.working_points import HS_MATCH_WINDOW_MM
 
-HS_WINDOW = 0.1  # mm
+HS_WINDOW = HS_MATCH_WINDOW_MM  # 0.1 mm (working_points)
 GNN_ARMS = (("v4", 0.98), ("v4", 0.95), ("v4", 0.0), ("fullmu", 0.98), ("fullmu", 0.0))
 # rule variants: plain (no compatibility), beam (peak z on the beam spot), fit (3D fit)
 ARMS = (

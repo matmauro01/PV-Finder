@@ -2,7 +2,8 @@
 
 Re-runs only peak finding and matching on saved evaluations written by
 run_eval_pvf_run3.py (no inference), with the production matcher and the
-fixed 0.1694 mm window, on the events with 185 <= mu <= 215.
+fixed regime window (pv_finder.utils.working_points, 0.17 mm; saved evals
+must have been run at that window), on the events with 185 <= mu <= 215.
 
 - A model whose eval was run with --save-histograms can have its integral
   threshold (and height floor) lowered or raised.

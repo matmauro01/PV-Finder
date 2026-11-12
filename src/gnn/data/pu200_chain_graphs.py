@@ -50,6 +50,12 @@ from gnn.data.event_selection import (
 from gnn.data.graph_construction import create_inference_graph
 from gnn.evaluation.classification import classify_assignments
 from pv_finder.data.run3_io import Run3Event
+from pv_finder.evaluation.vertex_finding.regime_cli import (
+    PEAK_KEYS,
+    add_regime_args,
+    provenance,
+    resolve_regime_args,
+)
 from pv_finder.evaluation.vertex_finding.run_eval_pvf_run3 import (
     T2KDE_CONFIG,
     build_subevent_inputs,
@@ -59,10 +65,7 @@ from pv_finder.evaluation.vertex_finding.run_eval_pvf_run3 import (
 from pv_finder.models.autoencoder_models import MaskedDNN
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2
 from pv_finder.utils.constants import PT_SCALE
-from pv_finder.utils.peak_finding import (
-    LEGACY_CENTROID_HALFWIDTH,
-    pv_locations_updated_res,
-)
+from pv_finder.utils.peak_finding import pv_locations_updated_res
 
 BRANCHES = [
     MU_BRANCH,
@@ -127,6 +130,7 @@ def amvf_matched_lists(event: dict, n_tracks: int) -> list[np.ndarray]:
 def main() -> None:  # noqa: PLR0915
     """CLI entry point."""
     args = _parse_args()
+    _resolve_working_point(args)
     device = torch.device(
         f"cuda:{args.device_id}"
         if args.device_id >= 0 and torch.cuda.is_available()
@@ -258,7 +262,8 @@ def main() -> None:  # noqa: PLR0915
 
     clean, merged, split, fake, n_reco, n_truth = (int(x) for x in amvf_totals)
     info = {
-        "config": vars(args),
+        "config": {k: v for k, v in vars(args).items() if k != "regime_dict"},
+        "provenance": provenance(args),
         "n_events": len(graphs),
         "entry_indices_file": str(out_dir / "entry_indices.npy"),
         "mu": {
@@ -306,7 +311,12 @@ def _parse_args() -> argparse.Namespace:
         description="Build full-chain PU200 inference graphs (PVF peaks + truth)"
     )
     parser.add_argument("--root", required=True, type=str)
-    parser.add_argument("--pvf-weights", required=True, type=str)
+    parser.add_argument(
+        "--pvf-weights",
+        default=None,
+        type=str,
+        help="density checkpoint (default: the --regime density model)",
+    )
     parser.add_argument("--output", required=True, type=str, help="Graphs .pt")
     parser.add_argument("--output-dir", required=True, type=str, help="Aux outputs")
     parser.add_argument("--entry-start", default=0, type=int)
@@ -331,27 +341,46 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--mu-max", default=None, type=float, help="Upper mu bound")
     parser.add_argument("--knn", default=20, type=int)
     parser.add_argument("-d", "--device-id", default=0, type=int)
-    # Production PVF operating point (June 2026 v4b evals)
-    parser.add_argument("--peak-threshold", default=1e-2, type=float)
-    parser.add_argument("--integral-threshold", default=0.40, type=float)
-    parser.add_argument("--min-width", default=3, type=int)
-    parser.add_argument("--min-height", default=0.03, type=float)
-    # Position estimator. The peak_finding library default is the historical
-    # full-region weighted mean (0) so that TTVA checkpoints trained on it keep
-    # working; the v6 operating point is the local centroid at half-width 3.
-    # It moves the PV-node z, hence every edge feature: it MUST match between
-    # the graphs a checkpoint is trained on and the graphs it is evaluated on.
-    parser.add_argument(
-        "--centroid-halfwidth",
-        default=LEGACY_CENTROID_HALFWIDTH,
-        type=int,
-        help="Local-centroid half-width in bins; 0 = full-region weighted mean",
-    )
-    # v4b architecture
-    parser.add_argument("--unet-channels", default=280, type=int)
-    parser.add_argument("--latent-channels", default=4, type=int)
-    parser.add_argument("--hidden-nodes", default=128, type=int)
+    # Peak cuts from --regime (pv_finder.utils.working_points); explicit flags
+    # override and are recorded. The centroid moves the PV-node z, hence every
+    # edge feature: graphs a checkpoint is evaluated on must use the same
+    # estimator as its working point.
+    add_regime_args(parser, PEAK_KEYS)
+    parser.add_argument("--min-width", default=None, type=int)
+    # Architecture (default: the --regime density model)
+    parser.add_argument("--unet-channels", default=None, type=int)
+    parser.add_argument("--latent-channels", default=None, type=int)
+    parser.add_argument("--hidden-nodes", default=None, type=int)
     return parser.parse_args()
+
+
+def _resolve_working_point(args: argparse.Namespace) -> None:
+    """Fill peak cuts and the density model from the regime (records overrides)."""
+    regime = resolve_regime_args(args)
+    dm = regime.density
+    if args.min_width is None:
+        args.min_width = regime.peaks.min_width
+    elif args.min_width != regime.peaks.min_width:
+        args.regime_overrides["min_width"] = args.min_width
+    if args.pvf_weights is None:
+        if dm.model_type != "v2":
+            raise ValueError(
+                f"regime '{regime.name}' density model {dm.name} is not a "
+                "TracksToHist_v2 model; pass --pvf-weights and the architecture"
+            )
+        args.pvf_weights = dm.checkpoint
+    else:
+        args.regime_overrides["density_model"] = args.pvf_weights
+        args.density_from_regime = False
+    for attr, value in (
+        ("unet_channels", dm.unet_channels),
+        ("latent_channels", dm.latent_channels),
+        ("hidden_nodes", dm.hidden[0]),
+    ):
+        if getattr(args, attr) is None:
+            setattr(args, attr, value)
+        elif getattr(args, attr) != value:
+            args.regime_overrides[attr] = getattr(args, attr)
 
 
 if __name__ == "__main__":

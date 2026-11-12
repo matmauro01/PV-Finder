@@ -30,15 +30,11 @@ from pv_finder.models.autoencoder_models import (  # noqa: E402
     trackstoHists_UNet_1000,
 )
 from pv_finder.models.unet_v2 import TracksToHist_v2, UNet_1000_v2  # noqa: E402
-from pv_finder.utils.constants import MATCH_WINDOW_MM  # noqa: E402
 from pv_finder.utils.pairwise_dz import (  # noqa: E402
     DEFAULT_PAIRWISE_BINS,
     PAIRWISE_RANGE_MM,
     in_summary_window,
     is_commensurate,
-)
-from pv_finder.utils.peak_finding import (  # noqa: E402
-    RECOMMENDED_CENTROID_HALFWIDTH,
 )
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -56,10 +52,22 @@ from plots_pvf import (  # noqa: E402
     plot_stats,
 )
 
+from pv_finder.evaluation.vertex_finding.regime_cli import (  # noqa: E402
+    add_regime_args,
+    provenance,
+    resolve_regime_args,
+    write_invocation,
+)
+
 Z_MIN, Z_MAX = -240.0, 240.0  # mm
 N_BINS_FULL, N_BINS_SUB = 12000, 1000
 BIN_WIDTH = (Z_MAX - Z_MIN) / N_BINS_FULL  # 0.04 mm/bin
-THRESHOLD, INTEGRAL_THRESHOLD, MIN_WIDTH = 1e-2, 0.5, 3
+# Peak cuts, window and sigma-fit binning come from --regime
+# (pv_finder.utils.working_points); only the fixed minimum width lives here.
+MIN_WIDTH = 3
+# Legacy names still imported by old scan diagnostics (nms_diagnostic,
+# hllhc_threshold_scan). Not used by this script; final results use --regime.
+THRESHOLD, INTEGRAL_THRESHOLD = 1e-2, 0.5
 MODEL_PAD_VAL = -240.0
 
 # fmt: off
@@ -231,6 +239,10 @@ def _evt_rec(eidx, nt, np_, c, m, s, f, eff, tc, tm, tmiss, mu, beam_z,  # noqa:
 
 def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
     print("=" * 65, "\n  PV-Finder Run 3 / HL-LHC Evaluation\n", "=" * 65, sep="\n")
+    regime = resolve_regime_args(args)
+    if MIN_WIDTH != regime.peaks.min_width:
+        raise ValueError("regime min_width differs from the script's MIN_WIDTH")
+    write_invocation(args.output_dir, args)
     if args.device >= 0 and torch.cuda.is_available():
         device = torch.device(f"cuda:{args.device}")
         print(
@@ -491,7 +503,7 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         title=args.title or f"PVF Resolution — {ds}\n({mode_label})")  # fmt: skip
 
     # --- Performance metrics ---
-    # Fixed common window (0.1694 mm, utils.constants) unless --match-window-mm
+    # Fixed common window (regime, 0.17 mm; working_points) unless --match-window-mm
     # <= 0 asks for the legacy behaviour of reusing PV-Finder's fitted sigma.
     win_mm = args.match_window_mm if args.match_window_mm > 0 else sigma
     win_src = "fixed" if args.match_window_mm > 0 else "fitted PVF sigma (legacy)"
@@ -661,7 +673,11 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         e2e_checkpoint=args.e2e_model, data_source="root" if args.root else "npz",
         correct_beam=not args.no_correct_beam, smooth_sigma=args.smooth_sigma,
         nms_min_sep=args.nms_min_sep, nms_max_ratio=args.nms_max_ratio,
-        centroid_halfwidth=args.centroid_halfwidth)
+        centroid_halfwidth=args.centroid_halfwidth,
+        peak_threshold=args.peak_threshold, integral_threshold=args.integral_threshold,
+        integral_threshold_res=args.integral_threshold_res,
+        min_height=args.min_height, pairwise_bins=args.pairwise_bins,
+        provenance=provenance(args))
     # fmt: on
     pkl_path = outdir / "eval_results.pkl"
     with open(pkl_path, "wb") as fp:
@@ -702,32 +718,12 @@ def _cli() -> argparse.Namespace:
     a.add_argument("--smooth-sigma", type=float, default=0.0)
     a.add_argument("--nms-min-sep", type=float, default=0.0)
     a.add_argument("--nms-max-ratio", type=float, default=0.3)
-    a.add_argument("--match-window-mm", type=float, default=MATCH_WINDOW_MM,
-                   dest="match_window_mm",
-                   help="Fixed truth-matching window (mm) for PV-Finder and AMVF. "
-                        "<= 0 reuses PV-Finder's fitted sigma_vtx-vtx (legacy, "
-                        "unfair to AMVF; see docs/evaluation/metric_definitions.md)")  # fmt: skip
     a.add_argument("--mu-min", type=int, default=55)
     a.add_argument("--mu-max", type=int, default=65)
-    a.add_argument("--peak-threshold", type=float, default=THRESHOLD)
-    a.add_argument("--integral-threshold", type=float, default=INTEGRAL_THRESHOLD)
-    a.add_argument("--integral-threshold-res", type=float, default=0.5)
-    a.add_argument("--pairwise-bins", type=int, default=DEFAULT_PAIRWISE_BINS,
-                   help="bins across the +-6 mm pairwise-dz range for the "
-                        "sigma_vtx_vtx sigmoid fit; 60 (pre-2026-07-31) biases "
-                        "sigma high, 240+ is stable. Keep the bin width an "
-                        "integer multiple of the 0.04 mm model grid (300, 150, "
-                        "100, 75...) or the plateau beats against the position "
-                        "quantisation; 240 (0.05 mm, pre-2026-08-05) does")  # fmt: skip
-    a.add_argument("--centroid-halfwidth", type=int,
-                   default=RECOMMENDED_CENTROID_HALFWIDTH,
-                   dest="centroid_halfwidth",
-                   help="half-width in bins of the local-centroid position "
-                        "window about the region maximum, clipped to the "
-                        "region; 0 = legacy full-region weighted mean")  # fmt: skip
-    a.add_argument("--min-height", type=float, default=0.03, dest="min_height",
-                   help="minimum peak amplitude to keep (operating point; "
-                        "0.0 disables). Default 0.03 drops the lowest fakes.")  # fmt: skip
+    # --regime plus --match-window-mm, --peak-threshold, --integral-threshold,
+    # --integral-threshold-res, --min-height, --centroid-halfwidth and
+    # --pairwise-bins (all default to the regime; see regime_cli.py).
+    add_regime_args(a)
     a.add_argument("--e2e-wide", action="store_true")
     a.add_argument("--save-histograms", action="store_true")
     a.add_argument(

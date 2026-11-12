@@ -16,14 +16,18 @@ from typing import Any
 
 import numpy as np
 
+from pv_finder.utils.working_points import MATCH_WINDOW_MM
+
 REPO = Path(__file__).resolve().parents[4]
 
 # HL-LHC ITk, flat-mu held-out reconstruction r16443 (never used in training).
 HLLHC_PKL = REPO / "outputs/08_05_2026_output/eval_v6_mu_window/r16443/eval_results.pkl"
 HLLHC_CACHE = REPO / "outputs/08_05_2026_output/amvf_fair_comparison/cache_r16443.npz"
-# Fixed truth-matching window of the main comparison: 3 x the larger 68%
-# position error (56.5 um, AMVF), technical note Section 4.1.
-HLLHC_WINDOW_MM = 0.1694
+# One truth-matching window for every sample and algorithm (0.17 mm,
+# pv_finder.utils.working_points). The source pickles above are the pre-freeze
+# evaluations; they are repointed to the frozen recompute in step 4 of
+# docs/additional_studies/meeting_2026-11-11_plan.md.
+HLLHC_WINDOW_MM = MATCH_WINDOW_MM
 HLLHC_MU_RANGE = (185.0, 215.0)
 
 # Low pile-up 13 TeV ttbar simulation used for the Run 2 reproduction model.
@@ -221,7 +225,7 @@ def load_lowpu_mc() -> Sample:
             raise ValueError(f"ROOT lists do not match stored counts in event {k}")
     mu = np.array([e["mu"] for e in events], dtype=np.float64)
     pvf = [np.asarray(z) for z in res["pred_pvs_mm"]]
-    s = Sample("lowpu_mc", mu, pvf, truth, amvf, float(res["sigma_vtx_vtx_mm"]), False,
+    s = Sample("lowpu_mc", mu, pvf, truth, amvf, MATCH_WINDOW_MM, False,
                meta={"source": str(LOWPU_MC_PKL.relative_to(REPO)),
                      "root": str(LOWPU_MC_ROOT.relative_to(REPO))})  # fmt: skip
     p0 = [1000.0, 10.0, 30.0, 0.8]  # FIT_P0 of run_eval_pvf.py
@@ -242,7 +246,7 @@ def load_run3_data() -> Sample:
     mu = np.array([e["mu"] for e in events], dtype=np.float64)
     pvf = [np.asarray(z) for z in res["pred_pvs_mm"]]
     amvf = [np.asarray(z) for z in res["truth_pvs_mm"]]
-    s = Sample("run3_data", mu, pvf, amvf, amvf, float(res["sigma_vtx_vtx_mm"]), True,
+    s = Sample("run3_data", mu, pvf, amvf, amvf, MATCH_WINDOW_MM, True,
                meta={"source": str(RUN3_DATA_PKL.relative_to(REPO))})  # fmt: skip
     stored = fit_resolution(np.asarray(res["pairwise_dz_mm"]), 60,
                             list(np.asarray(res["fit_params"])),

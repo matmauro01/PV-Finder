@@ -9,7 +9,7 @@ Arms (vertex lists), each evaluated with reco >= 1 and >= 2 tracks:
   gnn_v4_t098, gnn_v4_t095, gnn_v4_t000   v4 noaug e107 (note checkpoint)
   gnn_fullmu_t098, gnn_fullmu_t000        fullmu v1 e213 (deck checkpoint)
   z0_nearest, z0_3sigma                   baselines on the same peaks
-  truth_0p5, truth_0p1694                 truth-guided reference (MC only)
+  truth_0p5, truth_0p17                   truth-guided reference (MC only)
   amvf                                    stored AMVF track lists
 
 Usage (from the repo root, inside tmux):
@@ -33,6 +33,12 @@ import uproot
 
 from gnn.evaluation import hs_metrics as hm
 from pv_finder.utils.peak_finding_fast import pv_locations_updated_res_fast
+from pv_finder.utils.working_points import (
+    HLLHC,
+    HS_MATCH_WINDOW_MM,
+    MATCH_WINDOW_MM,
+    window_tag,
+)
 
 REPO = Path(__file__).resolve().parents[3]
 ROOT = REPO / (
@@ -55,21 +61,32 @@ CHECKPOINTS = {
     "fullmu": "model_weights/ttva_gnn_hllhc_fullmu_v1_20260924/"
     "ttva_gat_alleta_k20_fullmu_v1_60k_epoch_213.pyt",
 }
-# Production peak settings of the note (Sec. 4.1): threshold, integral,
-# min width, min height, centroid half-width.
-PEAK_ARGS = (0.01, 0.30, 3, 0.03, 3)
+# Working point (pv_finder.utils.working_points, regime hllhc): peak cuts as
+# (threshold, integral, min width, min height, centroid half-width), the
+# vertex matching window and the hard-scatter window.
+_P = HLLHC.peaks
+PEAK_ARGS = (
+    _P.amplitude,
+    _P.integral,
+    _P.min_width,
+    _P.min_height,
+    _P.centroid_halfwidth,
+)
+HS_WINDOW = HS_MATCH_WINDOW_MM  # 0.1 mm, ITk paper Sec. 5.5
+WINDOW = MATCH_WINDOW_MM  # 0.17 mm, note-wide vertex matching window
+W = window_tag(WINDOW)
+# 0.5 mm arms reproduce the note's legacy Fig. 7.2 only (comparison, allowlisted).
+LEGACY_WINDOW = 0.5
 ARMS = (
     "gnn_v4_t098", "gnn_v4_t095", "gnn_v4_t000", "gnn_fullmu_t098",
     "gnn_fullmu_t000", "z0_nearest", "z0_3sigma", "truth_0p5",
-    "truth_0p1694", "amvf",
+    f"truth_{W}", "amvf",
 )  # fmt: skip
 MIN_TRACKS = (1, 2)
-HS_WINDOW = 0.1  # mm, ITk paper Sec. 5.5
-WINDOW = 0.1694  # mm, note-wide vertex matching window (PI decision)
 EVENT_FIELDS = (
     "entry", "mu_x100", "n_truth_ge2", "n_tracks", "n_peaks", "n_amvf",
     "hs_truth_ntracks", "density_x1000", "peaks_hs_within", "amvf_hs_within",
-    "peaks_1to1_0p5", "peaks_1to1_0p1694", "amvf_1to1_0p5", "amvf_1to1_0p1694",
+    "peaks_1to1_0p5", f"peaks_1to1_{W}", "amvf_1to1_0p5", f"amvf_1to1_{W}",
     "native_is_match", "native_dominant_hs", "native_within", "native_is_leader",
 )  # fmt: skip
 BRANCHES = [
@@ -104,7 +121,7 @@ def _arm_targets(
         return hm.assign_nearest_z0(z0, peaks)
     if arm == "z0_3sigma":
         return hm.assign_nearest_z0(z0, peaks, ez0, 3.0)
-    window = {"truth_0p5": 0.5, "truth_0p1694": WINDOW}[arm]
+    window = {"truth_0p5": LEGACY_WINDOW, f"truth_{W}": WINDOW}[arm]
     return hm.assign_truth_guided(truth, truth_z, peaks, window)
 
 
@@ -194,8 +211,10 @@ def process_chunk(start: int, stop: int, peaks_ref: dict[int, np.ndarray]) -> di
             len(amvf2), tn[h], round(1000 * others.sum() / 4.0),
             int(len(peaks) > 0 and np.abs(peaks - hz).min() < HS_WINDOW),
             int(len(amvf2) > 0 and np.abs(amvf2 - hz).min() < HS_WINDOW),
-            hm.greedy_one_to_one(peaks, t2, 0.5), hm.greedy_one_to_one(peaks, t2, WINDOW),
-            hm.greedy_one_to_one(amvf2, t2, 0.5), hm.greedy_one_to_one(amvf2, t2, WINDOW),
+            hm.greedy_one_to_one(peaks, t2, LEGACY_WINDOW),
+            hm.greedy_one_to_one(peaks, t2, WINDOW),
+            hm.greedy_one_to_one(amvf2, t2, LEGACY_WINDOW),
+            hm.greedy_one_to_one(amvf2, t2, WINDOW),
             int(nv == amatch), int(acls.dominant[nv] == h), int(abs(amvf_z[nv] - hz) < HS_WINDOW),
             int(nv == hm.selected_index(acls)),
         ]  # fmt: skip
@@ -252,6 +271,7 @@ def main() -> None:
         "event_fields": EVENT_FIELDS,
         "count_fields": ["clean", "merged", "split", "fake", "n_reco", "n_truth_ge2"],
         "peak_args": PEAK_ARGS, "hs_window_mm": HS_WINDOW, "window_mm": WINDOW,
+        "window_tag": W, "working_point": HLLHC.to_dict(),
         "root": str(ROOT), "histograms": str(HIST_DIR), "edges": {k: str(v) for k, v in EDGES.items()},
         "checkpoints": CHECKPOINTS, "reference_peaks": str(PKL),
         "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

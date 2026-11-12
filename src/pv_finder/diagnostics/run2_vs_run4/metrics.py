@@ -36,6 +36,7 @@ from pv_finder.evaluation.vertex_finding.itk_resolution import (
     local_pu_density,
 )
 from pv_finder.utils.pairwise_dz import DEFAULT_PAIRWISE_BINS, PAIRWISE_RANGE_MM
+from pv_finder.utils.working_points import RESIDUAL_ASSIGNMENT_RADIUS_MM
 
 SEED: int = 20260805  # scan.fit_sigma_vtx_vtx default
 
@@ -162,7 +163,9 @@ def paired_ratio(
 
 
 def per_event_residuals(
-    truth_ge2: list[np.ndarray], reco: list[np.ndarray], window_mm: float = 1.0
+    truth_ge2: list[np.ndarray],
+    reco: list[np.ndarray],
+    window_mm: float = RESIDUAL_ASSIGNMENT_RADIUS_MM,
 ) -> list[np.ndarray]:
     """|dz| of optimal one-to-one pairs within the window, kept per event."""
     out = []
@@ -191,7 +194,9 @@ def p68_summary(
 
 def verify_p68(truth_ge2: list[np.ndarray], reco: list[np.ndarray]) -> float:
     """The per-event path must equal scan.core_position_resolution exactly."""
-    ref = core_position_resolution(truth_ge2, reco, window_mm=1.0)
+    ref = core_position_resolution(
+        truth_ge2, reco, window_mm=RESIDUAL_ASSIGNMENT_RADIUS_MM
+    )
     mine = float(
         np.percentile(np.concatenate(per_event_residuals(truth_ge2, reco)), 68.0)
     )

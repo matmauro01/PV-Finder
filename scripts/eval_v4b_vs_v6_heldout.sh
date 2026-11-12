@@ -56,7 +56,7 @@ run_cell () {
     local outdir="$OUT/$name"
     mkdir -p "$outdir"
 
-    local cmd=(python -u src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py
+    local cmd=(python -u src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py --regime hllhc
         --root "$root"
         --e2e-model "$V4B"
         --e2e-type v2

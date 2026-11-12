@@ -5,8 +5,10 @@ PV nodes (z, height, sigma), and builds fully-connected bipartite track-PV
 graphs with create_inference_graph.
 
 Replaces atlas_pvfinder/tracks_to_vertex/pvfinder_output_to_graph.py.
-Default peak-finding parameters match the Nov 2025 baseline
-(threshold=1e-2, integral_threshold=0.2, min_width=3).
+Peak-finding cuts come from ``--regime`` (pv_finder.utils.working_points; the
+low pile-up regime is integral 0.50, local centroid +-3 since 11 Nov 2026).
+The Nov 2025 baseline used integral 0.2 and the full-region mean; pass those
+explicitly to reproduce it (they are recorded as overrides).
 
 Histogram input formats: .npy, pickled ndarray (.p/.pkl), or HDF5 (--h5-key).
 Row i of the histogram array must correspond to entry i of the indices file.
@@ -16,12 +18,13 @@ Usage:
         -r /path/to/pvf_histograms.p \\
         -f /share/lazy/qibinlei/recoTracks_incamvfassoc.h5 \\
         -i configs/qibin_test_main_indices_v2.p \\
-        -o outputs/<date>/inference_graphs.pt
+        -o outputs/<date>/inference_graphs.pt --regime lowpu
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import pickle
 from pathlib import Path
 
@@ -32,6 +35,12 @@ from torch_geometric.data import HeteroData
 from tqdm import tqdm
 
 from gnn.data.graph_construction import create_inference_graph, load_event_indices
+from pv_finder.evaluation.vertex_finding.regime_cli import (
+    PEAK_KEYS,
+    add_regime_args,
+    provenance,
+    resolve_regime_args,
+)
 from pv_finder.utils.constants import PT_SCALE
 from pv_finder.utils.peak_finding import pv_locations_updated_res
 
@@ -61,6 +70,8 @@ def build_inference_graphs(
     threshold: float,
     integral_threshold: float,
     min_width: int,
+    min_height: float = 0.0,
+    centroid_halfwidth: int = 0,
 ) -> list[HeteroData]:
     """Peak-find each histogram and build one inference graph per event.
 
@@ -72,6 +83,9 @@ def build_inference_graphs(
         threshold: Peak-finding bin threshold.
         integral_threshold: Minimum region integral to record a PV.
         min_width: Minimum region width in bins.
+        min_height: Minimum region maximum (0 disables).
+        centroid_halfwidth: Local-centroid half-width in bins (0 = full-region
+            weighted mean).
 
     Returns:
         List of HeteroData graphs (one per event, same order as event_keys).
@@ -119,7 +133,12 @@ def build_inference_graphs(
             ).T.astype(np.float32)
 
             pred_z, pred_heights, _, pred_sigmas = pv_locations_updated_res(
-                histograms[i], threshold, integral_threshold, min_width
+                histograms[i],
+                threshold,
+                integral_threshold,
+                min_width,
+                min_height,
+                centroid_halfwidth,
             )
 
             graphs.append(
@@ -178,25 +197,8 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         help="Output .pt file for the graph list",
     )
-    parser.add_argument(
-        "-t",
-        "--threshold",
-        default=1e-2,
-        type=float,
-        help="Peak-finding bin threshold (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--integral-threshold",
-        default=0.2,
-        type=float,
-        help="Minimum region integral (default: %(default)s, Nov 2025 baseline)",
-    )
-    parser.add_argument(
-        "--min-width",
-        default=3,
-        type=int,
-        help="Minimum region width in bins (default: %(default)s)",
-    )
+    # --regime plus the peak cuts (default: the regime; regime_cli.py)
+    add_regime_args(parser, PEAK_KEYS)
     parser.add_argument(
         "-n",
         "--max-events",
@@ -210,6 +212,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     """CLI entry point."""
     args = _parse_args()
+    regime = resolve_regime_args(args)
 
     histograms = load_histograms(args.histograms, args.h5_key)
     indices = load_event_indices(args.indices)
@@ -231,15 +234,19 @@ def main() -> None:
         histograms,
         args.filepath,
         event_keys,
-        args.threshold,
+        args.peak_threshold,
         args.integral_threshold,
-        args.min_width,
+        regime.peaks.min_width,
+        args.min_height,
+        args.centroid_halfwidth,
     )
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(graphs, out)
-    print(f"Saved {len(graphs)} graphs to {out}")
+    prov = out.with_suffix(".provenance.json")
+    prov.write_text(json.dumps(provenance(args), indent=2, default=str))
+    print(f"Saved {len(graphs)} graphs to {out} (provenance: {prov})")
 
 
 if __name__ == "__main__":

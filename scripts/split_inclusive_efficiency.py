@@ -109,7 +109,7 @@ def main(args: argparse.Namespace) -> None:
         "",
     ]
     for tag, path in CACHES.items():
-        for w in (MATCH_WINDOW_MM, HS_MATCH_WINDOW_MM, 0.5):
+        for w in (MATCH_WINDOW_MM, HS_MATCH_WINDOW_MM, 0.5):  # window scan
             print(f"[{tag}] window {w} mm", flush=True)
             row = evaluate(path, w, args.n_boot, args.seed)
             results["windows"][f"{tag}@{w:g}"] = row

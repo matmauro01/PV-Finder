@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Replay the note's fake-filter checks at the fixed 0.1694 mm window.
+"""Replay the note's fake-filter checks at the fixed matching window.
 
 The note's Table tab:fakefilters (height floor 0 -> 0.03 on 384 r16443 events;
 GBT score >= 0.3 after the floor on 268 r16638 events) used each sample's
 fitted sigma_vtx-vtx (0.228983 / 0.227832 mm) as the window.  The PI decided
-that all non-hard-scatter vertex studies use 0.1694 mm, so this replays the
-same stored peak lists and events at 0.1694 mm (and at the old windows, as a
+that all non-hard-scatter vertex studies use one fixed window
+(pv_finder.utils.working_points: 0.17 mm since 11 Nov 2026, 0.1694 mm before),
+so this replays the same stored peak lists and events at it (and at the old windows, as a
 reproduction check).  Same selections and inputs as the note's
 ``scripts/check_hllhc_results.py``; no inference.
 

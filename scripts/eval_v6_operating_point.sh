@@ -38,7 +38,7 @@ for tag in r16443 r16638; do
     outdir="$OUT/$tag"
     mkdir -p "$outdir"
 
-    cmd=(python -u src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py
+    cmd=(python -u src/pv_finder/evaluation/vertex_finding/run_eval_pvf_run3.py --regime hllhc
          --root "$root"
          --e2e-model "$CKPT"
          --e2e-type v2

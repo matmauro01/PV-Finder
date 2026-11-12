@@ -48,7 +48,7 @@ echo "=== peak operating point: thr=$PEAK_THRESHOLD integral=$INTEGRAL_THRESHOLD
 
 chain() {  # chain <tag> <root> <n_events_cap>
     local tag=$1 root=$2 cap=$3
-    python -u -m gnn.data.pu200_chain_graphs \
+    python -u -m gnn.data.pu200_chain_graphs --regime hllhc \
         --root "$root" --pvf-weights "$PVF" \
         --entry-start 0 --entry-stop 25000 --mu-min 185 --mu-max 215 \
         --max-events "$cap" --knn 20 -d "$DEVICE" \

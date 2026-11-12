@@ -18,6 +18,8 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import beta, binomtest
 
+from pv_finder.utils.working_points import HS_MATCH_WINDOW_MM, MATCH_WINDOW_MM
+
 ARMS = ("pvf", "amvf")
 CONFIDENCE = 0.682689492137
 DENSITY_EDGES = np.array([0, 0.5, 1, 1.5, 2, 4.0])
@@ -65,7 +67,7 @@ def interval(passed, total):
     }
 
 
-def compare(events, mask, window=0.1):
+def compare(events, mask, window=HS_MATCH_WINDOW_MM):
     flags = {a: events[f"{a}_dz_mm"][mask] < window for a in ARMS}
     n = int(np.count_nonzero(mask))
     out = {a: interval(int(flags[a].sum()), n) for a in ARMS}
@@ -350,7 +352,8 @@ def main():
         ),
         "density_definition": "Other stored truth vertices with |z-z_HS|<2 mm / 4 mm; not all generated interactions",
         "sensitivity_windows_mm": {
-            str(w): compare(events, pu, w) for w in (0.05, 0.1, 0.1694, 0.5)
+            str(w): compare(events, pu, w)
+            for w in (0.05, HS_MATCH_WINDOW_MM, MATCH_WINDOW_MM, 0.5)  # window scan
         },
         "amvf_without_track_count_cut_pu200": interval(
             int(np.sum(events["amvf_all_dz_mm"][pu] < 0.1)), int(pu.sum())

@@ -24,6 +24,10 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import beta
 
+from pv_finder.utils.working_points import MATCH_WINDOW_MM, window_tag
+
+W = window_tag(MATCH_WINDOW_MM)  # key suffix of the main matching window
+
 CONFIDENCE = 0.682689492137
 MU_EDGES = np.arange(0, 201, 20)
 PU200 = (185.0, 215.0)
@@ -142,9 +146,9 @@ def summarize_mask(
     stages = {}
     for key in (
         "peaks_1to1_0p5",
-        "peaks_1to1_0p1694",
+        f"peaks_1to1_{W}",
         "amvf_1to1_0p5",
-        "amvf_1to1_0p1694",
+        f"amvf_1to1_{W}",
     ):
         stages[key] = bootstrap_ratio(s.ev(key)[mask], t, rng)
     out["one_to_one_per_truth"] = stages
