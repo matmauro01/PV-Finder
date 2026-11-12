@@ -23,7 +23,7 @@
 \toprule
 \textbf{Study} & \textbf{Status} & \textbf{Result} \\
 \midrule
-1. Small model for CPU & \textcolor{myblue}{Training} & s5: $6.4\times$ faster on CPU \\
+1. Small model for CPU & \textcolor{myblue}{Training} & s8: $9\times$ faster on CPU, $-0.1$ points at v6 fake rate \\
 2. Matching window & \textcolor{mygreen}{Done} & $0.1694$~mm for all vertices, $0.1$~mm for HS \\
 3. Split vertices in efficiency & \textcolor{mygreen}{Done} & Identical efficiency; PV-Finder $+3.36$ points over AMVF \\
 4. HS studies vs $\mu$ & \textcolor{mygreen}{Done} & Clean HS: GNN $96.4\%$, AMVF $92.5\%$ \\
@@ -42,22 +42,24 @@
 %----------------------------------------------------------------------
 \begin{frame}{1. Smaller PV-Finder for CPU}
 \req{Faster CPU inference without loss of performance.}
-\did{\item Narrower U-Net (s5: 112 channels), same data and loss as v6, 1+1 epochs.
-\item Packed inference: only real tracks, no padding.}
+\did{\item Narrower U-Nets (s5: 112, s8: 80 channels), same data and loss as v6, 1+1 epochs.
+\item Packed inference: only real tracks, no padding.
+\item Compared at the same fake rate as v6.}
 \why{\item INT8 quantization: $\leq1.25\times$.}
 \vspace{.2em}
 {\centering\scriptsize
 \begin{tabular}{lrrrr}
 \toprule
-Model & Params & CPU ms/event & Speed-up & $\Delta$Eff (points) \\
+Model & Params & CPU ms/event & Speed-up & $\Delta$Eff at v6 fake rate (points) \\
 \midrule
 v6 production & 3.55M & 1601 & 1.0 & -- \\
 v6, packed & 3.55M & 1159 & 1.4 & 0 \\
-s5, packed & 0.67M & 250 & 6.4 & $-0.33$ / $-0.26$ \\
+s5, packed & 0.67M & 250 & 6.4 & $-0.19$ / $-0.14$ \\
+s8, packed & 0.44M & 178 & 9.0 & $-0.14$ / $-0.10$ \\
 \bottomrule
 \end{tabular}\par}
 \vspace{.4em}
-{\scriptsize CPU vs CPU, ONNX Runtime, 1 thread. s5: $0.8$ fewer fakes per event.\par}
+{\scriptsize CPU vs CPU, ONNX Runtime, 1 thread. Two held-out PU200 files; $\sigma_\mathrm{vtx\text{-}vtx}$ unchanged.\par}
 \end{frame}
 
 %----------------------------------------------------------------------
