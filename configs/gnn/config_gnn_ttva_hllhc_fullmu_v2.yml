@@ -1,0 +1,67 @@
+# ITk full-pileup GNN v2: the v1 recipe (config_gnn_ttva_hllhc_fullmu_v1.yml) on 2.5x
+# more training events. Only the training set changes; architecture, loss, optimiser,
+# learning rate, cosine schedule, batch size, dropout, kNN (k=20), truth-vertex candidates
+# and the hllhc_alleta preset are identical to v1.
+# Training: v1's 60,000 r16443 events (12 shards, unchanged) + 89,820 r16638 events
+# (18 shards; r16638 is an independent production, no shared hard-scatter vertex or
+# truth-z fingerprint with r16443). Total 149,820 events, 30 shards, v1 and r16638
+# shards interleaved so each stretch of the round-robin mixes both files.
+# Validation monitor, validation and reserved-test entries are v1's, unchanged, so v1
+# and v2 compare directly. 10% of r16638 (9,980 events) is an extra reserved test.
+# Schedule: 540 shard epochs = 18 full passes over 149,820 events, the same number of
+# passes as v1 (whose best validation epoch was 213 of 216, still improving at the end
+# of its cosine schedule, so no sign of overfitting). 2.70M event presentations, 2.5x v1.
+# Physical GPU 2 is exposed as cuda:0 by the wrapper (run_gnn_fullmu_v2_20261111.sh).
+data_files:
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_00.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_00.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_01.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_01.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_02.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_03.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_02.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_04.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_03.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_05.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_06.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_04.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_07.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_05.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_08.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_09.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_06.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_10.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_07.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_11.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_12.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_08.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_13.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_09.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_14.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_15.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_10.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_16.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_11.pt
+  - /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_17.pt
+val_file: /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/validation_monitor.pt
+batch_size: 32
+num_workers: 2
+model_config:
+  track_input_size: 8
+  pv_input_size: 2
+  hidden_dim: 32
+  num_heads: 4
+  edge_attr_dim: 3
+  dropout: 0.25
+n_epochs: 540
+learning_rate: 0.001
+lr_schedule:
+  type: cosine
+  eta_min: 0.00001
+grad_clip: 1.0
+device_id: 0
+save_weights: true
+save_frequency: 1
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_hllhc_fullmu_v2_20261111
+experimentname: TTVA_GNN
+runname: ttva_gat_alleta_k20_fullmu_v2_150k
