@@ -159,9 +159,11 @@ Yes, it is the Appendix E design. Specification:
 **D1.** See Part 2.
 - Currently the local centroid is used only for HL-LHC. Every low-pile-up
   result used the full-region weighted mean.
-- The "0.50 for the HL-LHC resolution fit" in the note is not what produced
-  the quoted 0.229 mm: the evaluation at integral 0.30 gives
-  0.2290 ± 0.0032 mm (Q21).
+- The note's "0.50 for the HL-LHC resolution fit" is correct as a description
+  of the code: `run_eval_pvf_run3.py` runs a second peak finding for the
+  sigma fit with `--integral-threshold-res` (default 0.50, line 714), which no
+  invocation overrode. 0.229 mm is therefore at 0.50; at 0.30 it is 0.218 mm
+  (Q21). Corrected 2026-11-11 after checking the code.
 
 ### Q10 (l. 281). Run 2/3 density model.
 **Answered for the vertex-finding model. But three different low-pile-up
@@ -335,13 +337,13 @@ Vertex-finding model:
 
 ### Q21 (l. 481). sigma_vtx-vtx threshold; AMVF value and fit.
 **Answered.**
-- At the final operating point (integral 0.30, height 0.03, local centroid,
-  300 bins over ±6 mm), PV-Finder sigma_vtx-vtx = 0.2290 ± 0.0032 mm
-  (`outputs/11_10_2026_output/small_model_eval/v6/r16443`; its
-  `INVOCATION.txt` shows `--integral-threshold 0.30`). The same value was
-  found on 2026-08-05 (`outputs/08_05_2026_output/eval_v6_mu_window`).
-- So the note's "0.50 for the resolution plot" is not what produced
-  0.229 mm, and no separate threshold is needed.
+- **Corrected 2026-11-11.** The quoted 0.229 mm comes from a separate peak
+  finding at integral 0.50: `run_eval_pvf_run3.py` fits sigma on peaks from
+  `--integral-threshold-res` (default 0.5, line 714), independent of
+  `--integral-threshold 0.30`. At the single operating point (0.30), sigma is
+  0.218 ± 0.003 mm (EB-deck computation; to be confirmed in the frozen recompute).
+- Decision: one threshold. The resolution fit will use the counting threshold
+  (default changed in the recompute), and the paper quotes the 0.30 value.
 - AMVF: 0.305 ± 0.006 mm, same fit code and binning, same 1,920 events,
   vertices with n_trk >= 2 (`run2_vs_run4_resolution_2026-11-09.md`).
 
@@ -484,8 +486,8 @@ Sources: `run2_vs_run4_resolution_2026-11-09.md`,
 
 **Why the HL-LHC set:**
 - 0.30 / 0.03 / centroid is the operating point of every HL-LHC efficiency
-  and GNN result. It already gives sigma_vtx-vtx = 0.229 mm (Q21), so the
-  0.50 can go.
+  and GNN result. The sigma fit moves from its separate 0.50 to 0.30, giving
+  about 0.218 mm instead of 0.229 mm (Q21).
 - One t = 0.98 is at least as good as 0.95 for the HS (Q23).
 
 **Why the low-pile-up set:**
