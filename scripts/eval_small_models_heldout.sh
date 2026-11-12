@@ -13,10 +13,12 @@
 # Usage, from the repo root inside tmux:
 #   NAME=v6 CKPT=model_weights/hllhc_alleta_v6_mse_2ep_phase2_epoch_2_fullstate.pth \
 #     WIDTH=280 LATENT=4 DEVICE=1 bash scripts/eval_small_models_heldout.sh
+# Optional: EXTRA="--save-histograms" (offline replay of peak cuts),
+# VMEM_KB (default 33554432 = 32 GiB).
 set -euo pipefail
 cd /data/home/matmauro/codice/PV-Finder
 source venv/bin/activate
-ulimit -v 33554432
+ulimit -v "${VMEM_KB:-33554432}"
 
 : "${NAME:?}" "${CKPT:?}" "${WIDTH:?}" "${LATENT:?}"
 DEVICE=${DEVICE:-1}
@@ -37,6 +39,8 @@ for tag in r16443 r16638; do
         --centroid-halfwidth 3 --pairwise-bins 300
         --output-dir "$outdir" --device "$DEVICE"
         --dataset-name "HL-LHC PU200 held-out ($tag)")
+    # shellcheck disable=SC2206
+    if [ -n "${EXTRA:-}" ]; then cmd+=(${EXTRA}); fi
     { printf '%q ' "${cmd[@]}"; echo; echo "# git $(git rev-parse HEAD)"; echo "# eval-code diff sha1 $(git diff HEAD -- src/pv_finder/evaluation | sha1sum | cut -c1-12)"; } > "$outdir/INVOCATION.txt"
     "${cmd[@]}" 2>&1 | tee "$outdir/eval.log" | grep -E "Eff=|Error|Traceback" || true
 done
