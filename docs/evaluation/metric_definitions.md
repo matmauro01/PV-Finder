@@ -339,7 +339,7 @@ in the result (`provenance.regime_overrides` in `eval_results.pkl`,
 | | HL-LHC (`hllhc`) | Low pile-up (`lowpu`) |
 |---|---|---|
 | Samples | ITk simulation, 0 ≤ μ ≤ 200 | Run 2 simulation; Run 2 and Run 3 data |
-| Density model | v6 production, **freeze pending** (candidate s8 runs at integral 0.18, height 0.018) | PVF-e400 (two-phase, no KDE; 50 + 400 epochs, 359,616 parameters) |
+| Density model | v6 production, **freeze pending** (candidate s8 runs at integral 0.184, height 0.0184 (matched to v6 fake rate, 12 Nov 2026)) | PVF-e400 (two-phase, no KDE; 50 + 400 epochs, 359,616 parameters) |
 | Peak finding: amplitude / min width | 0.01 / 3 bins | 0.01 / 3 bins |
 | Integral / min height | 0.30 / 0.03 | 0.50 / none |
 | Position estimator | local centroid ±3 bins | local centroid ±3 bins |

@@ -141,10 +141,19 @@ height floor raised until its fakes match the small model. Same events,
 | r16443 | s5 | 0.273 / 0.0273 | 18.74 | -0.19 +- 0.04 | +0.19 +- 0.04 |
 | r16638 | s5 | 0.276 / 0.0276 | 18.48 | -0.14 +- 0.04 | +0.14 +- 0.04 |
 
-At v6's fake rate both small models are within the 0.2-point target; s8
-(9x faster on CPU) is at least as close as s5. The two directions agree
-within errors. sigma_vtx-vtx is measured on separate peaks (integral 0.5);
-the lower height floor changes them in at most 52 of 1,920 events
-(about 0.03% of peaks), so the production sigma values stand: s8 0.2288 /
-0.2291 mm vs v6 0.2290 / 0.2278 mm. Recommended operating point for s8:
-integral 0.18, height floor 0.018.
+At v6's fake rate both small models are within the 0.2-point target on
+efficiency; s8 (9x faster on CPU) is at least as close as s5. The two
+directions agree within errors.
+
+**Superseded on 12 November 2026** by
+[model_freeze_candidates_2026-11-12.md](model_freeze_candidates_2026-11-12.md),
+the final working point (0.17 mm, sigma on the counted peaks):
+- **The old sigma comparison didn't test the small models' own peaks.** The
+  sigma values above came from the separate integral-0.50 peak finding,
+  which the lowered cuts never touch, so they were not a test of the
+  small models' peaks.
+- **On the counted peaks, s5 (both schedules) separates close vertices
+  worse:** +9 to +12 um.
+- **s8 at matched cuts is equal to v6:** +1.2 +- 1.1 um.
+- **The s8 operating point is now integral 0.184, height floor 0.0184**
+  (two-file mean).

@@ -5217,3 +5217,39 @@ Decisions of 11 Nov 2026 put in code as the single source of truth:
   - sigma_vtx-vtx is quoted only for mu >= 100, where AMVF/PVF = 1.41-1.43;
   - sigma_vtx-vtx rises with mu for both algorithms, so it is not stable.
 - Doc: `docs/evaluation/resolution_vs_mu_2026-11-11.md`.
+
+## 2026-11-12 — HL-LHC freeze candidates at the final working point (step 2a)
+
+Re-evaluated v6, s5 1+1, s5 2+2 and s8 on r16443 and r16638 (PU200, 1,920 / 1,888
+events) at the final working point:
+- matching window 0.17 mm;
+- one peak-finding threshold, with sigma fitted on the counted peaks;
+- histograms saved, so peak cuts can be replayed offline.
+
+New code:
+- `scripts/freeze_candidates_compare.py`: paired comparison with an Eq. (1) cross-check;
+- `scripts/freeze_candidates_plots.py`;
+- `scripts/run_freeze_compare.sh`;
+- `src/pv_finder/evaluation/vertex_finding/freeze_compare.py`, with tests.
+
+Checks: replay, bookkeeping and the Eq. (1) identity hold in every event. AMVF
+reproduces its published anchors (79.85%, 0.305 mm, 56.45 um).
+
+v6 numbers:
+- Eff 83.20 / 83.29%;
+- sigma 0.218 / 0.215 mm, now on the counted peaks; the 0.229 mm came from the
+  separate 0.50 threshold.
+
+At v6's fake rate:
+- **s5 1+1:** -0.18 / -0.13 points, sigma +10 / +12 um.
+- **s5 2+2:** -0.05 / +0.09 points, sigma +9 / +10 um. Training longer recovers
+  the efficiency, not the separation.
+- **s8:** -0.14 / -0.09 points, sigma +1.2 +- 1.1 um, p68 +0.6 um.
+
+Only s8 meets "< 0.2 points and no worse sigma". The s8 operating point is moved
+to 0.184 / 0.0184, the two-file mean, which matches v6's fake rate on average
+(0.18 gave +0.09 / +0.24 fakes per event). No freeze yet: step 2b compares the
+vertex categories after GNN v2.
+
+Full write-up: `docs/evaluation/model_freeze_candidates_2026-11-12.md`. The stale
+sigma paragraph in the CPU-model page is marked superseded.

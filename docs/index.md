@@ -37,6 +37,7 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 - [vertex_finding](evaluation/vertex_finding.md) — PVF metrics
 - [resolution_vs_mu_2026-11-11](evaluation/resolution_vs_mu_2026-11-11.md) — HL-LHC sigma_vtx-vtx and 68% residual vs mu with capped errors; close-pair excess limits sigma_vtx-vtx to mu >= 100
 - [cpu_small_model_2026-11-09](evaluation/cpu_small_model_2026-11-09.md) — smaller PV-Finder for CPU: where CPU time goes, exact packed-track inference, s5/s8 runs and held-out comparison
+- [model_freeze_candidates_2026-11-12](evaluation/model_freeze_candidates_2026-11-12.md) — HL-LHC density-model freeze candidates (v6, s5 1+1, s5 2+2, s8) at the final working point: efficiency, fakes, HS, resolution, matched fake rate
 - [additional studies summary (PDF)](additional_studies/additional_studies_summary.pdf) — one-page status of the reviewer-requested studies
 - [paper_figures](evaluation/paper_figures.md) — figures and Table 1 for the short ATLAS paper: sources, conventions, open items
 - [vertex_association](evaluation/vertex_association.md) — GNN metrics
