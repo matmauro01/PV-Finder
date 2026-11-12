@@ -246,12 +246,13 @@ def main() -> None:
     arms["AMVF"] = arm(truth, amvf, hs_z)
     settings["AMVF"] = {"vertices": "RecoVertex with nTracks >= 2"}
 
-    # Cross-checks against what run_eval_pvf_run3.py saved.
+    # Cross-checks against what run_eval_pvf_run3.py saved. sigma agrees to
+    # float summation order (~1e-9 mm), hence a relative tolerance of 1e-6.
     ref_c = arms[f"{args.ref}@common"]
     saved_sigma = runs[args.ref]["sigma"]
     s_chk = fit_sigma_vtx_vtx(runs[args.ref]["pvs"])[0]
     if not args.skip_saved_sigma_check and not np.isclose(
-        s_chk, saved_sigma, rtol=0, atol=1e-9
+        s_chk, saved_sigma, rtol=1e-6, atol=0
     ):
         raise AssertionError(f"sigma {s_chk} != saved {saved_sigma}")
     amvf_saved = np.array([r["amvf_t_found"] for r in runs[args.ref]["saved"]], float)
