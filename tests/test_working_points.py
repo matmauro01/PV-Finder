@@ -41,7 +41,13 @@ def test_decided_values() -> None:
         assert regime.hs_match_window_mm == 0.1
         assert regime.peaks.centroid_halfwidth == 3  # one estimator everywhere
     h, low = wp.HLLHC.peaks, wp.LOWPU.peaks
-    assert (h.amplitude, h.min_width, h.integral, h.min_height) == (0.01, 3, 0.30, 0.03)
+    assert (h.amplitude, h.min_width, h.integral, h.min_height) == (
+        0.01,
+        3,
+        0.184,
+        0.0184,
+    )
+    assert wp.HLLHC_PEAKS.integral == 0.30  # v6 reference cuts
     assert (low.amplitude, low.min_width, low.integral, low.min_height) == (
         0.01,
         3,
@@ -54,14 +60,14 @@ def test_decided_values() -> None:
 
 def test_unfrozen_regime_raises() -> None:
     with pytest.raises(RuntimeError, match="not frozen"):
-        wp.HLLHC.require_frozen()
+        wp.LOWPU.require_frozen()
     with pytest.raises(ValueError):
         wp.get_regime("run4")
 
 
 def test_regime_dict_is_plain() -> None:
     d = wp.HLLHC.to_dict()
-    assert d["density"]["peaks"]["integral"] == 0.30
+    assert d["density"]["peaks"]["integral"] == 0.184
     assert d["match_window_mm"] == 0.17
 
 
@@ -76,7 +82,7 @@ def _parse(argv: list[str], keys: tuple[str, ...] | None = None) -> argparse.Nam
 
 def test_sigma_fit_uses_counting_threshold_by_default() -> None:
     a = _parse(["--regime", "hllhc"])
-    assert a.integral_threshold == 0.30
+    assert a.integral_threshold == 0.184
     assert a.integral_threshold_res == a.integral_threshold
     assert a.regime_overrides == {}
     assert a.density_from_regime and a.e2e_model == wp.HLLHC.density.checkpoint
@@ -89,7 +95,7 @@ def test_explicit_overrides_are_recorded() -> None:
     a = _parse(
         ["--regime", "hllhc", "--integral-threshold-res", "0.5", "--e2e-model", "m.pth"]
     )
-    assert a.integral_threshold == 0.30 and a.integral_threshold_res == 0.5
+    assert a.integral_threshold == 0.184 and a.integral_threshold_res == 0.5
     assert a.regime_overrides["integral_threshold_res"] == 0.5
     assert a.regime_overrides["density_model"] == "m.pth"
     assert not a.density_from_regime
@@ -189,3 +195,12 @@ def test_allowlist_is_current() -> None:
     tracked = set(_tracked_python())
     stale = [f for f in ALLOWLIST if f not in tracked]
     assert not stale, f"allowlisted files no longer tracked: {stale}"
+
+
+def test_hllhc_frozen_12nov2026() -> None:
+    """Freeze decided by Mattia on 12 Nov 2026: s8 density, GNN v2 e527, t = 0.97."""
+    wp.HLLHC.require_frozen()
+    assert wp.HLLHC.density.name == "s8" and wp.HLLHC.density.frozen
+    assert wp.HLLHC.peaks.integral == 0.184 and wp.HLLHC.peaks.min_height == 0.0184
+    assert wp.HLLHC.gnn.t == 0.97 and wp.HLLHC.gnn.frozen
+    assert wp.HLLHC.gnn.checkpoint.endswith("_epoch_527.pyt")

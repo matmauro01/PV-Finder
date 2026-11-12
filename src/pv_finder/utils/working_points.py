@@ -115,8 +115,8 @@ LOWPU_PEAKS = PeakFinding(
     amplitude=0.01, min_width=3, integral=0.50, min_height=0.0, centroid_halfwidth=3
 )
 
-# HL-LHC density-model candidates (D3). FREEZE PENDING: v6 is the default
-# until Mattia freezes one; switching is a one-line change of HLLHC.density.
+# HL-LHC density models (D3). Frozen 12 Nov 2026 (Mattia): s8 for every
+# HL-LHC result. v6 is kept as the reference it was compared against.
 V6 = DensityModel(
     name="v6",
     checkpoint="model_weights/hllhc_alleta_v6_mse_2ep_phase2_epoch_2_fullstate.pth",
@@ -126,7 +126,7 @@ V6 = DensityModel(
     hidden=(128,) * 5,
     peaks=HLLHC_PEAKS,
     frozen=False,
-    note="production v6; FREEZE PENDING (D3)",
+    note="v6 reference (not used for results); s8 frozen instead, 12 Nov 2026",
 )
 S8 = DensityModel(
     name="s8",
@@ -146,8 +146,8 @@ S8 = DensityModel(
         min_height=0.0184,
         centroid_halfwidth=3,
     ),
-    frozen=False,
-    note="CPU candidate, 9x faster; cuts matched to v6 fake rate; FREEZE PENDING",
+    frozen=True,
+    note="FROZEN 12 Nov 2026 (Mattia): 9x faster on CPU than v6; cuts matched to v6 fake rate",
 )
 # Low pile-up: PVF-e400 (two-phase, no KDE), decided 11 Nov 2026.
 E400 = DensityModel(
@@ -173,7 +173,7 @@ HLLHC = Regime(
     match_window_mm=MATCH_WINDOW_MM,
     hs_match_window_mm=HS_MATCH_WINDOW_MM,
     pairwise_bins=PAIRWISE_BINS,
-    density=V6,
+    density=S8,
     gnn=GNNWorkingPoint(
         # Lowest validation-monitor loss of the 540 shard epochs (0.255807;
         # plateaued, last pass -0.07%); beats v1 e213 on identical events.
@@ -182,11 +182,14 @@ HLLHC = Regime(
             "model_weights/ttva_gnn_hllhc_fullmu_v2_20261111/"
             "ttva_gat_alleta_k20_fullmu_v2_150k_epoch_527.pyt"
         ),
-        t=None,
-        frozen=False,
-        note="full-mu v2 e527 (chosen 12 Nov 2026); t PENDING (Mattia decides t)",
+        # t = 0.97 chosen by Mattia, 12 Nov 2026: Clean/truth within 0.6 pt of
+        # the maximum (0.98), most even across mu, better track F1 and HS
+        # resolution. docs/evaluation/gnn_v2_freeze_2026-11-12.md
+        t=0.97,
+        frozen=True,
+        note="full-mu v2 e527, t = 0.97; FROZEN 12 Nov 2026",
     ),
-    pending=("density model (D3)", "GNN t"),
+    pending=(),
 )
 LOWPU = Regime(
     name="lowpu",
