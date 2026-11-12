@@ -24,3 +24,8 @@ Running list from the November 11, 2026 walkthrough with Mattia. Not on the slid
 - Athena: run the standard ATLAS adaptive vertex fitter on the PV-Finder seed and the GNN tracks, to confirm.
 - Ntuple d0 sign is opposite to the x0/y0 convention: report to the ntuple producer and check in Athena.
 - Decide the production GNN working point for the fit (all assigned tracks 9.27, score >= 0.98 9.72).
+
+## HS selection (11 Nov)
+- Headline is now +2.0 ± 0.5 points: GNN under the Athena rule (sum pT^2 over chi2 <= 18.42 compatible tracks) vs AMVF's stored primary. Replaces +3.4 in note §7.5.
+- For a strictly identical AMVF computation, the ntuple re-dump (Trey) needs per AMVF vertex: shared track links with weights and compatibility, Athena sumPt2, and filled RecoVertex_ErrX/Y/Z.
+- Recompute with the frozen GNN v2 and its working point.
