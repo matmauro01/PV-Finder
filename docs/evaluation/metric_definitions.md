@@ -305,22 +305,63 @@ the assigning.
 
 ## 5. The matching window, in detail
 
-### 5.0 Current rule (PI decision, November 2026)
+### 5.0 Current rule (PI decisions, November 2026)
 
-- **All non-hard-scatter vertex studies use a fixed 0.1694 mm window**, the
-  same for every algorithm: `pv_finder.utils.constants.MATCH_WINDOW_MM`.
-  It is 3 × the larger 68th-percentile core position residual of the two
-  algorithms at PU200 (PV-Finder 55.05 µm, AMVF 56.45 µm; optimal one-to-one
-  assignment within 1 mm), 3 × 0.05645 = 0.1694 mm.
+- **Every vertex study uses one fixed 0.17 mm window**, the same for every
+  algorithm and for both regimes (HL-LHC and low pile-up):
+  `pv_finder.utils.working_points.MATCH_WINDOW_MM` (re-exported as
+  `pv_finder.utils.constants.MATCH_WINDOW_MM`). It is 3 × the larger
+  68th-percentile single-vertex position residual of the two algorithms at
+  PU200 (PV-Finder 55.05 µm, AMVF 56.45 µm; optimal one-to-one assignment
+  within 1 mm), 3 × 0.05645 = 0.1694 mm, rounded to 0.17 mm (decision of
+  11 Nov 2026). At low pile-up the same window is 2.5 × the Run 2 simulation
+  residual (67–70 µm), slightly strict, kept for one number in the paper.
 - **Hard-scatter studies use 0.1 mm** (`HS_MATCH_WINDOW_MM`), the ITk paper
   (arXiv:2412.15090) §5.5 criterion.
-- `run_eval_pvf_run3.py` and `run_eval_pvf.py` default to
-  `--match-window-mm 0.1694` since 2026-11-09 and record `match_window_mm` in
-  the pkl. `--match-window-mm 0` restores the legacy behaviour described in
-  §5.1 (reuse PV-Finder's fitted σ_vtx-vtx); outputs before 2026-11-09 were all
-  produced that way.
-- Justification and the list of remaining inconsistencies:
+- From 2026-11-09 to 2026-11-11 the default was 0.1694 mm; before 2026-11-09
+  outputs reused PV-Finder's fitted σ_vtx-vtx (§5.1). `--match-window-mm 0`
+  still restores that legacy behaviour for diagnostics.
+- All working points, not only the window, are defined in §5.3.
+- Justification and the inconsistencies found on 9 Nov:
   [matching_window_audit_2026-11-09.md](matching_window_audit_2026-11-09.md).
+
+### 5.3 Working points (single source of truth, 11 Nov 2026)
+
+`src/pv_finder/utils/working_points.py` defines two regimes and nothing else
+defines a window or a production cut. Every evaluation entry point takes
+`--regime hllhc|lowpu` (required); every working-point flag defaults to the
+regime, and a flag given explicitly is kept and **recorded as an override**
+in the result (`provenance.regime_overrides` in `eval_results.pkl`,
+`INVOCATION.txt`, `chain_info.json`, `gap_decomposition.json`, graph
+`*.provenance.json`), together with the full regime, the git hash and whether
+`src/` had uncommitted changes.
+
+| | HL-LHC (`hllhc`) | Low pile-up (`lowpu`) |
+|---|---|---|
+| Samples | ITk simulation, 0 ≤ μ ≤ 200 | Run 2 simulation; Run 2 and Run 3 data |
+| Density model | v6 production, **freeze pending** (candidate s8 runs at integral 0.18, height 0.018) | PVF-e400 (two-phase, no KDE; 50 + 400 epochs, 359,616 parameters) |
+| Peak finding: amplitude / min width | 0.01 / 3 bins | 0.01 / 3 bins |
+| Integral / min height | 0.30 / 0.03 | 0.50 / none |
+| Position estimator | local centroid ±3 bins | local centroid ±3 bins |
+| σ_vtx-vtx fit | the counted peaks; 300 bins over ±6 mm | same |
+| Matching window | 0.17 mm | 0.17 mm |
+| Hard-scatter window | 0.1 mm | 0.1 mm |
+| Residual assignment radius | 1 mm | 1 mm |
+| GNN | full-μ v2, checkpoint and t **pending** | t = 0.99 proposed, **pending** |
+
+- **One threshold.** σ_vtx-vtx is fitted on the same peaks as the counts:
+  `--integral-threshold-res` defaults to `--integral-threshold`. Until
+  11 Nov 2026 it defaulted to 0.50 at HL-LHC, so the quoted 0.229 mm was
+  measured at 0.50 (about 0.218 mm at 0.30 on the same events, to be
+  confirmed by the frozen recompute); see §8.10.
+- **Frozen vs pending.** `Regime.pending` lists what is not frozen;
+  `Regime.require_frozen()` raises, so a final result cannot come from a
+  placeholder by accident, and the evaluation banner prints `NOT FROZEN`.
+- **Freezing.** Changing `HLLHC.density` (one line) switches the checkpoint,
+  its architecture and its peak cuts together.
+- **Guard.** `tests/test_working_points.py` fails if a tracked file under
+  `src/` or `scripts/` hard-codes a matching window outside a documented
+  allowlist (window scans, visualisations, the GNN augmentation calibration).
 
 ### 5.1 Legacy: the window was derived from our own resolution
 
@@ -770,15 +811,19 @@ them (efficiency 0.8648 vs 0.8662, σ 0.2200 vs 0.2213) is a **reconstruction
 consistency check**, not a second measurement. Do not average them and do not
 present the pair as reproducibility across samples.
 
-### 8.10 The eval's own peak list is produced twice
+### 8.10 The eval's own peak list was produced twice (fixed 11 Nov 2026)
 
-`run_eval_pvf_run3.py:344-359` runs the peak finder twice per event: once with
-`--integral-threshold` for the performance counts and once with
-`--integral-threshold-res` for the σ fit. They default to 0.30 and 0.50 in the
-current HL-LHC operating point, so **σ_vtx-vtx is measured on a different (and
-sparser) peak list than the one efficiency is measured on.** This is deliberate
-history (see `docs/evaluation/vertex_finding.md`, "Unified-threshold"), but it
-means σ is not the resolution of the peak list being scored.
+`run_eval_pvf_run3.py` and `run_eval_pvf.py` run the peak finder twice per
+event: once with `--integral-threshold` for the performance counts and once
+with `--integral-threshold-res` for the σ fit. **Until 11 Nov 2026 the second
+defaulted to 0.50** while HL-LHC counts used 0.30, so σ_vtx-vtx was measured
+on a sparser peak list than the one efficiency was measured on (0.229 mm at
+0.50; about 0.218 mm at 0.30 on the same r16443 PU200 events, to be confirmed
+by the frozen recompute). Since 11 Nov 2026 the
+second threshold defaults to the first (§5.3); an explicit
+`--integral-threshold-res` is a recorded diagnostic override. `run_eval_pvf.py`
+(low pile-up MC) also fitted σ on 60 bins with a fixed start; it now uses the
+regime's 300 bins and the data-driven start of `run_eval_pvf_run3.py`.
 
 ### 8.11 Errors
 

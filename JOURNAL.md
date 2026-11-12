@@ -5160,3 +5160,38 @@ fake rate gives the same answer from the other side (+0.22 / +0.15 for s8).
 Both small models meet the 0.2-point target at matched fakes; s8 (9x faster)
 is the candidate, at integral 0.18 and height 0.018. sigma unchanged.
 Details in `docs/evaluation/cpu_small_model_2026-11-09.md`.
+
+## 2026-11-11 (late) — Working points in one place (step 1 of the recompute)
+
+Decisions of 11 Nov 2026 put in code as the single source of truth:
+`src/pv_finder/utils/working_points.py` (regimes `hllhc`, `lowpu`).
+- Window 0.17 mm everywhere, for both regimes and for the Fig. 7.2 finder cap,
+  truth-guided and oracle bars; hard scatter 0.1 mm. `constants.MATCH_WINDOW_MM`
+  now re-exports 0.17 (was 0.1694).
+- Peaks: HL-LHC 0.01 / 3 / 0.30 / 0.03 / centroid ±3; low pile-up
+  0.01 / 3 / 0.50 / none / centroid ±3 (was the full-region mean).
+- σ_vtx-vtx is fitted on the counted peaks: the hidden `--integral-threshold-res`
+  default of 0.50 is gone (now follows `--integral-threshold`). `run_eval_pvf.py`
+  also moved from a 60-bin fit with a fixed start to the regime's 300 bins.
+- Density models: HL-LHC v6 (freeze pending; s8 candidate with its own cuts),
+  low pile-up PVF-e400. GNN: HL-LHC v2 and both t values pending; `Regime.pending`
+  is printed as NOT FROZEN and `require_frozen()` raises.
+- `--regime` is required by run_eval_pvf_run3.py, run_eval_pvf.py,
+  pu200_chain_graphs.py, pvf_to_graphs.py and chain_gap_decomposition.py; every
+  working-point flag defaults to the regime, explicit flags are recorded as
+  overrides with the regime, git hash and `src/` dirty flag in the outputs.
+  hs_chain_study / summary / plots, hs_metrics, hs_selection_identical_rule,
+  hs_reconstruction, paper_figures/sources (low pile-up windows were the fitted
+  σ), data_mc_validation, HS radius scripts and the residual radius now import
+  from the module. Stale default integral 0.40 in the chain scripts removed.
+- Guard: `tests/test_working_points.py` (values, one-threshold default,
+  override recording, CLIs, repo scan for hard-coded windows with an allowlist).
+- Equivalence check (`outputs/11_12_2026_output/working_points_equivalence/`, v6, r16443
+  entries 0-899, 384 in the PU200 window): with `--match-window-mm 0.1694
+  --integral-threshold-res 0.5` the new code reproduces the saved
+  `11_10_2026_output/small_model_eval/v6/r16443` eval exactly (all 16 per-event
+  count fields and every peak position in 900/900 events; σ-fit input pairs
+  identical). At the final working point: counts change in 22 of 900 events;
+  PU200 efficiency 0.8308 -> 0.8311 (AMVF 0.7992 -> 0.7998); σ_vtx-vtx
+  0.2256 -> 0.2146 mm on these 384 events (one threshold).
+- Docs: `docs/evaluation/metric_definitions.md` §5.0, §5.3 (new table), §8.10.
