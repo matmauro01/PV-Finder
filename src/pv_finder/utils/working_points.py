@@ -150,9 +150,10 @@ S8 = DensityModel(
 # Low pile-up: PVF-e400 (two-phase, no KDE), decided 11 Nov 2026.
 E400 = DensityModel(
     name="e400",
+    # In-repo copy (sha1-identical) of atlas_pvfinder/model_weights/
+    # e2e_attempt4_mlp_hist/, copied 2026-11-11 so the repo is self-contained.
     checkpoint=(
-        "/data/home/matmauro/codice/atlas_pvfinder/model_weights/"
-        "e2e_attempt4_mlp_hist/"
+        "model_weights/lowpu_e400/"
         "e2e_mlpHist50_e2e400_1latent_mse_phase2_epoch_400_fullstate.pth"
     ),
     model_type="v1",
