@@ -121,3 +121,17 @@ Tracked in `paper_questions_2026-11-11.md`.
   - 0.17 mm window everywhere, with one sentence that at low pile-up it is 2.5x the 68% residual
   - samples: Run 2 MC, Run 2 data, Run 3 data only; the MC is called "Run 2 MC"
 - **Found 11 Nov:** the sigma_vtx-vtx fit used a hidden second peak finding (`--integral-threshold-res`, default 0.50), so 0.229 mm is at 0.50 and about 0.218 mm at the single threshold 0.30. The recompute makes the fit follow the main threshold.
+
+## Frozen 12 November 2026 (Mattia)
+- HL-LHC: density model s8 for every result, GNN v2 epoch 527, t = 0.97 (commit 4f04b53).
+- Resolution vs mu in the paper: the 68% residual |z_reco - z_true|; sigma_vtx-vtx quoted at PU200 (or per bin for mu >= 100) only.
+- Low pile-up GNN t: options pending from the recompute; Mattia decides.
+
+## Paper deck contents (one PDF for the colleague, built after the recompute)
+1. The frozen configuration: one table per regime (D1).
+2. Datasets: training, validation and test samples for HL-LHC and low pile-up, with event counts, mu distributions and which file is used for what (D5).
+3. Metric definitions: exactly how each number is computed (efficiency, fake fraction, sigma_vtx-vtx, 68% residual, categories, HS selection, HS resolution, track F1, local density), with the code that computes it.
+4. Every paper plot and number, PV-Finder vs AMVF on the same events (D6, D7).
+5. Answers to the 29 questions, each with its page and line in the draft.
+6. Answers to Mattia's own questions from the meeting (window justification, HS 0.1 mm, model freeze, GNN t, low-mu behaviour, CPU timing, Run 2 vs HL-LHC binning).
+7. The proposed internal-note edits, each with page and line, the old text and the new [MM: ...] text.
