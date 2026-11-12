@@ -118,3 +118,33 @@ Its validation loss (0.01635) sits between v6 after one Phase-2 epoch and v6
 at the end, so the shorter schedule is the first suspect. The s5 2+2 run
 tests this; s8 (1+1) is evaluated when its Phase 2 finishes. Comparing at
 matched fake rate (lowering s5's integral threshold) is the cheap next check.
+
+## Matched fake rate (2026-11-11)
+
+The small models sit at stricter operating points than v6 (fewer peaks), so
+the production-setting differences above mix a performance loss with a move
+along the efficiency / fake-rate curve. `scripts/matched_fp_scan.py` replays
+peak finding and matching on saved evaluations (no inference; s5 and s8
+re-run once with `--save-histograms`, reproducing the numbers above exactly,
+`outputs/11_11_2026_output/small_model_matched_fp/`). Each replay at the
+saved settings is checked event by event against the stored counts.
+
+Knob: both peak cuts scaled by one factor k (integral 0.30 k, height floor
+0.03 k), bisected until fakes per event match v6. Reverse cross-check: v6's
+height floor raised until its fakes match the small model. Same events,
+0.1694 mm window, paired event bootstrap (2,000 resamples).
+
+| File | Model | Cuts (integral / height) | FP/event | dEff vs v6 (pt) | v6 raised to model FP: v6 - model (pt) |
+|---|---|---|---:|---:|---:|
+| r16443 | s8 | 0.182 / 0.0182 | 18.74 | -0.14 +- 0.04 | +0.22 +- 0.04 |
+| r16638 | s8 | 0.186 / 0.0186 | 18.51 | -0.10 +- 0.04 | +0.15 +- 0.04 |
+| r16443 | s5 | 0.273 / 0.0273 | 18.74 | -0.19 +- 0.04 | +0.19 +- 0.04 |
+| r16638 | s5 | 0.276 / 0.0276 | 18.48 | -0.14 +- 0.04 | +0.14 +- 0.04 |
+
+At v6's fake rate both small models are within the 0.2-point target; s8
+(9x faster on CPU) is at least as close as s5. The two directions agree
+within errors. sigma_vtx-vtx is measured on separate peaks (integral 0.5);
+the lower height floor changes them in at most 52 of 1,920 events
+(about 0.03% of peaks), so the production sigma values stand: s8 0.2288 /
+0.2291 mm vs v6 0.2290 / 0.2278 mm. Recommended operating point for s8:
+integral 0.18, height floor 0.018.

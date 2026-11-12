@@ -5148,3 +5148,15 @@ tmux `gnn_fullmu_v2`; ETA about 03:20 UTC 12 November. Doc:
   takes the container order, and both studies use it. They were re-run to
   `outputs/11_11_2026_output/`.
 - Doc: `docs/evaluation/hs_selection_identical_rule_2026-11-11.md`.
+
+## 2026-11-11 — Small models at matched fake rate
+
+s5 and s8 run at stricter operating points than v6. Re-ran both once with
+`--save-histograms` (numbers reproduce exactly) and replayed peak finding
+with `scripts/matched_fp_scan.py`, scaling both peak cuts by one factor until
+fakes per event match v6. At v6's fake rate: s8 -0.14 +- 0.04 / -0.10 +- 0.04
+points (r16443 / r16638), s5 -0.19 / -0.14. Raising v6 to the small models'
+fake rate gives the same answer from the other side (+0.22 / +0.15 for s8).
+Both small models meet the 0.2-point target at matched fakes; s8 (9x faster)
+is the candidate, at integral 0.18 and height 0.018. sigma unchanged.
+Details in `docs/evaluation/cpu_small_model_2026-11-09.md`.
