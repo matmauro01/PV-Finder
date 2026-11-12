@@ -5195,3 +5195,25 @@ Decisions of 11 Nov 2026 put in code as the single source of truth:
   PU200 efficiency 0.8308 -> 0.8311 (AMVF 0.7992 -> 0.7998); σ_vtx-vtx
   0.2256 -> 0.2146 mm on these 384 events (one threshold).
 - Docs: `docs/evaluation/metric_definitions.md` §5.0, §5.3 (new table), §8.10.
+
+## 2026-11-11 — HL-LHC resolution versus pile-up with capped errors
+
+- **Measured:** sigma_vtx-vtx and the 68% single-vertex residual in 12 mu bins
+  (0-200), PV-Finder v6 against AMVF.
+  - Peaks at the single HL-LHC operating point (integral 0.30 for counting and
+    for the sigma fit).
+  - 44,999 events from r16443 and r16638, which the density model never saw.
+  - Fixed per-bin counts, with all events at mu < 20.
+- **Errors:** the statistical error on sigma is ≤ 2.1% in every bin, except
+  PV-Finder mu 20-30 (3.3%) and AMVF mu 0-10 (4.9%).
+- **Reproducibility:** fresh histograms are bit-identical to the September cache.
+- **Finding:** the pairwise Delta z has a reconstruction-made excess of close
+  pairs within ±2 mm. Truth pairs are flat; about half of the excess comes from
+  the HS neighbourhood. It dominates at low mu: the merge length is negative
+  for mu < 100, and chi2/ndf of the sigmoid is 4-57.
+- **Treatment:**
+  - the 68% residual is the resolution vs mu: PV-Finder and AMVF within 1.8 um
+    in every bin, 33 to 57 um;
+  - sigma_vtx-vtx is quoted only for mu >= 100, where AMVF/PVF = 1.41-1.43;
+  - sigma_vtx-vtx rises with mu for both algorithms, so it is not stable.
+- Doc: `docs/evaluation/resolution_vs_mu_2026-11-11.md`.

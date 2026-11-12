@@ -35,6 +35,7 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 - [run2_vs_run4_resolution_2026-11-09](evaluation/run2_vs_run4_resolution_2026-11-09.md) — why the AMVF/PVF σ_vtx-vtx gap shrinks from 1.9 (Run 2) to 1.3 (PU200)
 - [itk_hs_resolution_2026-11-09](evaluation/itk_hs_resolution_2026-11-09.md) — HS longitudinal resolution with the ITk-paper definition: PVF 12.4 vs AMVF 10.2 µm
 - [vertex_finding](evaluation/vertex_finding.md) — PVF metrics
+- [resolution_vs_mu_2026-11-11](evaluation/resolution_vs_mu_2026-11-11.md) — HL-LHC sigma_vtx-vtx and 68% residual vs mu with capped errors; close-pair excess limits sigma_vtx-vtx to mu >= 100
 - [cpu_small_model_2026-11-09](evaluation/cpu_small_model_2026-11-09.md) — smaller PV-Finder for CPU: where CPU time goes, exact packed-track inference, s5/s8 runs and held-out comparison
 - [additional studies summary (PDF)](additional_studies/additional_studies_summary.pdf) — one-page status of the reviewer-requested studies
 - [paper_figures](evaluation/paper_figures.md) — figures and Table 1 for the short ATLAS paper: sources, conventions, open items
