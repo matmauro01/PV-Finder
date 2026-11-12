@@ -22,6 +22,7 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 - [vertex_finding](training/vertex_finding.md) — PVF training
 - [vertex_association](training/vertex_association.md) — GNN training
 - [Full-pileup GNN run, 2026-09-24](evaluation/gnn_full_pileup_training_2026-09-24.md) — split, recipe, tmux monitoring and validation plan
+- [Full-pileup GNN v2 (more data), 2026-11-11](evaluation/gnn_full_pileup_training_v2_2026-11-11.md) — v1 recipe on 149,820 events, same val/test, training status
 
 ## Evaluation
 

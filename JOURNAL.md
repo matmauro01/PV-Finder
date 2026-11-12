@@ -5109,3 +5109,18 @@ so the target readout uses a 1-bin variant. Code
 `src/pv_finder/diagnostics/run2_vs_run4/target_readout.py`,
 `scripts/target_readout.py`; doc section in
 `docs/evaluation/run2_vs_run4_resolution_2026-11-09.md`.
+
+## 2026-11-11 — Full-pileup GNN v2 on 2.5x more data (plan D4)
+
+Retraining the full-mu TTVA GNN with the v1 recipe unchanged, on 149,820
+events: v1's 60,000 r16443 events plus 89,820 from r16638. r16638 is an
+independent production: no shared full truth-z fingerprint or hard-scatter
+(x, y, z) with r16443. v1's validation, monitor and reserved-test sets are
+unchanged, so v1 and v2 compare directly, and 9,980 r16638 events are an
+extra reserved test. 540 shard epochs = 18 passes, as v1. Graphs use truth
+candidates, so no PV-Finder model is involved. The first launch was stopped
+at shard epoch 13 because the trainer's virtual size (47.8 GiB) sat 0.2 GiB
+under the 48 GiB ulimit; it was relaunched under 64 GiB (logs in
+`outputs/11_11_2026_output/gnn_fullmu_v2/aborted_run1/`). Running on GPU 2,
+tmux `gnn_fullmu_v2`; ETA about 03:20 UTC 12 November. Doc:
+`docs/evaluation/gnn_full_pileup_training_v2_2026-11-11.md`.
