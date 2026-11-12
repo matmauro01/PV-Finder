@@ -74,6 +74,11 @@ require new GNN training graphs.
 
 ## Status
 
+- **Finished 2026-11-12 04:01 UTC** (540 shard epochs, final validation-monitor
+  loss 0.2558, learning rate at the 1e-5 floor, plateaued). Checkpoint chosen:
+  **epoch 527** (lowest validation loss). Checkpoint evidence, t scan and full
+  chain: [gnn_v2_freeze_2026-11-12.md](gnn_v2_freeze_2026-11-12.md).
+
 - Graph building finished at 2026-11-12 00:00 UTC.
 - **The first launch was stopped and relaunched.**
   - The first launch was trainer pid 98041, started at 00:01 UTC. It was stopped at shard epoch 13, with validation-monitor loss 0.327.

@@ -5253,3 +5253,55 @@ vertex categories after GNN v2.
 
 Full write-up: `docs/evaluation/model_freeze_candidates_2026-11-12.md`. The stale
 sigma paragraph in the CPU-model page is marked superseded.
+
+## 2026-11-12 — GNN v2 freeze: checkpoint, t scan, full chain (step 2b)
+
+- **Checkpoint:** GNN v2 epoch 527, the lowest validation-monitor loss (0.255807).
+  - Plateaued: the last pass gained -0.07%, with the learning rate at its floor.
+  - It beats v1 e213 on identical events: truth-graph F1 +1 to +3 points; chain
+    F1 at least as good in every mu bin.
+  - Set as the HL-LHC GNN checkpoint in `working_points.py`; t is still pending.
+- **Hygiene:** shown in `hygiene.json`.
+  - GNN v2 trained on r16443 entries in 25,000-99,999 only.
+  - The test set (r16443 0-24,999) and the t-scan set (the 7,500 GNN validation
+    entries) are disjoint from training and from each other.
+  - No HS (x, y, z) or truth-z fingerprint overlap with r16638, r16438 or r16633.
+  - The 7,500 GNN reserved-test entries are untouched.
+- **New code:**
+  - `gnn.evaluation.chain_inference`: density → peaks → top-1 edges, GPU.
+  - `chain_t_metrics`: per event, per t, both taxonomies, track counts, HS
+    selection with the Athena rule, HS 3D-fit residual.
+  - `chain_t_summary`: ratios of sums, paired bootstrap, bookkeeping asserts.
+  - `scripts/gnn_v2_freeze_*.py` and the low-mu scripts.
+  - Tests: `tests/test_chain_t_metrics.py`.
+- **Checks:**
+  - The v1 regression against the 11 Nov studies reproduces them: AMVF and HS
+    flags exactly, GNN categories in all but ≤ 6 of 25,000 events.
+  - An independent recomputation by a second agent matches every headline count
+    exactly.
+  - AMVF anchors reproduced: stored-primary HS selection 92.92%, HS resolution
+    10.25 um.
+- **t options** (derived on validation, quoted on test, v6):
+
+  | t | Clean/truth (incl. / PU200) | HS selection (incl.) | HS resolution |
+  |---|---|---|---|
+  | 0.98 | 73.8 / 67.7% (maximum) | 96.8% | 9.70 um |
+  | 0.97 | 73.2 / 67.0% (mu-robust) | | |
+  | 0.94 | | 97.1% (maximum) | |
+  | 0.92 | | | |
+  | 0 | | | 9.36 um (best) |
+
+  - t = 0.92 maximises track F1 (76.8%).
+  - AMVF: Clean/truth 40.5 / 30.9%, HS resolution 9.93 um.
+  - Mattia decides.
+- **Low mu:**
+  - The t dependence reverses below mu ≈ 20: Clean/truth peaks at t ≈ 0.9. At
+    low mu 97% of top-1 edges are already correct, so the cut mostly removes
+    good tracks.
+  - The GNN is also less confident on small vertices at mu < 10, even on truth
+    graphs. v1 was worse here.
+  - Low-mu splits are mostly one-track HS satellite peaks.
+- **v6 against s8 after the GNN:** s8 is -0.07 ± 0.02 points in Clean/truth at
+  t = 0.98, -0.24 ± 0.07 in HS selection, and equal in HS resolution.
+- Doc: `docs/evaluation/gnn_v2_freeze_2026-11-12.md`. Outputs:
+  `outputs/11_12_2026_output/gnn_v2_freeze/`.

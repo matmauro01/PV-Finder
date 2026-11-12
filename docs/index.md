@@ -22,7 +22,7 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 - [vertex_finding](training/vertex_finding.md) — PVF training
 - [vertex_association](training/vertex_association.md) — GNN training
 - [Full-pileup GNN run, 2026-09-24](evaluation/gnn_full_pileup_training_2026-09-24.md) — split, recipe, tmux monitoring and validation plan
-- [Full-pileup GNN v2 (more data), 2026-11-11](evaluation/gnn_full_pileup_training_v2_2026-11-11.md) — v1 recipe on 149,820 events, same val/test, training status
+- [Full-pileup GNN v2 (more data), 2026-11-11](evaluation/gnn_full_pileup_training_v2_2026-11-11.md) — v1 recipe on 149,820 events, same val/test; done, e527 chosen (see gnn_v2_freeze)
 
 ## Evaluation
 
@@ -38,6 +38,7 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 - [resolution_vs_mu_2026-11-11](evaluation/resolution_vs_mu_2026-11-11.md) — HL-LHC sigma_vtx-vtx and 68% residual vs mu with capped errors; close-pair excess limits sigma_vtx-vtx to mu >= 100
 - [cpu_small_model_2026-11-09](evaluation/cpu_small_model_2026-11-09.md) — smaller PV-Finder for CPU: where CPU time goes, exact packed-track inference, s5/s8 runs and held-out comparison
 - [model_freeze_candidates_2026-11-12](evaluation/model_freeze_candidates_2026-11-12.md) — HL-LHC density-model freeze candidates (v6, s5 1+1, s5 2+2, s8) at the final working point: efficiency, fakes, HS, resolution, matched fake rate
+- [gnn_v2_freeze_2026-11-12](evaluation/gnn_v2_freeze_2026-11-12.md) — GNN v2 checkpoint (e527), t scan in mu bins with t options, low-mu diagnosis, v6 vs s8 after the GNN, AMVF on the same events
 - [additional studies summary (PDF)](additional_studies/additional_studies_summary.pdf) — one-page status of the reviewer-requested studies
 - [paper_figures](evaluation/paper_figures.md) — figures and Table 1 for the short ATLAS paper: sources, conventions, open items
 - [vertex_association](evaluation/vertex_association.md) — GNN metrics
