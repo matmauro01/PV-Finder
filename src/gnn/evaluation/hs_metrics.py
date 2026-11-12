@@ -24,7 +24,8 @@ HS definitions (event level; ``hs`` is the truth index with
 
 - HS-matched vertex: the reconstructed vertex with the largest number of
   tracks whose truth label is ``hs`` (ITk paper Sec. 5.5 / Athena
-  ``bestHardScatterMatch``); ties go to the larger sum(pT^2), then list order.
+  ``bestHardScatterMatch``); ties go to the vertex first in the sum(pT^2)-
+  sorted container (strict ``>`` in Athena), see ``gnn.evaluation.pv_selection``.
   None if no vertex holds an HS track.
 - Selected vertex: the largest sum(pT^2) vertex (first in list order on ties).
 """
@@ -35,6 +36,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from gnn.evaluation.pv_selection import best_hs_match, sorted_container_order
 from pv_finder.utils.constants import PURITY_THRESHOLD
 
 CLEAN, MERGED, SPLIT, FAKE = 0, 1, 2, 3
@@ -237,12 +239,21 @@ def hs_track_counts(
     return np.bincount(vid[track_truth[trk] == hs_index], minlength=len(lists))
 
 
-def hs_matched_index(nhs: np.ndarray, classification: VertexClassification) -> int:
-    """Vertex with the most HS tracks (ties: larger sum(pT^2)); -1 if none."""
-    if len(nhs) == 0 or nhs.max() <= 0:
-        return -1
-    tied = np.flatnonzero(nhs == nhs.max())
-    return int(tied[np.argmax(classification.sum_pt2[tied])])
+def hs_matched_index(
+    nhs: np.ndarray,
+    classification: VertexClassification,
+    order: np.ndarray | None = None,
+) -> int:
+    """Vertex with the most HS tracks; -1 if none (Athena ``bestHardScatterMatch``).
+
+    Ties go to the vertex first in the sum(pT^2)-sorted container. ``order``
+    is that container position. By default it comes from this classification's
+    sum(pT^2), descending, stable on ties. Pass the stored order for an Athena
+    container (AMVF), whose sorting used Athena's own track links.
+    """
+    if order is None:
+        order = sorted_container_order(classification.sum_pt2)
+    return best_hs_match(nhs, order)
 
 
 def selected_index(classification: VertexClassification) -> int:
@@ -261,12 +272,16 @@ def hs_event_record(
     vertex_z: np.ndarray,
     hs_z: float,
     window: float = 0.1,
+    order: np.ndarray | None = None,
 ) -> np.ndarray:
-    """All HS quantities for one event and one vertex list (see HS_FIELDS)."""
+    """All HS quantities for one event and one vertex list (see HS_FIELDS).
+
+    ``order``: container position used for HS-match ties (see hs_matched_index).
+    """
     vertex_z = np.asarray(vertex_z, dtype=np.float64)
     n_hs = int((track_truth == hs_index).sum())
     nhs = hs_track_counts(lists, classification, track_truth, hs_index)
-    match = hs_matched_index(nhs, classification)
+    match = hs_matched_index(nhs, classification, order)
     has_match = match >= 0
     selected = selected_index(classification)
     dom_hs = classification.dominant == hs_index
