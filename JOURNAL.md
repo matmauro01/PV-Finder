@@ -5124,3 +5124,27 @@ under the 48 GiB ulimit; it was relaunched under 64 GiB (logs in
 `outputs/11_11_2026_output/gnn_fullmu_v2/aborted_run1/`). Running on GPU 2,
 tmux `gnn_fullmu_v2`; ETA about 03:20 UTC 12 November. Doc:
 `docs/evaluation/gnn_full_pileup_training_v2_2026-11-11.md`.
+
+## 2026-11-11 — Identical HS-selection rule for AMVF and PV-Finder+GNN
+
+- **Rule read from Athena 24.0 source (BNL LXR):**
+  - the primary vertex is the largest sum(pT^2) over each vertex's track links;
+  - links are the AMVF tracks compatible with the vertex (chi2 <= 18.42);
+  - no weights and no pT cap;
+  - ties in the HS match go to the first vertex in the sorted container.
+- **Implementation:** one function, `gnn.evaluation.pv_selection`, applied
+  identically to both algorithms (`gnn.diagnostics.hs_selection_identical_rule`).
+- **Validation:** on AMVF's stored lists the rule reproduces Athena's stored
+  primary in 94.8% of PU200 events; plain sum pT^2 does so in 79.7%. The ntuple
+  lists are exclusive, and 6% of their tracks fail AMVF's own compatibility cut.
+- **Result (PU200, reconstructed and selected, 0.1 mm):**
+  - GNN v4 t=0.98 with the Athena rule: 94.90 +- 0.50%.
+  - AMVF stored primary: 92.92 +- 0.58%, a difference of +1.98 +- 0.54.
+  - With the same code on AMVF's lists: 89.11%, a difference of +5.78 +- 0.66.
+  - The earlier +3.4 mixed two rules.
+- **Mechanism:** wrong selections are driven by incompatible tracks above 50 GeV.
+- **1,783 vs 1,784 fixed (entry 9560):** an HS-track tie. Athena gives ties to
+  the first vertex of the sorted container. `hs_metrics.hs_matched_index` now
+  takes the container order, and both studies use it. They were re-run to
+  `outputs/11_11_2026_output/`.
+- Doc: `docs/evaluation/hs_selection_identical_rule_2026-11-11.md`.
