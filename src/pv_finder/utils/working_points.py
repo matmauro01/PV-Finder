@@ -135,13 +135,15 @@ S8 = DensityModel(
     unet_channels=80,
     latent_channels=1,
     hidden=(128,) * 5,
-    # Cuts that give v6's fake rate (matched-FP scan, 11 Nov 2026:
-    # 0.182/0.0182 on r16443, 0.186/0.0186 on r16638).
+    # Cuts that give v6's fake rate: matched-FP scan at 0.17 mm, 12 Nov 2026,
+    # 0.182/0.0182 on r16443 and 0.186/0.0186 on r16638; the two-file mean
+    # 0.184 gives fakes/event -0.06 / +0.10 vs v6 (0.18 gave +0.09 / +0.24).
+    # docs/evaluation/model_freeze_candidates_2026-11-12.md
     peaks=PeakFinding(
         amplitude=0.01,
         min_width=3,
-        integral=0.18,
-        min_height=0.018,
+        integral=0.184,
+        min_height=0.0184,
         centroid_halfwidth=3,
     ),
     frozen=False,
