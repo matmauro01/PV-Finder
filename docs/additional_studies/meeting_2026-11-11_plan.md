@@ -115,3 +115,9 @@ Tracked in `paper_questions_2026-11-11.md`.
   - physics trends vs mu and n_trk
   - AMVF anchors to the ITk paper (HS selection ~93%, HS resolution ~10 um, Fig. 25 counts)
   - independent recomputation by a second agent
+- **Low pile-up decisions (Mattia, 11 Nov):**
+  - density model: PVF-e400 (two-phase, no KDE) for every low pile-up result
+  - local centroid (±3 bins) everywhere
+  - 0.17 mm window everywhere, with one sentence that at low pile-up it is 2.5x the 68% residual
+  - samples: Run 2 MC, Run 2 data, Run 3 data only; the MC is called "Run 2 MC"
+- **Found 11 Nov:** the sigma_vtx-vtx fit used a hidden second peak finding (`--integral-threshold-res`, default 0.50), so 0.229 mm is at 0.50 and about 0.218 mm at the single threshold 0.30. The recompute makes the fit follow the main threshold.
