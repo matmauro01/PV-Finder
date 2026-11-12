@@ -170,8 +170,10 @@ def process_chunk(start: int, stop: int, peaks_ref: dict[int, np.ndarray]) -> di
                 zs = z_all[keep] if len(z_all) else z_all
                 cls = hm.classify_vertices(lists, pt, truth)
                 counts[loc, a, m] = [*cls.counts(), len(lists), n_truth2]
+                # AMVF keeps Athena's stored (sum(pT^2)-sorted) container order
+                order = np.arange(len(lists)) if arm == "amvf" else None
                 hs[loc, a, m] = hm.hs_event_record(
-                    lists, cls, truth, h, zs, hz, HS_WINDOW
+                    lists, cls, truth, h, zs, hz, HS_WINDOW, order
                 )
         # AMVF native primary (RecoVertex_type == 1), full stored list
         native = np.flatnonzero(ak.to_numpy(ev["RecoVertex_type"]) == 1)
@@ -180,7 +182,9 @@ def process_chunk(start: int, stop: int, peaks_ref: dict[int, np.ndarray]) -> di
         nv = int(native[0])
         acls = hm.classify_vertices(amvf_lists, pt, truth)
         amatch = hm.hs_matched_index(
-            hm.hs_track_counts(amvf_lists, acls, truth, h), acls
+            hm.hs_track_counts(amvf_lists, acls, truth, h),
+            acls,
+            np.arange(len(amvf_lists)),  # stored Athena container order
         )
         amvf2 = amvf_z[[len(x) >= 2 for x in amvf_lists]]
         t2 = tz[tn >= 2]

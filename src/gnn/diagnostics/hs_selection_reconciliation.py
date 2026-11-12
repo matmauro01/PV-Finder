@@ -95,12 +95,13 @@ def event_flags(
     native = int(np.flatnonzero(idx == native)[0])
     cls = hm.classify_vertices(lists, pt_gev, truth)
     nhs = hm.hs_track_counts(lists, cls, truth, hs)
-    # ITk criterion with ties accepted (Athena keeps the first of tied
-    # vertices in its sum(pT^2)-sorted container; any tied vertex may be it).
-    best = nhs.max() if len(nhs) else 0
+    # ITk criterion, Athena bestHardScatterMatch: most HS tracks, ties to the
+    # first vertex of the stored sum(pT^2)-sorted container (one code path,
+    # shared with hs_chain_study via hm.hs_matched_index).
+    match = hm.hs_matched_index(nhs, cls, np.arange(len(lists)))
 
     def is_match(v: int) -> bool:
-        return best > 0 and nhs[v] == best
+        return match >= 0 and v == match
 
     lead = hm.selected_index(cls)
 
