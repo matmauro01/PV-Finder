@@ -5604,3 +5604,22 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   GNN assigns 95.8%, agreement 94.5% (0.17 mm), leading vertex 91.3%.
 - Doc: `docs/additional_studies/note_edits_2026-11-13.md` (page/line, old/new per edit).
   PDF: `presentations/mattia/11_13_2026_paper/note_with_MM_edits_2026-11-13.pdf`.
+
+## 2026-11-13: GNN v3 two-threshold working point; track-efficiency bound
+- Correction to the entry above: track efficiency is not capped by the s8 candidates. The candidate
+  oracle (each labelled track on the candidate its truth vertex owns) reaches 88.0% at PU200 and
+  90.1% inclusive, against AMVF's 68.4 / 74.3. 10.2% of the labelled tracks at PU200 belong to
+  >= 2-track truth vertices owning no s8 candidate, and 1.8% to 1-track truth vertices (AMVF
+  vertices: 11.8% without a match). The single-t deficit is the score cut, plus the network's
+  top-1 errors.
+- Two-threshold point, analysis only (Mattia decides): assign at t, select the HS with the Athena
+  rule, then tracks on it with score < t_HS are unassigned or fall back to their second-best edge
+  if that passes t. Added `chain_t_metrics --two-threshold` (t, (t, t_HS, mode) and oracle arms,
+  per-event bound counts), `chain_inference_v3 --top2` and `scripts/gnn_v3_two_threshold_summary.py`.
+  Checks: the default path is bit-identical to phase 1; (0.5, 0.5) equals t = 0.5 exactly; top-1 of
+  the new inference is unchanged.
+- c at (t = 0.1, t_HS = 0.7) fails 3 of 286 (mu 50-60 fakes: 7 against 5 in 350 events; HS res in
+  2 isolated bins), against 30 at the best single t. Every metric passes in PU200, inclusive and
+  mu 0-10; track efficiency is +0.5 to +1.1 over AMVF in every bin. The cost is Clean/truth (PU200
+  40.8 against 55.0 at t = 0.55; AMVF 30.9). b: 7 at (0.5, 0.97). d is added automatically.
+- Doc: `docs/evaluation/gnn_v3_campaign_2026-11-13.md` section 8.

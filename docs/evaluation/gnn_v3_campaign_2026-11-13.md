@@ -228,8 +228,8 @@ No run has a t without failures. The conflict is the same for every run:
   points low in every bin (PU200: 57.4 against 68.4).
 - In the track efficiency/purity plane, AMVF sits at the t = 0 end of our curve.
   At AMVF's own track purity, c reaches 69.7 against 68.4 at PU200 and 75.6 against
-  74.3 inclusive. Track efficiency is therefore capped near t = 0, by the vertices
-  s8 does not find (one-to-one efficiency 73% at PU200, section 7).
+  74.3 inclusive. The ceiling at t = 0 comes from the network's assignments, not
+  from the candidates: the candidate oracle reaches about 90% (section 8).
 - In the HS planes every candidate-trained run lies far above AMVF. At AMVF's
   fraction of HS tracks on the HS vertex (74.3% at PU200), c reaches HS purity 96.6
   against 88.9 and Clean HS 99.1 against 93.8.
@@ -311,14 +311,8 @@ the end.
 
 `cpu_timing/timing_phase1_and_probes.json`.
 
-**Not done: a two-threshold working point.** The conflict is between a global
-quantity (all tracks) and an HS-vertex quantity. One deployable resolution has
-two cuts: a low t for every vertex, and a stricter t_HS on the tracks of the
-vertex the Athena rule selects as HS. On the tables above, c at (t = 0.2,
-t_HS = 0.55) would roughly combine track efficiency from the first row with the HS
-numbers from the second. This needs a new chain_t_metrics path: select the HS at
-t, then apply t_HS and recount. It is not computed. It changes the working-point
-definition, so it is for Mattia to decide.
+The conflict is between a global quantity (all tracks) and an HS-vertex
+quantity. A two-threshold working point (section 8) separates the two.
 
 ## 6. Phase-2 graph check: are the training candidates realistic?
 
@@ -374,6 +368,118 @@ Evaluation: `TAG=phase2_<run> GPU=<g> bash scripts/run_gnn_v3_eval.sh <run>`, th
 not the lever. 601237 thinning is then not worth building, and the two-threshold
 point (section 5) is the next step.
 
+## 8. Two-threshold working point (analysis for Mattia, 13 Nov)
+
+Definition, deployable without truth:
+1. Assign every track to its top-1 candidate if its score passes t.
+2. On that assignment, select the HS vertex with the Athena rule (vertices with
+   >= 2 tracks, positions from the 3D adaptive fit).
+3. Tracks on the selected vertex with score < t_HS are then either:
+   - unassigned (`unassign`); or
+   - moved to their second-best candidate if that edge passes t, else
+     unassigned (`fallback`).
+
+All metrics are then computed on the final assignment with the single-t code. The
+HS-selection metric re-runs the rule on the final vertex list, which is the
+conservative choice. Grid: t = 0, 0.1, ..., 0.5; t_HS = 0.5, 0.55, ..., 0.95 (for
+b also 0.96-0.99, its BCE scores sit near 1). Same 7,500 events, same 286
+(metric, bin) pairs against AMVF.
+
+Code:
+- `chain_t_metrics --two-threshold`: arms t, (t, t_HS, mode) and oracle;
+- `chain_inference_v3 --top2` stores the second-best edge;
+- summary: `scripts/gnn_v3_two_threshold_summary.py`;
+- runner: `scripts/run_gnn_v3_two_threshold.sh`.
+
+Output: `eval/twothr_bc/summary_{b,c}/summary.md`.
+
+Checks:
+- the default single-t path reproduces the phase-1 metrics bit for bit (one chunk:
+  counts, selection, residuals);
+- the top-2 inference has the same peaks and top-1 targets as phase 1 (0 of 5.3M
+  tracks differ, scores within 1.5e-6);
+- (t = 0.5, t_HS = 0.5) is bit-identical to t = 0.5 in both modes;
+- `top2_edges` matches a brute-force sort on random cases, ties included.
+
+**Result, c: two-threshold point reaches 3 failures of 286 (single t: 30 at best).**
+
+| choice | point | strict | > 1 sigma | remaining failures |
+|---|---|---:|---:|---|
+| single t (phase-1 grid) | t = 0.55 | 30 | 26 | track eff (22 bins), HS purity at mu < 50 and 70-80, HS res 2 bins |
+| two-t, unassign | t = 0.1, t_HS = 0.7 | 3 | 2 | fakes 50-60, HS res 130-140, 140-150 |
+| two-t, fallback | t = 0.1, t_HS = 0.7 | 3 | 1 | fakes 50-60, HS res 130-140, 140-150 |
+
+b (BCE): single t = 0.96 has 31 failures. The best two-threshold point,
+(t = 0.5, t_HS = 0.97, unassign), has 7 (3 beyond 1 sigma), all of them HS purity
+at mu < 30 (0-10: 97.9 against 98.15), fakes in 2 bins and HS res in 2 bins.
+Fallback gives 12. With BCE, t <= 0.5 applies almost no cut, and the HS purity at
+low mu needs t_HS near 0.97. c's calibrated score is better here, which supports
+its loss for phase 2. Run d is added automatically when it finishes (tmux
+`gnnv3_twothr_d`, output `eval/twothr_bcd/summary`).
+
+The fake failure is 7 fakes in 350 events against AMVF's 5 (inclusive 0.022 against
+0.035 per event). The HS-resolution failures sit in two isolated bins (380 and 350
+events), with no trend in mu. The minimum is broad, not a lucky grid point: for
+t = 0.1-0.2 and t_HS = 0.6-0.7, every point has 3 or 4 failures in both modes.
+The point was chosen on the same validation events it is quoted on; the test set
+will say whether the 3 survive. Fallback recovers a few tracks (track efficiency
++0.3) at no cost elsewhere.
+
+Values (model / AMVF marks as in section 5):
+
+| bin | point | C/truth | C/reco | trk eff | trk pur | F1 | HS sel | Clean HS | HS pur | HS on HS | HS res | Fake | Merged | Split |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| PU200 | AMVF | 30.9 | 35.0 | 68.4 | 68.7 | 68.5 | 94.5 | 93.8 | 88.9 | 74.3 | 9.21 | 0.060 | 41.7 | 22.1 |
+| PU200 | c, t = 0.55 | 55.0 | 84.2 | 57.4 **x** | 87.3 | 69.3 | 96.8 | 98.2 | 92.2 | 84.5 | 8.58 | 0.016 | 10.6 | 0.85 |
+| PU200 | c, (0.1, 0.7) unassign | 40.8 | 56.8 | 69.1 | 71.1 | 70.1 | 96.5 | 98.1 | 94.0 | 80.3 | 8.60 | 0.039 | 31.9 | 2.71 |
+| PU200 | c, (0.1, 0.7) fallback | 40.1 | 55.7 | 69.4 | 70.6 | 70.0 | 96.3 | 98.1 | 94.0 | 80.3 | 8.60 | 0.040 | 32.5 | 2.95 |
+| inclusive | AMVF | 40.8 | 43.7 | 74.3 | 74.9 | 74.6 | 95.2 | 97.0 | 92.7 | 77.6 | 9.87 | 0.035 | 18.9 | 11.6 |
+| inclusive | c, t = 0.55 | 60.9 | 87.5 | 65.3 **x** | 89.5 | 75.5 | 97.7 | 98.8 | 93.9 | 90.4 | 9.35 | 0.009 | 4.65 | 0.37 |
+| inclusive | c, (0.1, 0.7) unassign | 50.6 | 66.5 | 74.8 | 77.1 | 75.9 | 97.6 | 99.0 | 95.6 | 86.9 | 9.38 | 0.021 | 13.6 | 1.15 |
+| inclusive | c, (0.1, 0.7) fallback | 49.8 | 65.3 | 75.2 | 76.5 | 75.8 | 97.1 | 99.0 | 95.5 | 86.9 | 9.38 | 0.022 | 14.0 | 1.29 |
+| 0-10 | AMVF | 83.8 | 67.7 | 95.6 | 97.8 | 96.7 | 98.7 | 99.7 | 98.1 | 83.8 | 9.13 | 0.003 | 0.21 | 1.25 |
+| 0-10 | c, t = 0.55 | 87.4 | 98.2 | 95.4 x | 98.7 | 97.0 | 99.7 | 100.0 | 97.9 **x** | 99.3 | 8.95 | 0 | 0.05 | 0.01 |
+| 0-10 | c, (0.1, 0.7) unassign | 89.1 | 96.8 | 96.2 | 98.2 | 97.2 | 99.7 | 100.0 | 98.3 | 98.6 | 8.95 | 0 | 0.10 | 0.01 |
+| 0-10 | c, (0.1, 0.7) fallback | 88.8 | 96.3 | 96.4 | 98.0 | 97.2 | 99.7 | 100.0 | 98.3 | 98.6 | 8.95 | 0 | 0.12 | 0.01 |
+
+The price is in the quantities with the largest margin: at PU200, Clean/truth falls
+from 55.0 to 40.8 (AMVF 30.9), Clean/reco from 84.2 to 56.8 (AMVF 35.0), and merged
+per event rises from 10.6 to 31.9 (AMVF 41.7). This is what a low global t costs.
+
+**Is track efficiency reachable with these candidates? Yes; the network limits it,
+not the finder.** Per mu bin, as % of the labelled tracks (the denominator of
+track efficiency):
+- "no s8 candidate": tracks of >= 2-track truth vertices that own no s8 candidate
+  under the one-to-one 0.17 mm label matching;
+- "1-trk": tracks of 1-track truth vertices, which no >= 2-track rule can count;
+- the oracle (each labelled track on the candidate its truth vertex owns, same
+  metric code) equals 100 minus both, exactly;
+- the same matching against AMVF's own vertices is in the last column.
+
+| bin | AMVF | c, t = 0.5 (gap) | c, two-t fallback (gap) | oracle | 1-trk | no s8 candidate | no AMVF vertex |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| inclusive | 74.3 | 67.3 (-7.0) | 75.2 (+0.9) | 90.1 | 1.7 | 8.2 | 9.6 |
+| PU200 | 68.4 | 59.6 (-8.8) | 69.4 (+1.0) | 88.0 | 1.8 | 10.2 | 11.8 |
+| 0-10 | 95.6 | 95.9 (+0.3) | 96.4 (+0.8) | 97.6 | 0.6 | 1.8 | 2.4 |
+| 50-60 | 82.7 | 78.7 (-4.0) | 83.6 (+0.8) | 92.4 | 1.7 | 5.9 | 7.0 |
+| 100-110 | 76.2 | 69.7 (-6.5) | 77.2 (+0.9) | 90.8 | 1.7 | 7.5 | 8.7 |
+| 150-160 | 71.2 | 63.1 (-8.0) | 72.0 (+0.9) | 89.1 | 1.7 | 9.2 | 10.7 |
+
+The plain-t column is the best plain t of this run's grid (t <= 0.5); t = 0.55 is
+2 points lower still. All 22 bins: `summary_c/summary.md`.
+
+What this shows:
+- s8 leaves fewer tracks without a candidate than AMVF does (10.2% against 11.8% at
+  PU200). The candidate bound, 88%, is 20 points above AMVF's 68.4.
+- At the best single t, the 7-9 point deficit at PU200 is the score cut, not the
+  candidates. At t = 0, c reaches 69.7, so the network's top-1 choice loses about
+  18 points against the oracle at PU200. These are tracks whose truth vertex
+  owns a candidate but which end on another candidate, or on one their vertex
+  does not dominate.
+- Track efficiency against AMVF is therefore reachable. The two-threshold point
+  already passes it in every mu bin by +0.5 to +1.1 points. The headroom above
+  that is network discrimination, the target of phase 2.
+
 ## Reproduction
 
 ```bash
@@ -400,4 +506,11 @@ PYTHONPATH=src venv/bin/python -u scripts/gnn_v3_peak_quality.py --residual --se
     --out outputs/11_13_2026_output/gnn_v3_campaign/peak_quality
 # phase 2 (tmux gnnv3_p2{a,b,c}); configs written by scripts/gnn_v3_make_config.py
 VMEM_KB=134217728 RUN=p2a bash scripts/run_gnn_v3_train.sh   # add --resume to continue
+# two-threshold analysis (section 8): top-2 inference, metrics per model, summary
+PYTHONPATH=src venv/bin/python -u -m gnn.evaluation.chain_inference_v3 --root <r16443> --entries <validation_entries.npy> \
+    --candidates s8 --top2 --gnn b=... c=... --out outputs/11_13_2026_output/gnn_v3_campaign/eval/twothr_bc/infer -d 3
+INFER=.../twothr_bc/infer OUT=.../twothr_bc/metrics THS="0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95" \
+    bash scripts/run_gnn_v3_two_threshold.sh c
+PYTHONPATH=src venv/bin/python -u scripts/gnn_v3_two_threshold_summary.py --metrics c=.../twothr_bc/metrics/c.npz --out .../summary_c
+bash scripts/run_gnn_v3_two_threshold_d_when_done.sh   # tmux gnnv3_twothr_d: d after its standard eval, then b+c+d summary
 ```
