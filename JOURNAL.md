@@ -5487,3 +5487,21 @@ The >= 1-track numbers are now labelled backup.
 - `docs/evaluation/metric_definitions.md` §5.0 and §5.3: s8 and GNN v2 frozen,
   s8 cuts, >= 2-track rule, 0.217 mm, low pile-up window about 2.4 x the 68%
   residual.
+
+## 2026-11-13 — EB deck questions 1, 2, 3, 4, 10, 11, 15 answered
+
+Answers with evidence in `docs/additional_studies/eb_deck_answers_2026-11-13.md`
+(outputs `outputs/11_13_2026_output/eb_questions/`). Three new small checks:
+- Low pile-up e400 with the HL-LHC cuts 0.184/0.0184: efficiency 83.32 % (+1.8 pt),
+  but 4.05 fakes/event against 2.36 at 0.50 (AMVF 2.49); sigma 0.361 mm. Keep one
+  set per regime.
+- Efficiency vs distance to the 40 mm interval edge (PU200, both files): flat to
+  within 0.1 mm (82-85 % against 83.1 %); fakes within 0.1 mm of an edge 32-34 %
+  against 18 % (about 0.2 fake/event, 1 % of fakes). `scripts/eb_q2_boundary_efficiency.py`.
+- AMVF stored primary = Sigma pT^2 leader of `RecoVertex_fitTracks` in 25,000/25,000
+  events (TTVA lists: 77.7 % at PU200), so the fair AMVF HS selection is the stored
+  92.92 %, not the 89.11 % re-ranking. `scripts/eb_q15_amvf_primary_from_fit_tracks.py`.
+Findings: no larger GNN was ever tried (all configs hidden_dim 32); AMVF Clean/truth
+equals nearest-z0 in every mu bin, and rises to about 41.6 % with its own fit weights;
+at t = 0.94 PV-Finder + GNN is 2.5 ± 0.6 pt below AMVF at mu 0-10 (cut removes 11 % of
+correct tracks), and Clean-HS / HS purity are below AMVF (88.3 / 82.3 against 92.5 / 88.4 %).
