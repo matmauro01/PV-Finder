@@ -8,7 +8,7 @@ inference. Every arm is judged by ``gnn.evaluation.hs_metrics`` exactly as in
 AMVF stored lists through ``np.unique``).
 
 Arms (vertex lists with >= 1 and >= 2 assigned tracks):
-  gnn_t         GNN top-1 edge kept if score >= t (t from the regime, 0.97)
+  gnn_t         GNN top-1 edge kept if score >= t (t from the regime)
   gnn_t0        GNN top-1 edge, no score cut
   z0_nearest    nearest peak in |z0 - z|
   z0_3sigma     nearest peak if |z0 - z| < 3 sigma(z0)
@@ -56,7 +56,7 @@ from pv_finder.utils.working_points import get_regime  # noqa: E402
 
 REGIME = get_regime("hllhc")
 WINDOW = REGIME.match_window_mm  # 0.17 mm
-T_CUT = float(REGIME.gnn.t)  # 0.97
+T_CUT = float(REGIME.gnn.t)  # from the regime
 GNN_KEY = "v2e527"
 S_MAX = (1.0, 2.0, 3.0, 4.0, 5.0, 7.0, 10.0, np.inf)
 Z0_NSIGMA = 3.0  # z0_3sigma baseline (hs_chain_study)

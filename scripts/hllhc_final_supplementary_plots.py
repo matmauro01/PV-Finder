@@ -11,7 +11,7 @@ with >= 1 and with >= 2 tracks; the >= 2-track rule is primary), and writes
   density, ITk definition (all truth vertices, new file) and old stored-truth
   definition, all mu and PU200 (185 <= mu <= 215);
 * ``classes.json``: Clean / Merged / Split / Fake vertices per event vs mu
-  (10-unit bins) and at PU200, PV-Finder + GNN (t = 0.97) and AMVF, vertices
+  (10-unit bins) and at PU200, PV-Finder + GNN (regime t) and AMVF, vertices
   with >= 2 tracks (primary) or >= 1, same-rule unweighted and weighted;
 * ``supplementary_summary.json`` and the figures under ``plots/main`` and
   ``plots/backup``: one quantity per figure, PDF + PNG.

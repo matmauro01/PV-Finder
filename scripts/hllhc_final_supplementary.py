@@ -51,7 +51,7 @@ from gnn.evaluation.weighted_classification import (  # noqa: E402
 from pv_finder.utils.working_points import get_regime  # noqa: E402
 
 REGIME = get_regime("hllhc")
-T = REGIME.gnn.t  # 0.97
+T = REGIME.gnn.t  # from the regime
 HS_WIN = REGIME.hs_match_window_mm  # 0.1 mm
 DENS_HALF = 2.0  # mm, ITk paper / Athena local pile-up density
 GNN_KEY = "v2e527"
@@ -320,8 +320,11 @@ def process_chunk(path: str) -> dict:
         # ---- PV-Finder + GNN at the frozen t, drop-empty
         peaks = z["peak_z"][poff[i] : poff[i + 1]].astype(np.float64)
         tg = z[f"targets_{GNN_KEY}"][toff[i] : toff[i + 1]]
-        sc = z[f"scores_{GNN_KEY}"][toff[i] : toff[i + 1]].astype(np.float64)
-        all_p = hm.lists_from_targets(hm.assign_from_scores(tg, sc, T), len(peaks))
+        sc32 = z[f"scores_{GNN_KEY}"][toff[i] : toff[i + 1]]
+        # cut on the stored float32 scores, exactly as chain_t_metrics does
+        # (a float64 cast flips scores that equal float32(t), e.g. t = 0.94)
+        all_p = hm.lists_from_targets(hm.assign_from_scores(tg, sc32, T), len(peaks))
+        sc = sc32.astype(np.float64)
         alists = [np.unique(x) for x in alists_raw]
         for m, mt in enumerate(MIN_TRACKS):
             pv = [x for x in all_p if len(x) >= mt]

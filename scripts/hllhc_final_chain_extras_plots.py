@@ -31,7 +31,9 @@ from gnn.diagnostics.plot_style import (  # noqa: E402
     save_figure,
     use_atlas_style,
 )
+from pv_finder.utils.working_points import get_regime  # noqa: E402
 
+TLAB = float(get_regime("hllhc").gnn.t)  # frozen GNN score cut, in the labels
 PU200 = "PU200 (185-215)"
 SAMPLE = r"$\sqrt{s}=14$ TeV, $t\bar{t}$, ITk, $\langle\mu\rangle$ flat 0-200"
 SEL = {PU200: r"$185 \leq \mu \leq 215$ (1 920 events)", "inclusive": r"$0 \leq \mu \leq 200$ (25 000 events)"}  # fmt: skip
@@ -44,7 +46,7 @@ RULES = {
 PVF, AMVF, EQ4 = "#0072B2", "#D55E00", "#56B4E9"
 # arm: (label, colour, marker, filled)
 STYLE: dict[str, tuple[str, str, str, bool]] = {
-    "gnn_t": ("PV-Finder + GNN ($t=0.97$)", PVF, "o", True),
+    "gnn_t": (f"PV-Finder + GNN ($t={TLAB:g}$)", PVF, "o", True),
     "gnn_t0": ("PV-Finder + GNN (no score cut)", "#CC79A7", "v", True),
     "z0_nearest": (r"PV-Finder + nearest $z_0$", "#009E73", "^", True),
     "z0_3sigma": (
@@ -87,8 +89,8 @@ class Plots:
     """Figure factory bound to one summary."""
 
     def __init__(self, s: dict, out: Path) -> None:
-        if s["meta"]["replay_meta"]["t"] != 0.97:  # legend strings say t = 0.97
-            raise ValueError("summary is not at t = 0.97; update the labels")
+        if s["meta"]["replay_meta"]["t"] != TLAB:  # legend strings use TLAB
+            raise ValueError(f"summary is not at t = {TLAB:g} (the regime t)")
         self.s, self.out = s, out
         self.arms = s["meta"]["replay_meta"]["arms"]
         self.eq4 = {m: s["eq4_best"][m]["arm"] for m in RULES}
@@ -212,7 +214,7 @@ class Plots:
         rows = [
             ("One-to-one finder match, PV-Finder", b["event"]["finder_cap_pvf"], "0.6"),
             ("Truth-guided assignment (MC only)", d("truth_guided"), "0.35"),
-            ("PV-Finder + GNN ($t=0.97$)", d("gnn_t"), PVF),
+            (f"PV-Finder + GNN ($t={TLAB:g}$)", d("gnn_t"), PVF),
             ("PV-Finder + GNN (no score cut)", d("gnn_t0"), "#CC79A7"),
             (STYLE[self.eq4[m]][0] + " (best)", d(self.eq4[m]), EQ4),
             (STYLE["eq4_s3"][0], d("eq4_s3"), EQ4),
@@ -284,7 +286,7 @@ class Plots:
         edges = np.array([np.inf if v is None else v for v in td["ntrk_edges"]], float)
         nb, x = len(edges) - 1, np.arange(len(edges) - 1)
         lab = [_ntrk_label(edges[i], edges[i + 1]) for i in range(nb)]
-        series = {"g0": ("gnn_t0", None), "g1": ("gnn_t", r"PV-Finder + GNN ($t=0.97$), $\geq 1$ track"), "g2": ("gnn_t", r"PV-Finder + GNN ($t=0.97$), $\geq 2$ tracks"), "a2": ("amvf", None)}  # fmt: skip
+        series = {"g0": ("gnn_t0", None), "g1": ("gnn_t", rf"PV-Finder + GNN ($t={TLAB:g}$), $\geq 1$ track"), "g2": ("gnn_t", rf"PV-Finder + GNN ($t={TLAB:g}$), $\geq 2$ tracks"), "a2": ("amvf", None)}  # fmt: skip
         for q, ylabel in (("eff", "Track-assignment efficiency"), ("pur", "Track-assignment purity")):  # fmt: skip
             fig, ax = plt.subplots(figsize=(8, 6))
             vals = []
@@ -309,7 +311,7 @@ class Plots:
         ax.set_xticks(x)
         ax.set_xticklabels(lab, rotation=45, fontsize="small")
         ax.set_xlabel(r"Truth $n_{trk}$ of the track's vertex")
-        ax.set_ylabel(r"Correct at $t=0$, removed by $t=0.97$")
+        ax.set_ylabel(rf"Correct at $t=0$, removed by $t={TLAB:g}$")
         ax.set_ylim(0, 1.0)
         _desc(ax, "PV-Finder + GNN, 25 000 events")
         ax.legend(loc="upper right", fontsize="small", frameon=False)
