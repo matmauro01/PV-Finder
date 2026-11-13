@@ -312,10 +312,12 @@ the assigning.
   `pv_finder.utils.working_points.MATCH_WINDOW_MM` (re-exported as
   `pv_finder.utils.constants.MATCH_WINDOW_MM`). It is 3 × the larger
   68th-percentile single-vertex position residual of the two algorithms at
-  PU200 (PV-Finder 55.05 µm, AMVF 56.45 µm; optimal one-to-one assignment
-  within 1 mm), 3 × 0.05645 = 0.1694 mm, rounded to 0.17 mm (decision of
-  11 Nov 2026). At low pile-up the same window is 2.5 × the Run 2 simulation
-  residual (67–70 µm), slightly strict, kept for one number in the paper.
+  PU200 (AMVF 56.45 µm; PV-Finder 55.58 µm with the frozen s8, 55.05 µm with
+  v6 when the window was set; optimal one-to-one assignment within 1 mm),
+  3 × 0.05645 = 0.1694 mm, rounded to 0.17 mm (decision of 11 Nov 2026). At
+  low pile-up the same window is about 2.4 × the Run 2 MC residual (2.35 ×
+  PV-Finder's 72.5 µm, 2.54 × AMVF's 66.8 µm), kept for one number in the
+  paper.
 - **Hard-scatter studies use 0.1 mm** (`HS_MATCH_WINDOW_MM`), the ITk paper
   (arXiv:2412.15090) §5.5 criterion.
 - From 2026-11-09 to 2026-11-11 the default was 0.1694 mm; before 2026-11-09
@@ -325,7 +327,7 @@ the assigning.
 - Justification and the inconsistencies found on 9 Nov:
   [matching_window_audit_2026-11-09.md](matching_window_audit_2026-11-09.md).
 
-### 5.3 Working points (single source of truth, 11 Nov 2026)
+### 5.3 Working points (single source of truth, frozen 12 Nov 2026)
 
 `src/pv_finder/utils/working_points.py` defines two regimes and nothing else
 defines a window or a production cut. Every evaluation entry point takes
@@ -339,21 +341,23 @@ in the result (`provenance.regime_overrides` in `eval_results.pkl`,
 | | HL-LHC (`hllhc`) | Low pile-up (`lowpu`) |
 |---|---|---|
 | Samples | ITk simulation, 0 ≤ μ ≤ 200 | Run 2 simulation; Run 2 and Run 3 data |
-| Density model | v6 production, **freeze pending** (candidate s8 runs at integral 0.184, height 0.0184 (matched to v6 fake rate, 12 Nov 2026)) | PVF-e400 (two-phase, no KDE; 50 + 400 epochs, 358,713 trainable parameters, 359,616 with the batch-norm buffers) |
+| Density model | s8 (U-Net v2, 80 channels, 1 latent channel, 439,593 parameters; Phase-2 step 450,000 of 465,624), **frozen 12 Nov 2026** | PVF-e400 (two-phase, no KDE; 50 + 400 epochs, 358,713 trainable parameters, 359,616 with the batch-norm buffers), **frozen 11 Nov 2026** |
 | Peak finding: amplitude / min width | 0.01 / 3 bins | 0.01 / 3 bins |
-| Integral / min height | 0.30 / 0.03 | 0.50 / none |
+| Integral / min height | 0.184 / 0.0184 (matched to v6's fake rate) | 0.50 / none |
 | Position estimator | local centroid ±3 bins | local centroid ±3 bins |
 | σ_vtx-vtx fit | the counted peaks; 300 bins over ±6 mm | same |
 | Matching window | 0.17 mm | 0.17 mm |
 | Hard-scatter window | 0.1 mm | 0.1 mm |
 | Residual assignment radius | 1 mm | 1 mm |
-| GNN | full-μ v2, checkpoint and t **pending** | mu60 v2 epoch 115, t = 0.97 (same as HL-LHC), **frozen 12 Nov 2026** ([lowpu_final_numbers_2026-11-12](lowpu_final_numbers_2026-11-12.md)) |
+| GNN | full-μ v2 epoch 527, t = 0.97, **frozen 12 Nov 2026** ([gnn_v2_freeze_2026-11-12](gnn_v2_freeze_2026-11-12.md)) | mu60 v2 epoch 115, t = 0.97 (same as HL-LHC), **frozen 12 Nov 2026** ([lowpu_final_numbers_2026-11-12](lowpu_final_numbers_2026-11-12.md)) |
+| Vertices after the GNN | ≥ 2 associated tracks, PV-Finder + GNN and AMVF | same |
+| Final numbers | [hllhc_final_numbers_2026-11-12](hllhc_final_numbers_2026-11-12.md) | [lowpu_final_numbers_2026-11-12](lowpu_final_numbers_2026-11-12.md) |
 
 - **One threshold.** σ_vtx-vtx is fitted on the same peaks as the counts:
   `--integral-threshold-res` defaults to `--integral-threshold`. Until
-  11 Nov 2026 it defaulted to 0.50 at HL-LHC, so the quoted 0.229 mm was
-  measured at 0.50 (about 0.218 mm at 0.30 on the same events, to be
-  confirmed by the frozen recompute); see §8.10.
+  11 Nov 2026 it defaulted to 0.50 at HL-LHC, so the earlier 0.229 mm (v6)
+  was measured at 0.50. At the frozen working point (s8, counted peaks) it is
+  0.217 ± 0.003 mm on the r16443 PU200 events; see §8.10.
 - **Frozen vs pending.** `Regime.pending` lists what is not frozen;
   `Regime.require_frozen()` raises, so a final result cannot come from a
   placeholder by accident, and the evaluation banner prints `NOT FROZEN`.

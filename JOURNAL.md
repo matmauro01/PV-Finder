@@ -5461,3 +5461,29 @@ The >= 1-track numbers are now labelled backup.
   the deck commit waits for the t decision.
 - Doc: `docs/evaluation/hllhc_final_numbers_2026-11-12.md`. Outputs:
   `outputs/11_12_2026_output/hllhc_final/`.
+
+## 2026-11-12 (night): Paper-draft answers rewritten for the frozen configuration
+
+- `docs/additional_studies/paper_questions_2026-11-11.md` now describes only
+  the frozen configuration and final numbers (s8 + GNN v2 e527, t = 0.97 at
+  HL-LHC; e400 + mu60 v2 e115, t = 0.97 at low pile-up; >= 2-track vertices
+  after the GNN; 0.17 mm, HS 0.1 mm; sigma on the counted peaks).
+- Main changes:
+  - Fig. 3, l. 212-222, Table 1 and note Table B.1 must describe s8
+    (1 x 1000 latent, 80 channels, 439,593 = MLP 196,072 + U-Net 243,521),
+    not v6; l. 267-268 cuts are 0.184 / 0.0184.
+  - s8 training (Q7): Phase-2 step 450,000 of 465,624 after a host-memory
+    stop, lr 1.28e-6 against a 1e-6 floor; 9.1 h + 4.6 h on one A100.
+  - e400 (Q10): two-phase, no KDE, 50 + 400 epochs at constant lr 1e-3,
+    358,713 trainable parameters, contiguous 0.70 / 0.25 / 0.05 split
+    (test = events 48,450-50,999, checked from the training index files).
+  - Q12-Q28 carry the final HL-LHC and low pile-up numbers; the July 98.98%
+    low pile-up HS identification was at t = 0.99.
+  - Part 2 is the final two-configuration table with the H1-H8 and R1-R4
+    recompute marked done; Part 3 adds the GNN v2 split (149,820 training
+    events, r16638 now GNN training data) and the low pile-up datasets.
+- HL-LHC numbers that depend on t carry `<!-- t-dependent -->` so they can be
+  refreshed if the >= 2-track t rescan changes t.
+- `docs/evaluation/metric_definitions.md` §5.0 and §5.3: s8 and GNN v2 frozen,
+  s8 cuts, >= 2-track rule, 0.217 mm, low pile-up window about 2.4 x the 68%
+  residual.
