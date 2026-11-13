@@ -6,7 +6,9 @@ Same events, density model, peak finding and kNN graph as
 beside it, loaded with ``train_ttva_v3.load_v3``) or a legacy v1/v2 ``.pyt``.
 Scores are each model's own per-edge scores (sigmoid, or the per-track softmax
 with the "no vertex" option); per track only the top-1 edge is stored, so
-``gnn.evaluation.chain_t_metrics`` replays any t unchanged.
+``gnn.evaluation.chain_t_metrics`` replays any t unchanged. ``--top2`` also
+stores the second-best edge (``targets2_<name>``, ``scores2_<name>``; -1 / 0 for
+tracks with one edge), for working points that fall back to it.
 
 ``--candidates truth`` replaces the peaks by the truth vertex list (the exact
 truth-training graphs, ``root_to_graphs.build_graph_from_event``) for the
@@ -63,6 +65,36 @@ from pv_finder.evaluation.vertex_finding.run_eval_pvf_run3 import (
 from pv_finder.utils.constants import PT_SCALE
 from pv_finder.utils.peak_finding_fast import pv_locations_updated_res_fast
 from pv_finder.utils.working_points import HLLHC
+
+
+def top2_edges(
+    scores: np.ndarray, edge_index: np.ndarray, n_tracks: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per track, target and score of its best and second-best edge.
+
+    The best edge follows ``chain_inference.best_edges`` exactly (ties go to the
+    first edge in track-major order), and so does the second among the rest.
+    """
+    src = np.asarray(edge_index[0])
+    t1, s1 = best_edges(scores, edge_index, n_tracks)
+    t2 = np.full(n_tracks, -1, dtype=np.int64)
+    s2 = np.zeros(n_tracks, dtype=np.float32)
+    if len(src) == 0:
+        return t1, s1, t2, s2
+    order = np.lexsort((np.arange(len(src)), -scores, src))
+    s_src = src[order]
+    starts = np.flatnonzero(np.r_[True, s_src[1:] != s_src[:-1]])
+    first = order[starts]
+    if not np.array_equal(edge_index[1][first], t1[s_src[starts]]):
+        raise AssertionError("top-2 ordering disagrees with best_edges")
+    nxt = starts + 1
+    has2 = nxt < len(src)
+    has2[has2] = s_src[nxt[has2]] == s_src[starts[has2]]
+    second = order[nxt[has2]]
+    trk = s_src[starts[has2]]
+    t2[trk] = edge_index[1][second]
+    s2[trk] = scores[second]
+    return t1, s1, t2, s2
 
 
 class _Legacy(torch.nn.Module):
@@ -125,6 +157,9 @@ def main() -> None:
     ap.add_argument("--gnn", required=True, nargs="+", help="name=path")
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--chunk", type=int, default=500)
+    ap.add_argument(
+        "--top2", action="store_true", help="also store the second-best edge"
+    )
     ap.add_argument("-d", "--device", type=int, default=0)
     a = ap.parse_args()
     torch.set_num_threads(2)
@@ -149,7 +184,7 @@ def main() -> None:
         "entries_sha256": hashlib.sha256(entries.tobytes()).hexdigest(),
         "density": density,
         "gnn": {k: {"path": v, "sha256": sha256(Path(v))} for k, v in gnn_paths.items()},
-        "knn": KNN, "pt_scale": PT_SCALE, "chunk": a.chunk,
+        "knn": KNN, "pt_scale": PT_SCALE, "chunk": a.chunk, "top2": a.top2,
         "regime_window_mm": HLLHC.match_window_mm, "git": git_state(),
         "torch": torch.__version__, "device": torch.cuda.get_device_name(device),
         "script_sha256": sha256(Path(__file__)),
@@ -176,7 +211,7 @@ def main() -> None:
             continue
         sel = entries[lo : lo + a.chunk]
         cols: dict[str, list] = {c: [] for c in ("mu", "n", "pz", "ph", "ps")}
-        edges: dict[str, tuple[list, list]] = {g: ([], []) for g in gnns}
+        edges: dict[str, tuple[list, ...]] = {g: ([], [], [], []) for g in gnns}
         n_read = 0
         for ev in iterate_entries(tree, branches, sel, step_size=500):
             n_read += 1
@@ -188,9 +223,9 @@ def main() -> None:
             for name, model in gnns.items():
                 with torch.no_grad():
                     sc = model.scores(g).float().cpu().numpy()
-                tg, bs = best_edges(sc, ei, n)
-                edges[name][0].append(tg)
-                edges[name][1].append(bs)
+                out = top2_edges(sc, ei, n) if a.top2 else best_edges(sc, ei, n)
+                for lst, x in zip(edges[name], out):
+                    lst.append(x)
             cols["mu"].append(float(ev["ActualNumOfInt"]))
             cols["n"].append(n)
             cols["pz"].append(np.asarray(pz, dtype=np.float32))
@@ -206,9 +241,12 @@ def main() -> None:
             "peak_z": np.concatenate(cols["pz"]), "peak_height": np.concatenate(cols["ph"]),
             "peak_sigma": np.concatenate(cols["ps"]),
         }  # fmt: skip
-        for name, (tg, bs) in edges.items():
+        for name, (tg, bs, tg2, bs2) in edges.items():
             res[f"targets_{name}"] = np.concatenate(tg)
             res[f"scores_{name}"] = np.concatenate(bs)
+            if a.top2:
+                res[f"targets2_{name}"] = np.concatenate(tg2)
+                res[f"scores2_{name}"] = np.concatenate(bs2)
         tmp = path.with_suffix(".tmp.npz")
         np.savez_compressed(tmp, **res)
         tmp.replace(path)

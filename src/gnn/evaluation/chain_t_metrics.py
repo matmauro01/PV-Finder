@@ -20,6 +20,24 @@ each t in ``T_GRID`` (PV-Finder + GNN) and AMVF, it stores:
   tracks the GNN assigns at t to the peak closest to the HS (within 0.1 mm);
   AMVF = its closest nTrk >= 2 vertex within 0.1 mm.
 
+``--two-threshold`` replaces the plain t arms by (see ``arm_targets``):
+
+* ``t`` arms, one per ``--t-grid`` value (the single-threshold reference);
+* two-threshold arms (t, t_HS, mode) over ``--t-grid`` x ``--t-hs-grid``: assign
+  at t, select the HS vertex with the Athena rule on that assignment (vertices
+  with >= ``--hs-min-tracks`` tracks), then tracks on it with score < t_HS are
+  unassigned (``unassign``) or moved to their second-best vertex when that edge
+  passes t (``fallback``, needs ``chain_inference_v3 --top2``). All metrics are
+  then computed on the final assignment exactly as for a t arm (the HS
+  selection metric re-runs the rule on the final vertex list);
+* one ``oracle`` arm: each labelled track on the candidate its truth vertex owns
+  (``chain_training_graphs.priority_match``), the bound of these candidates.
+
+It also stores per event ``bound`` counts: labelled tracks of truth vertices with
+< 2 tracks, and of >= 2-track truth vertices owning no s8 candidate / no AMVF
+vertex (>= 2 tracks) under the same matching. ``meta["t_grid"]`` is then the arm
+index and ``meta["arms"]`` the definitions.
+
 Run (repo root, inside tmux):
     PYTHONPATH=src python -u -m gnn.evaluation.chain_t_metrics \\
         --infer outputs/.../infer/test_v6 --gnn v2e527 --out outputs/.../metrics/test_v6_v2e527.npz
@@ -38,6 +56,7 @@ import awkward as ak
 import numpy as np
 import uproot
 
+from gnn.data.chain_training_graphs import priority_match
 from gnn.diagnostics.hs_selection_identical_rule import Tracks, lazy_rule_selection
 from gnn.evaluation import hs_metrics as hm
 from gnn.evaluation import pv_selection as ps
@@ -122,9 +141,77 @@ def hs_selection(
     return [int(match >= 0), int(ok), int(near), int(ok and near)]
 
 
+BOUND_FIELDS = ("lab_truth_lt2", "lab_nocand_s8", "lab_nocand_amvf")
+
+
+def select_hs_vertex(
+    trk: Tracks, targets: np.ndarray, peaks: np.ndarray, beam: tuple[float, float],
+    sig: float, min_tracks: int,
+) -> int:  # fmt: skip
+    """Peak index the Athena rule selects as HS for one assignment (-1: none).
+
+    Truth-free: ``lazy_rule_selection`` uses its HS-count argument only for the
+    match it also returns, so zeros are passed.
+    """
+    all_lists = hm.lists_from_targets(targets, len(peaks))
+    keep = np.flatnonzero([len(x) >= min_tracks for x in all_lists])
+    if not len(keep):
+        return -1
+    lists = [all_lists[j] for j in keep]
+    vz = peaks[keep]
+    plain = np.array([ps.sumpt2_score(trk.pt[x] / 1000.0) for x in lists])
+    fits: dict[int, tuple[float, float, float]] = {}
+
+    def fpos(v: int) -> tuple[float, float, float]:
+        if v not in fits:
+            fits[v] = trk.fit(lists[v], vz[v], beam, sig)
+        return fits[v]
+
+    sel, _ = lazy_rule_selection(trk, lists, plain, fpos, np.zeros(len(lists), int))
+    return int(keep[sel]) if sel >= 0 else -1
+
+
+def arm_targets(
+    arm: tuple, tg: np.ndarray, sc: np.ndarray, tg2: np.ndarray | None,
+    sc2: np.ndarray | None, oracle: np.ndarray, hs_vertex,  # noqa: ANN001
+) -> np.ndarray:  # fmt: skip
+    """Final per-track target of one arm; ``hs_vertex(t)`` is the rule's HS peak at t."""
+    if arm[0] == "oracle":
+        return oracle
+    t = arm[1]
+    base = hm.assign_from_scores(tg, sc, t)
+    if arm[0] == "t":
+        return base
+    _, _, t_hs, mode = arm
+    k = hs_vertex(t)
+    if k < 0:
+        return base
+    weak = (base == k) & (sc < t_hs)
+    out = base.copy()
+    if mode == "unassign":
+        out[weak] = -1
+    elif mode == "fallback":
+        ok = weak & (tg2 >= 0) & (sc2 >= t)
+        out[weak] = -1
+        out[ok] = tg2[ok]
+    else:
+        raise ValueError(f"unknown mode {mode}")
+    return out
+
+
+def owned_fraction_counts(
+    cand_z: np.ndarray, tz: np.ndarray, tn: np.ndarray, truth: np.ndarray
+) -> tuple[np.ndarray, int]:
+    """(owner per truth vertex, labelled tracks of >= 2-track truth vertices owning nothing)."""
+    owner = priority_match(np.asarray(cand_z, np.float64), tz, tn, WINDOW)
+    lab = truth >= 0
+    t2 = lab & (tn[np.maximum(truth, 0)] >= 2)
+    return owner, int((t2 & (owner[np.maximum(truth, 0)] < 0)).sum())
+
+
 def process_chunk(
     path: str, root: str, gnn: str, do_hs: bool, hs_min_tracks: int = 1,
-    t_grid: tuple[float, ...] = T_GRID,
+    t_grid: tuple[float, ...] = T_GRID, arms: list[tuple] | None = None,
 ) -> dict:  # fmt: skip
     """All metrics for one inference chunk.
 
@@ -132,21 +219,28 @@ def process_chunk(
     quantities (selection, residual), applied identically to both algorithms:
     only vertices with at least that many assigned (PV-Finder) or associated
     (AMVF) tracks are candidates. 1 keeps the original drop-empty behaviour.
-    ``t_grid``: score cuts to replay (default ``T_GRID``).
+    ``t_grid``: score cuts to replay (default ``T_GRID``). ``arms``: explicit
+    arm list (``arm_targets``) instead of ``("t", t)`` per ``t_grid`` value.
     """
+    if arms is None:
+        arms = [("t", t) for t in t_grid]
     with np.load(path) as f:
         z = {k: f[k] for k in f.files}
     entries = z["entries"]
     toff, poff = z["track_offsets"], z["peak_offsets"]
     tg_all, sc_all = z[f"targets_{gnn}"], z[f"scores_{gnn}"]
+    tg2_all, sc2_all = z.get(f"targets2_{gnn}"), z.get(f"scores2_{gnn}")
+    if tg2_all is None and any(a[0] == "two" and a[3] == "fallback" for a in arms):
+        raise ValueError(f"{path}: fallback arms need chain_inference_v3 --top2")
     tree = uproot.open(root)["PVFinderData"]
     lo_e, hi_e = int(entries[0]), int(entries[-1]) + 1
     data = tree.arrays(BRANCHES, entry_start=lo_e, entry_stop=hi_e, library="ak")
-    n, na = len(entries), len(t_grid) + 1
+    n, na = len(entries), len(arms) + 1
     counts = np.zeros((n, na, len(MIN_TRACKS), len(COUNT_FIELDS)), np.int64)
     sel = np.zeros((n, na + 1, len(SEL_FIELDS)), np.int64)
     res = np.full((n, na), np.nan)
-    fallback = np.zeros((n, len(t_grid)), np.int64)
+    fallback = np.zeros((n, len(arms)), np.int64)
+    bound = np.zeros((n, len(BOUND_FIELDS)), np.int64)
     ev_out = np.zeros((n, len(EVENT_FIELDS)))
     for i, e in enumerate(entries):
         ev = data[int(e) - lo_e]
@@ -175,6 +269,20 @@ def process_chunk(
         sig = float(ev["BeamPosSigmaX"])
         peaks = z["peak_z"][poff[i] : poff[i + 1]].astype(np.float64)
         tg, sc = tg_all[toff[i] : toff[i + 1]], sc_all[toff[i] : toff[i + 1]]
+        tg2 = None if tg2_all is None else tg2_all[toff[i] : toff[i + 1]]
+        sc2 = None if sc2_all is None else sc2_all[toff[i] : toff[i + 1]]
+        owner, nocand = owned_fraction_counts(peaks, tz, tn, truth)
+        oracle = np.where(truth >= 0, owner[np.maximum(truth, 0)], -1)
+        hs_cache: dict[float, int] = {}
+
+        def hs_vertex(t: float) -> int:
+            if t not in hs_cache:
+                hs_cache[t] = select_hs_vertex(
+                    trk, hm.assign_from_scores(tg, sc, t), peaks, beam, sig,
+                    max(hs_min_tracks, 1),
+                )  # fmt: skip
+            return hs_cache[t]
+
         if nt and len(peaks) and tg.max() >= len(peaks):
             raise ValueError(f"entry {e}: edge target beyond the peak list")
         k_hs = int(np.argmin(np.abs(peaks - hz))) if len(peaks) else -1
@@ -182,9 +290,9 @@ def process_chunk(
             k_hs = -1
         pvf_hs_within = int(k_hs >= 0)  # any peak, before the GNN
         m_hs = MIN_TRACKS.index(hs_min_tracks)
-        for a, t in enumerate(t_grid):
+        for a, arm in enumerate(arms):
             all_lists = hm.lists_from_targets(
-                hm.assign_from_scores(tg, sc, t), len(peaks)
+                arm_targets(arm, tg, sc, tg2, sc2, oracle, hs_vertex), len(peaks)
             )
             if hs_min_tracks > 1:
                 # closest peak with enough assigned tracks at this t
@@ -246,6 +354,10 @@ def process_chunk(
             near = s_r >= 0 and abs(pos[s_r, 2] - hz) < HS_WINDOW
             ok = m_r >= 0 and s_r == m_r
             sel[i, na] = [int(m_r >= 0), int(ok), int(near), int(ok and near)]
+        a_keep = np.flatnonzero([len(x) >= 2 for x in alists])
+        _, a_nocand = owned_fraction_counts(axyz[a_keep, 2], tz, tn, truth)
+        lab = truth >= 0
+        bound[i] = [int((lab & (tn[np.maximum(truth, 0)] < 2)).sum()), nocand, a_nocand]
         rn = np.array([len(x) for x in alists])
         a2 = axyz[rn >= max(2, hs_min_tracks), 2]
         ka = int(np.argmin(np.abs(a2 - hz))) if len(a2) else -1
@@ -259,7 +371,7 @@ def process_chunk(
             int(has_hs),
         ]  # fmt: skip
     return {"path": path, "counts": counts, "sel": sel, "res": res,
-            "fallback": fallback, "events": ev_out}  # fmt: skip
+            "fallback": fallback, "events": ev_out, "bound": bound}  # fmt: skip
 
 
 def main() -> None:
@@ -275,6 +387,8 @@ def main() -> None:
         help="vertex track rule for the HS selection and residual (both algorithms)",
     )  # fmt: skip
     ap.add_argument("--max-chunks", type=int, default=0)
+    ap.add_argument("--two-threshold", action="store_true", help="t, (t, t_HS, mode) and oracle arms")  # fmt: skip
+    ap.add_argument("--t-hs-grid", type=float, nargs="+", default=None)
     ap.add_argument(
         "--t-grid", type=float, nargs="+", default=None,
         help="score cuts to replay (default: T_GRID)",
@@ -283,6 +397,14 @@ def main() -> None:
     t_grid = tuple(a.t_grid) if a.t_grid else T_GRID
     if list(t_grid) != sorted(set(t_grid)):
         raise ValueError("--t-grid must be strictly increasing")
+    arms = None
+    if a.two_threshold:
+        if not a.t_hs_grid:
+            raise ValueError("--two-threshold needs --t-hs-grid")
+        arms = [("t", t) for t in t_grid]
+        arms += [("two", t, th, mode) for mode in ("unassign", "fallback")
+                 for t in t_grid for th in a.t_hs_grid if th >= t]  # fmt: skip
+        arms.append(("oracle",))
     meta_in = json.loads((a.infer / "metadata.json").read_text())
     if not (a.infer / "DONE").exists() and not a.max_chunks:
         raise RuntimeError(f"{a.infer} inference not finished")
@@ -291,20 +413,23 @@ def main() -> None:
         paths = paths[: a.max_chunks]
     t0 = time.monotonic()
     with ProcessPoolExecutor(a.workers) as pool:
-        futs = [pool.submit(process_chunk, p, meta_in["root"], a.gnn, not a.no_hs, a.hs_min_tracks, t_grid) for p in paths]  # fmt: skip
+        futs = [pool.submit(process_chunk, p, meta_in["root"], a.gnn, not a.no_hs, a.hs_min_tracks, t_grid, arms) for p in paths]  # fmt: skip
         parts = []
         for k, f in enumerate(futs):
             parts.append(f.result())
             print(f"{k + 1}/{len(paths)} chunks, {time.monotonic() - t0:.0f} s", flush=True)  # fmt: skip
-    cat = {k: np.concatenate([p[k] for p in parts]) for k in ("counts", "sel", "res", "fallback", "events")}  # fmt: skip
+    cat = {k: np.concatenate([p[k] for p in parts]) for k in ("counts", "sel", "res", "fallback", "events", "bound")}  # fmt: skip
     if not a.max_chunks and len(cat["events"]) != meta_in["n_entries"]:
         raise RuntimeError("event count differs from the inference metadata")
     a.out.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(a.out, **cat)
     meta = {
         "infer": str(a.infer), "infer_metadata": meta_in, "gnn": a.gnn,
-        "t_grid": t_grid, "min_tracks": MIN_TRACKS, "count_fields": COUNT_FIELDS,
-        "sel_fields": SEL_FIELDS, "sel_arms": [*(f"t{t}" for t in t_grid), "amvf_stored", "amvf_rule"],
+        "t_grid": t_grid if arms is None else [float(k) for k in range(len(arms))],
+        "arms": arms, "global_t_grid": t_grid, "bound_fields": BOUND_FIELDS,
+        "min_tracks": MIN_TRACKS, "count_fields": COUNT_FIELDS, "sel_fields": SEL_FIELDS,
+        "sel_arms": [*(f"t{t}" for t in t_grid), "amvf_stored", "amvf_rule"] if arms is None
+        else [*(str(x) for x in arms), "amvf_stored", "amvf_rule"],
         "event_fields": EVENT_FIELDS, "window_mm": WINDOW, "hs_window_mm": HS_WINDOW,
         "max_vertex_chi2": ps.MAX_VERTEX_CHI2, "hs_computed": not a.no_hs,
         "hs_min_tracks": a.hs_min_tracks,
