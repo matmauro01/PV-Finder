@@ -96,7 +96,8 @@ def plot_resolution_overlay(
                 elinewidth=1, capsize=0, label="Data", zorder=5)  # fmt: skip
     for s in (-data_fit.sigma, data_fit.sigma):
         ax.axvline(s, color=FIT_COLOR, ls=":", lw=1, alpha=0.8)
-    ax.set_ylabel("PV-Finder vertex pairs / 0.2 mm")
+    width = f"{edges[1] - edges[0]:.2f}".rstrip("0").rstrip(".")
+    ax.set_ylabel(f"PV-Finder vertex pairs / {width} mm")
     ax.set_ylim(0, max(nd.max(), mc_scaled.max()) * 2.1)
     atlas_label(ax, status="Internal", desc=_desc(labels), desc_xy=(0.04, 0.88))
     ax.legend(loc="upper right", fontsize="x-small", frameon=False,
