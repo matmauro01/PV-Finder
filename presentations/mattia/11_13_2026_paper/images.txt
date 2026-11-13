@@ -1,0 +1,97 @@
+# Image manifest of the paper deck. One figure per line:
+#   <name>  <source without extension>  [<fallback source> ...]
+# build.sh copies the first source that exists (PDF preferred, else PNG) to
+# images/<name>.<ext> and writes images_manifest.tex, so a slide whose figure
+# does not exist yet shows a framed placeholder with the expected path.
+# Re-running build.sh after the recompute picks up the final figures.
+#
+# H  = outputs/11_12_2026_output/hllhc_final
+# L  = outputs/11_12_2026_output/lowpu_final
+# G  = outputs/11_12_2026_output/gnn_v2_freeze
+# DS = outputs/11_11_2026_output/datasets
+
+# --- Datasets -------------------------------------------------------------
+mu_training        outputs/11_11_2026_output/datasets/mu_training
+mu_validation      outputs/11_11_2026_output/datasets/mu_validation
+mu_test            outputs/11_11_2026_output/datasets/mu_test
+mu_r16443          outputs/11_11_2026_output/datasets/mu_held-out_601229_r16443
+mu_r16638          outputs/11_11_2026_output/datasets/mu_held-out_601229_r16638
+lowpu_mu           outputs/11_12_2026_output/paper_deck/lowpu_mu/lowpu_mu_distributions
+
+# --- Window decision (v6 / AMVF, 9 Nov; the basis of 0.17 mm) ---------------
+window_decision    presentations/mattia/11_13_2026_EB/images/window_residuals
+
+# --- HL-LHC before the GNN (H1/H2) ----------------------------------------
+eff_vs_mu          outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/eff_vs_mu_r16443  outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eff_pregnn_vs_mu
+fake_fraction_vs_mu outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/fake_fraction_vs_mu_r16443
+fakes_per_event_vs_mu outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/fakes_per_event_vs_mu_r16443
+eff_one_to_one_vs_mu outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/eff_one_to_one_vs_mu_r16443
+splits_per_event_vs_mu outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/splits_per_event_vs_mu_r16443
+yield_vs_mu        outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/fig6_vertices_vs_mu_r16443
+amvf_pos_categories_vs_mu outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/fig6_categories_vs_mu_amvf_r16443
+deltaz_pu200       outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/paper_figures_r16443/fig4_hllhc_deltaz
+pos_categories_pu200 outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/paper_figures_r16443/fig3a_hllhc_categories_pu200
+residuals_pu200    outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/fig7b_residuals_r16443
+window_justification outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/window_justification_r16443
+window_scan        outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/plots/window_scan_r16443
+p68_vs_mu          outputs/11_12_2026_output/hllhc_final/resolution_vs_mu/resolution_vs_mu_p68
+resolution_vs_mu   outputs/11_12_2026_output/hllhc_final/resolution_vs_mu/resolution_vs_mu
+hs_reco_vs_mu      outputs/11_12_2026_output/hllhc_final/chain/plots/hs_reco_eff_vs_mu
+eff_ntrk_pre_pu200 outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eff_vs_n_trk_pregnn_pu200
+eff_density_pre_pu200 outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eff_vs_density_pregnn_pu200
+eff_dz_pre_pu200   outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eff_vs_dz_nearest_pregnn_pu200
+
+# --- HL-LHC after the GNN (H3-H7, supplementary) --------------------------
+classes_pu200      outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/classes_per_event_pu200_primary
+clean_evt_vs_mu    outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/clean_per_event_vs_mu_primary
+merged_evt_vs_mu   outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/merged_per_event_vs_mu_primary
+split_evt_vs_mu    outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/split_per_event_vs_mu_primary
+fake_evt_vs_mu     outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/fake_per_event_vs_mu_primary
+clean_truth_vs_mu  outputs/11_12_2026_output/hllhc_final/chain/plots/categories_clean_per_truth_vs_mu
+hs_sel_vs_mu       outputs/11_12_2026_output/hllhc_final/chain/plots/hs_selection_vs_mu
+hs_res_vs_mu       outputs/11_12_2026_output/hllhc_final/chain/plots/hs_resolution_vs_mu
+hs_res_vs_ntrk     outputs/11_12_2026_output/hllhc_final/chain/plots/hs_resolution_vs_ntrk
+hs_reco_vs_density outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/hs_reco_eff_vs_density_itk
+hs_sel_vs_density  outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/hs_sel_eff_vs_density_itk
+hs_res_vs_density  outputs/11_12_2026_output/hllhc_final/supplementary/plots/main/hs_resolution_vs_density_itk
+trk_f1_vs_mu       outputs/11_12_2026_output/hllhc_final/chain/plots/track_f1_vs_mu
+trk_eff_vs_mu      outputs/11_12_2026_output/hllhc_final/chain/plots/track_efficiency_vs_mu
+trk_pur_vs_mu      outputs/11_12_2026_output/hllhc_final/chain/plots/track_purity_vs_mu
+eff_ntrk_post_pu200 outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eff_vs_n_trk_postgnn_pu200
+eff_density_post_pu200 outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eff_vs_density_postgnn_pu200
+eff_dz_post_pu200  outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eff_vs_dz_nearest_postgnn_pu200
+hs_clean_vs_mu     outputs/11_12_2026_output/hllhc_final/chain/plots/hs_clean_fraction_vs_mu
+hs_trkfrac_vs_mu   outputs/11_12_2026_output/hllhc_final/chain/plots/hs_track_fraction_vs_mu
+classes_variants   outputs/11_12_2026_output/hllhc_final/supplementary/plots/backup/classes_per_event_pu200_all_variants
+amvf_fit_weights   outputs/11_12_2026_output/hllhc_final/supplementary/plots/backup/amvf_fit_weight_distribution
+density_definitions outputs/11_12_2026_output/hllhc_final/supplementary/plots/backup/local_density_definitions
+eq4_vs_mu          outputs/11_12_2026_output/hllhc_final/chain_extras/plots/eq4_clean_vs_mu
+z0_baselines_vs_mu outputs/11_12_2026_output/hllhc_final/chain_extras/plots/z0_baselines_clean_vs_mu
+truth_guided_vs_mu outputs/11_12_2026_output/hllhc_final/chain_extras/plots/truth_guided_clean_vs_mu
+finder_cap_vs_mu   outputs/11_12_2026_output/hllhc_final/chain_extras/plots/finder_cap_vs_mu
+stages_pu200       outputs/11_12_2026_output/hllhc_final/chain_extras/plots/clean_yield_stages_pu200
+wrong_rate_vs_mu   outputs/11_12_2026_output/hllhc_final/chain_extras/plots/wrong_rate_vs_mu
+lost_unassigned_vs_mu outputs/11_12_2026_output/hllhc_final/chain_extras/plots/lost_unassigned_frac_vs_mu
+unlabelled_unassigned_vs_mu outputs/11_12_2026_output/hllhc_final/chain_extras/plots/unlabelled_left_unassigned_vs_mu
+sigma_pv_pu200     outputs/11_12_2026_output/hllhc_final/chain_extras/plots/sigma_pv_peakwidth_vs_param_pu200
+
+# --- GNN working point (12 Nov freeze) ------------------------------------
+t_scan_val_s8      outputs/11_12_2026_output/gnn_v2_freeze/figures/t_scan_val_s8_v2e527
+vs_mu_test_s8      outputs/11_12_2026_output/gnn_v2_freeze/figures/vs_mu_test_s8_v2e527
+v6_vs_s8_gnn       outputs/11_12_2026_output/gnn_v2_freeze/figures/v6_vs_s8_after_gnn_vs_mu
+lowmu_displays     outputs/11_12_2026_output/gnn_v2_freeze/lowmu/lowmu_displays_val_v6_v2e527
+gnn_learning_curve outputs/11_12_2026_output/gnn_v2_freeze/checkpoint/learning_curve_v1_v2
+
+# --- Low pile-up (R1-R4) --------------------------------------------------
+lp_fig8a           outputs/11_12_2026_output/lowpu_final/summary/figures/fig8a_run2mc_deltaz
+lp_fig8b           outputs/11_12_2026_output/lowpu_final/summary/figures/fig8b_run2mc_yield_vs_mu
+lp_fig9a           outputs/11_12_2026_output/lowpu_final/gnn_mc/figures/fig9a_run2mc_eff_vs_ntrk
+lp_fig9b           outputs/11_12_2026_output/lowpu_final/gnn_mc/figures/fig9b_run2mc_categories
+lp_fig10a          outputs/11_12_2026_output/lowpu_final/summary/figures/fig10a_run2_deltaz
+lp_fig10b          outputs/11_12_2026_output/lowpu_final/summary/figures/fig10b_run2_yield_vs_mu
+lp_fig10c          outputs/11_12_2026_output/lowpu_final/summary/figures/fig10c_run3_deltaz
+lp_fig10d          outputs/11_12_2026_output/lowpu_final/summary/figures/fig10d_run3_yield_vs_mu
+lp_t_scan          outputs/11_12_2026_output/lowpu_final/gnn_mc/figures/gnn_t_scan_run2mc
+
+# --- Timing ---------------------------------------------------------------
+athena_timing      presentations/mattia/11_13_2026_EB/images/athena_cpu_gpu_amvf

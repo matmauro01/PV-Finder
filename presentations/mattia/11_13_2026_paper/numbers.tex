@@ -1,0 +1,397 @@
+% numbers.tex: every number of the paper deck, one macro each.
+%
+% Rule: \TBD (red) marks a number that is not final yet. Each TBD line names
+% the doc and the JSON key it is filled from. "seen" gives the value present in
+% that file on 12-13 Nov 2026, before the recompute agents finished: it is for
+% checking the fill only, never for quoting.
+%
+% Sources:
+%   HLDOC = docs/evaluation/hllhc_final_numbers_2026-11-12.md (HL-LHC agent)
+%   LPDOC = docs/evaluation/lowpu_final_numbers_2026-11-12.md (low pile-up agent)
+%   H = outputs/11_12_2026_output/hllhc_final    L = outputs/11_12_2026_output/lowpu_final
+%   CH  = H/chain/chain_headline.json :: headline/PU200 (185-215)/...
+%   CHI = H/chain/chain_headline.json :: headline/inclusive/...
+%   SUP = H/supplementary/supplementary_summary.json
+%   CX  = H/chain_extras/chain_extras_summary.json
+%   H1  = H/h1_vertex_finding/h1_summary.json (r16443, PU200, 1,920 events)
+%   RVM = H/resolution_vs_mu/results.json
+%   CPU = H/cpu_timing/cpu_timing.json (and H/cpu_timing/README.md)
+%   VF  = L/summary/vf_results.json   GM = L/gnn_mc/summary.json :: bins/inclusive/...
+%   R3A = L/run3_assoc/summary.json :: by_t/0.97/...
+% Final numbers without a TBD come from committed code or committed docs.
+\providecommand{\TBD}{\textcolor{red}{\textnormal{TBD}}}
+
+%======================================================================
+% 1. Frozen configuration (src/pv_finder/utils/working_points.py, final)
+%======================================================================
+\newcommand{\winMM}{0.17}
+\newcommand{\hsWinMM}{0.1}
+\newcommand{\assignMM}{1}
+\newcommand{\pairBins}{300}
+\newcommand{\purityCut}{70\%}
+% HL-LHC density model s8
+\newcommand{\hlModel}{s8}
+\newcommand{\hlCkpt}{hllhc\_alleta\_v6\_s8\_\allowbreak 1p1ep\_phase2\_\allowbreak step\_450000}
+\newcommand{\hlUnetCh}{80}
+\newcommand{\hlLatent}{1}
+\newcommand{\hlHidden}{$5\times128$}
+% training log outputs/logs/hllhc_alleta_v6_s8_1p1ep_20261109_211919.log
+\newcommand{\hlParams}{439{,}593}
+% derived: MLP 7-128x5-1000 = 196,072; U-Net = 439,593 - 196,072
+\newcommand{\hlParamsMLP}{196{,}072}
+\newcommand{\hlParamsUnet}{243{,}521}
+\newcommand{\hlAmp}{0.01}
+\newcommand{\hlWidth}{3}
+\newcommand{\hlIntegral}{0.184}
+\newcommand{\hlHeight}{0.0184}
+\newcommand{\hlCentroid}{3}
+% HL-LHC GNN
+\newcommand{\hlGnnEpoch}{527}
+\newcommand{\hlT}{0.97}
+\newcommand{\gnnParams}{39{,}521}
+\newcommand{\gnnK}{20}
+% low pile-up
+\newcommand{\lpModel}{PVF-e400}
+\newcommand{\lpCkpt}{e2e\_mlpHist50\_e2e400\_\allowbreak 1latent\_mse\_\allowbreak phase2\_epoch\_400}
+\newcommand{\lpParams}{358{,}713}
+\newcommand{\lpUnetCh}{64}
+\newcommand{\lpHidden}{$5\times100$}
+\newcommand{\lpIntegral}{0.50}
+\newcommand{\lpGnnCkpt}{ttva\_gat\_mu60\_v2\_aug epoch 115}
+% working_points.LOWPU.gnn.t (frozen 12 Nov; LPDOC Sec. 3)
+\newcommand{\lpT}{0.97}
+
+%======================================================================
+% 2. Datasets (final)
+%======================================================================
+% docs/additional_studies/paper_questions_2026-11-11.md Part 3;
+% outputs/11_11_2026_output/datasets/hllhc_dataset_inventory.json
+\newcommand{\nPoolEvt}{5{,}173{,}600}
+\newcommand{\nTrainSub}{59{,}599{,}872}
+\newcommand{\nValSub}{1{,}862{,}496}
+\newcommand{\nTestSub}{620{,}832}
+\newcommand{\nTrainEq}{4{,}966{,}656}
+\newcommand{\nValEq}{155{,}208}
+\newcommand{\nTestEq}{51{,}736}
+\newcommand{\nEvtPU}{1{,}920}
+\newcommand{\nEvtPUb}{1{,}888}
+\newcommand{\nTruthPU}{213{,}738}
+\newcommand{\truthEvt}{111.3}
+\newcommand{\meanMuPU}{192.5}
+% GNN v2: outputs/11_11_2026_output/gnn_fullmu_v2/split_manifest.json
+\newcommand{\gnnTrainA}{60{,}000}
+\newcommand{\gnnTrainB}{89{,}820}
+\newcommand{\gnnTrain}{149{,}820}
+\newcommand{\gnnVal}{7{,}500}
+\newcommand{\gnnMon}{1{,}500}
+\newcommand{\gnnResTest}{7{,}500}
+\newcommand{\gnnResTestB}{9{,}980}
+% resolution vs mu sample (docs/evaluation/resolution_vs_mu_2026-11-11.md)
+\newcommand{\nEvtResMu}{44{,}999}
+% low pile-up: outputs/11_12_2026_output/paper_deck/lowpu_mu/lowpu_mu_distributions.json
+\newcommand{\lpMCTotal}{51{,}000}
+\newcommand{\lpMCTrain}{35{,}700}
+\newcommand{\lpMCVal}{12{,}750}
+\newcommand{\lpMCTest}{2{,}550}
+\newcommand{\lpMCNonTest}{48{,}450}
+\newcommand{\lpMuMC}{38.9}
+\newcommand{\lpMuRunTwo}{42.5}
+\newcommand{\lpMuRunThree}{50.0}
+\newcommand{\lpTruthMC}{72{,}189}
+
+%======================================================================
+% 3. HL-LHC before the GNN, PU200 (r16443, 1,920 events)
+%======================================================================
+% AMVF numbers do not depend on the density model: final, from
+% docs/evaluation/model_freeze_candidates_2026-11-12.md (0.17 mm).
+\newcommand{\effAMVF}{79.85}
+\newcommand{\effAMVFb}{80.13}
+\newcommand{\fakeFracAMVF}{20.08}
+\newcommand{\fakeEvtAMVF}{19.65}
+\newcommand{\splitEvtAMVF}{0.184}
+\newcommand{\recoEvtAMVF}{97.9}
+\newcommand{\sigAMVF}{0.305}
+\newcommand{\sigAMVFErr}{0.006}
+\newcommand{\pseAMVF}{56.45}
+\newcommand{\hsRecoAMVF}{99.79}
+% window derivation (v6 and AMVF, docs/evaluation/matching_window_audit_2026-11-09.md)
+\newcommand{\pseVsix}{55.05}
+% PV-Finder s8 at the frozen cuts: TBD
+\newcommand{\effPVF}{\TBD}      % HLDOC | H1 Eq.(1) eff r16443 | seen: freeze doc 83.05 (v6 83.20 - 0.15)
+\newcommand{\effPVFErr}{\TBD}   % HLDOC | H1 bootstrap error
+\newcommand{\effDiff}{\TBD}     % HLDOC | H1 PVF - AMVF, paired [pt] | seen: about +3.2
+\newcommand{\effDiffErr}{\TBD}  % HLDOC | H1 paired bootstrap error
+\newcommand{\effPVFb}{\TBD}     % HLDOC | H1 Eq.(1) eff r16638 (1,888 events) | seen: 83.21
+\newcommand{\effOneOnePVF}{\TBD}  % HLDOC | H1 one-to-one efficiency, PVF
+\newcommand{\effOneOneAMVF}{\TBD} % HLDOC | H1 one-to-one efficiency, AMVF (0.1694 mm: 70.07)
+\newcommand{\fakeFracPVF}{\TBD} % HLDOC | H1 fake / reco [%] | seen: about 18.5
+\newcommand{\fakeEvtPVF}{\TBD}  % HLDOC | H1 fakes / event | seen: 18.64
+\newcommand{\splitEvtPVF}{\TBD} % HLDOC | H1 splits / event
+\newcommand{\recoEvtPVF}{\TBD}  % HLDOC | H1 reco / event
+\newcommand{\sigPVF}{\TBD}      % HLDOC | H1 sigma_vtx-vtx [mm], counted peaks | seen: 0.217 at 0.182 cuts
+\newcommand{\sigPVFErr}{\TBD}   % HLDOC | H1 fit error
+\newcommand{\psePVF}{\TBD}      % HLDOC | H1 68% residual [um] | seen: 55.60 at 0.182 cuts
+\newcommand{\hsRecoPVF}{\TBD}   % HLDOC | H1 / CH HS reco at 0.1 mm [%] | seen: 99.90 (1,918)
+\newcommand{\chancePVF}{\TBD}   % HLDOC | H1 3 mm-shift chance match [%] (v6: 18.6)
+\newcommand{\chanceAMVF}{\TBD}  % HLDOC | H1 3 mm-shift chance match [%] (0.1694 mm: 18.4)
+\newcommand{\scanLo}{\TBD}      % HLDOC | H1 window scan: smallest PVF-AMVF over 0.10-0.20 mm (v6: +3.1)
+\newcommand{\scanHi}{\TBD}      % HLDOC | H1 window scan: largest PVF-AMVF over 0.10-0.20 mm (v6: +3.4)
+% resolution vs mu (s8 rerun of the 11 Nov study; AMVF final from that study)
+\newcommand{\pseMuLoAMVF}{32.1}
+\newcommand{\pseMuHiAMVF}{56.5}
+\newcommand{\sigMuHundredAMVF}{275}
+\newcommand{\sigMuTopAMVF}{304}
+\newcommand{\pseMuLoPVF}{\TBD}      % HLDOC | RVM bin 0-10 p68 [um] (v6: 33.7)
+\newcommand{\pseMuHiPVF}{\TBD}      % HLDOC | RVM bin 180-200 p68 [um] (v6: 54.9)
+\newcommand{\sigMuHundredPVF}{\TBD} % HLDOC | RVM bin 100-120 sigma [um] (v6: 194.8)
+\newcommand{\sigMuTopPVF}{\TBD}     % HLDOC | RVM bin 180-200 sigma [um] (v6: 216.2)
+\newcommand{\sigRatioMu}{\TBD}      % HLDOC | RVM AMVF/PVF sigma range for mu >= 100 (v6: 1.41-1.43)
+
+%======================================================================
+% 4. HL-LHC after the GNN (s8 + GNN v2 e527, t = 0.97)
+%======================================================================
+% AMVF, model independent, final (gnn_v2_freeze_2026-11-12.md test r16443;
+% metric_definitions.md Sec. 1; supplementary counts 66,127 / 80,104 / 41,594 / 135 over 1,920)
+\newcommand{\cleanTruthAMVF}{30.94}
+\newcommand{\cleanTruthAMVFincl}{40.49}
+\newcommand{\cleanRecoAMVF}{35.2}
+\newcommand{\mergedRecoAMVF}{42.6}
+\newcommand{\splitRecoAMVF}{22.1}
+\newcommand{\fakeRecoAMVF}{0.07}
+\newcommand{\clnEvtAMVF}{34.4}
+\newcommand{\mrgEvtAMVF}{41.7}
+\newcommand{\splEvtAMVF}{21.7}
+\newcommand{\fakEvtAMVF}{0.07}
+\newcommand{\hsSelAMVF}{92.92}
+\newcommand{\hsSelAMVFrule}{89.11}
+\newcommand{\hsSelAMVFplain}{78.80}
+\newcommand{\hsSelAMVFincl}{95.14}
+\newcommand{\hsResAMVF}{10.24}
+\newcommand{\hsResAMVFErr}{0.27}
+\newcommand{\hsCleanAMVF}{92.5}
+\newcommand{\hsTrkFracAMVF}{74.1}
+% PV-Finder + GNN: TBD
+\newcommand{\cleanTruthGNN}{\TBD}     % HLDOC | CH clean_per_truth/gnn | seen 66.72
+\newcommand{\cleanTruthGNNErr}{\TBD}  % HLDOC | CH clean_per_truth/gnn_err | seen 0.13
+\newcommand{\cleanTruthGNNincl}{\TBD} % HLDOC | CHI clean_per_truth/gnn | seen 73.09
+\newcommand{\cleanRecoGNN}{\TBD}      % HLDOC | CH clean_per_reco/gnn | seen 79.03
+\newcommand{\mergedRecoGNN}{\TBD}     % HLDOC | CH merged_per_reco/gnn | seen 13.55
+\newcommand{\splitRecoGNN}{\TBD}      % HLDOC | CH split_per_reco/gnn | seen 7.24
+\newcommand{\fakeRecoGNN}{\TBD}       % HLDOC | CH fake_per_reco/gnn | seen 0.18
+\newcommand{\clnEvtGNN}{\TBD}         % HLDOC | SUP classes, PU200, gnn unweighted, Clean/event | seen 74.28
+\newcommand{\mrgEvtGNN}{\TBD}         % HLDOC | SUP Merged/event | seen 12.73
+\newcommand{\splEvtGNN}{\TBD}         % HLDOC | SUP Split/event | seen 6.81
+\newcommand{\fakEvtGNN}{\TBD}         % HLDOC | SUP Fake/event | seen 0.17
+\newcommand{\clnEvtGNNw}{\TBD}        % HLDOC | SUP gnn, GNN-score weights, Clean/event | seen 74.34
+\newcommand{\clnEvtAMVFfit}{\TBD}     % HLDOC | SUP amvf fit tracks + fit weights, Clean/event | seen 46.26
+\newcommand{\mrgEvtAMVFfit}{\TBD}     % HLDOC | SUP | seen 31.98
+\newcommand{\splEvtAMVFfit}{\TBD}     % HLDOC | SUP | seen 19.56
+\newcommand{\cleanLeadFit}{\TBD}      % HLDOC | SUP Clean ratio GNN/AMVF with AMVF fit weights | seen 1.61
+\newcommand{\cleanLeadTTVA}{\TBD}     % HLDOC | SUP Clean ratio GNN/AMVF with TTVA links | seen 2.16
+\newcommand{\emptyDropped}{\TBD}      % HLDOC | CH table4/empty_candidates_dropped | seen 13,204
+\newcommand{\hsSelGNN}{\TBD}          % HLDOC | CH hs_selection/gnn_rule | seen 94.95
+\newcommand{\hsSelGNNErr}{\TBD}       % HLDOC | CH hs_selection/gnn_rule_err | seen 0.53
+\newcommand{\hsSelDiff}{\TBD}         % HLDOC | CH gnn_rule - amvf_stored [pt] | seen +2.03
+\newcommand{\hsSelDiffErr}{\TBD}      % HLDOC | CH hs_selection/gnn_minus_stored_err | seen 0.56
+\newcommand{\hsSelGNNincl}{\TBD}      % HLDOC | CHI hs_selection/gnn_rule | seen 96.94
+\newcommand{\hsResGNN}{\TBD}          % HLDOC | CH hs_resolution_um/gnn | seen 9.48
+\newcommand{\hsResGNNErr}{\TBD}       % HLDOC | CH hs_resolution_um/gnn_err | seen 0.28
+\newcommand{\hsResN}{\TBD}            % HLDOC | CH hs_resolution_um/n_common | seen 1,915
+\newcommand{\hsResGNNincl}{\TBD}      % HLDOC | CHI hs_resolution_um/gnn | seen 9.57
+\newcommand{\hsCleanGNN}{\TBD}        % HLDOC | CH hs_clean/gnn | seen 94.7
+\newcommand{\hsTrkFracGNN}{\TBD}      % HLDOC | CH hs_track_frac/gnn | seen 80.9
+\newcommand{\trkEffGNN}{\TBD}         % HLDOC | CH trk_eff/gnn | seen 57.45
+\newcommand{\trkPurGNN}{\TBD}         % HLDOC | CH trk_pur/gnn | seen 85.87
+\newcommand{\trkFOneGNN}{\TBD}        % HLDOC | CH trk_f1/gnn | seen 68.84
+\newcommand{\trkEffAMVF}{\TBD}        % HLDOC | CH trk_eff/amvf | seen 68.32
+\newcommand{\trkPurAMVF}{\TBD}        % HLDOC | CH trk_pur/amvf | seen 68.65
+\newcommand{\trkFOneAMVF}{\TBD}       % HLDOC | CH trk_f1/amvf | seen 68.48
+\newcommand{\wrongGNN}{\TBD}          % HLDOC | CH trk_wrong_rate/gnn | seen 14.1
+\newcommand{\wrongAMVF}{\TBD}         % HLDOC | CH trk_wrong_rate/amvf | seen 31.4
+\newcommand{\assignedGNN}{\TBD}       % HLDOC | CH assigned_frac/gnn | seen 66.5
+\newcommand{\lostUnassigned}{\TBD}    % HLDOC | CX lost-unassigned fraction, PU200, gnn_t
+\newcommand{\unlabelledLeft}{\TBD}    % HLDOC | CX unlabelled tracks left unassigned, PU200, gnn_t
+\newcommand{\eqFourBest}{\TBD}        % HLDOC | CX Eq.(4) best Clean/truth, PU200 | seen 33.5 (s_max = 1)
+\newcommand{\eqFourThree}{\TBD}       % HLDOC | CX Eq.(4) s_max = 3 | seen 32.9
+\newcommand{\zNear}{\TBD}             % HLDOC | CX z0_nearest Clean/truth | seen 31.9
+\newcommand{\zThree}{\TBD}            % HLDOC | CX z0_3sigma Clean/truth | seen 33.0
+\newcommand{\truthGuided}{\TBD}       % HLDOC | CX truth_guided Clean/truth, PU200
+\newcommand{\finderCap}{\TBD}         % HLDOC | CX finder cap (0.17 mm), PU200
+\newcommand{\oneTrkVtx}{\TBD}         % HLDOC | CX GNN vertices with one track, PU200 | seen 36,932 of 180,460
+\newcommand{\cleanTruthDomTwo}{\TBD}  % HLDOC | CX Clean/truth, dominant n_trk >= 2 | seen 63.0
+\newcommand{\cleanTruthMinTwo}{\TBD}  % HLDOC | CX Clean/truth, >= 2 tracks | seen 53.9
+\newcommand{\sigmaPVmed}{\TBD}        % HLDOC | CX median peak width at PU200 [mm] | seen 0.072
+\newcommand{\hsRecoDensMin}{\TBD}     % HLDOC | SUP hs_vs_density: lowest HS reconstruction in any bin [%] | seen 99.3
+\newcommand{\hsSelDensLo}{\TBD}       % HLDOC | SUP hs_vs_density: smallest selection lead [pt] | seen +2.7
+\newcommand{\hsSelDensHi}{\TBD}       % HLDOC | SUP largest selection lead [pt] | seen +5.0
+\newcommand{\hsResDensLo}{\TBD}       % HLDOC | SUP smallest resolution gain [um] | seen 0.2
+\newcommand{\hsResDensHi}{\TBD}       % HLDOC | SUP largest resolution gain [um] | seen 0.9
+
+%======================================================================
+% 5. CPU timing
+%======================================================================
+% quoted from the note (sections/04b_timing.tex, tab:athena-timing-breakdown): final
+\newcommand{\athCPUms}{2401}
+\newcommand{\athGPUms}{76}
+\newcommand{\athCPUinf}{2189}
+\newcommand{\athOther}{31}
+\newcommand{\athGNN}{182}
+\newcommand{\athAMVF}{650}
+\newcommand{\athAMVFlo}{600}
+\newcommand{\athAMVFhi}{750}
+% 9 Nov measurement (docs/evaluation/cpu_small_model_2026-11-09.md): final
+\newcommand{\spdSEightNov}{9.0}
+% frozen-chain timing (HL-LHC agent): TBD
+\newcommand{\cpuSEightPack}{\TBD}  % HLDOC | CPU density s8 packed ms/event | seen 174
+\newcommand{\cpuVsixPad}{\TBD}     % HLDOC | CPU density v6 padded ms/event | seen 1892
+\newcommand{\spdPack}{\TBD}        % HLDOC | CPU s8 packed / v6 padded speed-up | seen 10.9
+\newcommand{\spdPad}{\TBD}         % HLDOC | CPU s8 padded speed-up | seen 6.2
+\newcommand{\cpuGNN}{\TBD}         % HLDOC | CPU GNN v2 forward ms/event on sneezy | seen 97.9
+\newcommand{\projChain}{\TBD}      % HLDOC | CPU projected Athena chain, s8 packed [ms] | seen 413
+\newcommand{\projChainPad}{\TBD}   % HLDOC | CPU projected chain, s8 padded [ms] | seen 566
+\newcommand{\projWorst}{\TBD}      % HLDOC | CPU worst case [ms] | seen 531
+\newcommand{\projFactor}{\TBD}     % HLDOC | CPU AMVF / chain at 650 ms | seen 1.57
+
+%======================================================================
+% 6. Decision studies (committed docs, final)
+%======================================================================
+% s8 vs v6, docs/evaluation/model_freeze_candidates_2026-11-12.md
+\newcommand{\sEightDEffA}{$-0.15$}
+\newcommand{\sEightDEffB}{$-0.08$}
+\newcommand{\sEightDSig}{$+1.2\pm1.1$}
+\newcommand{\sEightDpse}{$+0.6$}
+\newcommand{\sFiveDSig}{$+9$ to $+12$}
+% after the GNN, docs/evaluation/gnn_v2_freeze_2026-11-12.md Sec. 7 (t = 0.97, inclusive)
+\newcommand{\sEightDClean}{$-0.14\pm0.02$}
+\newcommand{\sEightDHSsel}{$-0.10\pm0.06$}
+\newcommand{\sEightDHSres}{$+0.04\pm0.04$}
+% GNN v2 checkpoint and t options (v6 peaks, test r16443), gnn_v2_freeze_2026-11-12.md
+\newcommand{\gnnValLoss}{0.255807}
+\newcommand{\optAclean}{73.83}
+\newcommand{\optDclean}{73.23}
+\newcommand{\optBclean}{68.70}
+\newcommand{\optCclean}{65.84}
+\newcommand{\optEclean}{56.79}
+\newcommand{\optAcleanPU}{67.73}
+\newcommand{\optDcleanPU}{66.99}
+\newcommand{\optAcleanLow}{84.22}
+\newcommand{\optDcleanLow}{86.45}
+\newcommand{\optAFone}{72.09}
+\newcommand{\optDFone}{74.45}
+\newcommand{\optAMVFFone}{74.43}
+\newcommand{\optDHSsel}{97.04}
+\newcommand{\optAHSsel}{96.79}
+\newcommand{\optDHSres}{9.53}
+\newcommand{\optAHSres}{9.70}
+% HS selection rule, docs/evaluation/hs_selection_identical_rule_2026-11-11.md
+\newcommand{\chiCut}{18.42}
+\newcommand{\ruleAgreeAll}{96.2}
+\newcommand{\ruleAgreePU}{94.8}
+\newcommand{\plainAgreeAll}{86.8}
+% HS resolution study (GNN v4, v6 peaks), docs/evaluation/itk_hs_resolution_2026-11-09.md
+\newcommand{\hsResPeak}{12.38}
+\newcommand{\hsResTruthTrk}{9.09}
+\newcommand{\hsResAMVFlist}{9.50}
+\newcommand{\hsResNoGNN}{9.28}
+\newcommand{\hsResOneD}{11.99}
+% target readout, docs/evaluation/run2_vs_run4_resolution_2026-11-09.md (2026-11-11)
+\newcommand{\tgtSigRunTwo}{0.203}
+\newcommand{\pvfSigRunTwo}{0.410}
+\newcommand{\amvfSigRunTwo}{0.789}
+\newcommand{\tgtSigHL}{0.145}
+\newcommand{\tgtSigHLwone}{0.137}
+\newcommand{\tgtSigHLfine}{0.124}
+\newcommand{\pvfSigHLvsix}{0.218}
+\newcommand{\pvfSigHLrunTwoCfg}{0.241}
+\newcommand{\tgtHSum}{0.77}
+\newcommand{\pvfHSum}{12.4}
+\newcommand{\idealPURunTwo}{75.6}
+\newcommand{\idealPUHL}{44.4}
+\newcommand{\idealHSHL}{6.0}
+
+%======================================================================
+% 7. Low pile-up (LPDOC; Run 2 MC 2,550 events, data 2,500 each)
+%======================================================================
+\newcommand{\lpEffPVF}{\TBD}       % LPDOC R1 | VF mc/pvf/recovery | seen 81.55
+\newcommand{\lpEffPVFErr}{\TBD}    % LPDOC R1 | VF mc/pvf/recovery_err | seen 0.14
+\newcommand{\lpEffAMVF}{\TBD}      % LPDOC R1 | VF mc/amvf/recovery | seen 75.74
+\newcommand{\lpEffDiff}{\TBD}      % LPDOC R1 | VF mc/delta_pvf_minus_amvf/recovery/delta | seen +5.81
+\newcommand{\lpFakeFracPVF}{\TBD}  % LPDOC R1 | VF mc/pvf/fake_fraction/value | seen 9.86
+\newcommand{\lpFakeFracAMVF}{\TBD} % LPDOC R1 | VF mc/amvf/fake_fraction/value | seen 11.06
+\newcommand{\lpFakeEvtPVF}{\TBD}   % LPDOC R1 | VF mc/pvf/no_ref_per_evt | seen 2.363
+\newcommand{\lpFakeEvtAMVF}{\TBD}  % LPDOC R1 | VF mc/amvf/no_ref_per_evt | seen 2.487
+\newcommand{\lpSigPVF}{\TBD}       % LPDOC R1 | VF mc/pvf/sigma_vtx_vtx_mm/value | seen 0.392
+\newcommand{\lpSigPVFErr}{\TBD}    % LPDOC R1 | VF mc/pvf/sigma_vtx_vtx_mm/err | seen 0.009
+\newcommand{\lpSigAMVF}{\TBD}      % LPDOC R1 | VF mc/amvf/sigma_vtx_vtx_mm/value | seen 0.789
+\newcommand{\lpSigAMVFErr}{\TBD}   % LPDOC R1 | VF mc/amvf/sigma_vtx_vtx_mm/err | seen 0.015
+\newcommand{\lpPsePVF}{\TBD}       % LPDOC R1 | VF mc/pvf/p68_residual_um | seen 72.5
+\newcommand{\lpPseAMVF}{\TBD}      % LPDOC R1 | VF mc/amvf/p68_residual_um | seen 66.8
+\newcommand{\lpWinRatio}{\TBD}     % LPDOC R1 | VF mc/pvf/window_over_p68 | seen 2.35
+\newcommand{\lpHSPVF}{\TBD}        % LPDOC R1 | VF mc/pvf/hs_eff/eff | seen 98.94
+\newcommand{\lpHSAMVF}{\TBD}       % LPDOC R1 | VF mc/amvf/hs_eff/eff | seen 99.29
+\newcommand{\lpRecRunTwo}{\TBD}    % LPDOC R3 | VF run2/pvf/recovery | seen 94.39
+\newcommand{\lpRecRunThree}{\TBD}  % LPDOC R3 | VF run3/pvf/recovery | seen 94.03
+\newcommand{\lpNoRefRunTwo}{\TBD}  % LPDOC R3 | VF run2/pvf/no_ref_per_evt | seen 3.006
+\newcommand{\lpNoRefRunThree}{\TBD}% LPDOC R3 | VF run3/pvf/no_ref_per_evt | seen 3.192
+\newcommand{\lpRecMCref}{\TBD}     % LPDOC R3 | VF mc/pvf_vs_amvf_reference/recovery | seen 93.09
+\newcommand{\lpSigRunTwo}{\TBD}    % LPDOC R3 | VF run2/pvf/sigma_vtx_vtx_mm/value | seen 0.356
+\newcommand{\lpSigRunThree}{\TBD}  % LPDOC R3 | VF run3/pvf/sigma_vtx_vtx_mm/value | seen 0.333
+\newcommand{\lpSigAMVFRunTwo}{\TBD}  % LPDOC R3 | VF run2/amvf_ref/sigma_vtx_vtx_mm/value | seen 0.808
+\newcommand{\lpSigAMVFRunThree}{\TBD}% LPDOC R3 | VF run3/amvf_ref/sigma_vtx_vtx_mm/value | seen 0.813
+\newcommand{\lpCleanTruth}{\TBD}   % LPDOC R2 | GM t0.97/clean_per_truth/value | seen 72.84
+\newcommand{\lpCleanTruthAMVF}{\TBD}% LPDOC R2 | GM amvf/clean_per_truth/value | seen 60.91
+\newcommand{\lpClean}{\TBD}        % LPDOC R2 | GM t0.97/clean_per_reco/value | seen 86.90
+\newcommand{\lpMerged}{\TBD}       % LPDOC R2 | GM t0.97/merged_per_reco/value | seen 11.05
+\newcommand{\lpSplit}{\TBD}        % LPDOC R2 | GM t0.97/split_per_reco/value | seen 2.04
+\newcommand{\lpFake}{\TBD}         % LPDOC R2 | GM t0.97/fake_per_reco/value | seen 0.003
+\newcommand{\lpCleanAMVF}{\TBD}    % LPDOC R2 | GM amvf/clean_per_reco/value | seen 77.23
+\newcommand{\lpMergedAMVF}{\TBD}   % LPDOC R2 | GM amvf/merged_per_reco/value | seen 20.19
+\newcommand{\lpSplitAMVF}{\TBD}    % LPDOC R2 | GM amvf/split_per_reco/value | seen 2.53
+\newcommand{\lpFakeAMVF}{\TBD}     % LPDOC R2 | GM amvf/fake_per_reco/value | seen 0.054
+\newcommand{\lpFOne}{\TBD}         % LPDOC R2 | GM t0.97/trk_f1/value | seen 86.95
+\newcommand{\lpFOneAMVF}{\TBD}     % LPDOC R2 | GM amvf/trk_f1/value | seen 84.89
+\newcommand{\lpHSID}{\TBD}         % LPDOC R2 | GM t0.97/hs_id/value | seen 99.06
+\newcommand{\lpHSIDAMVF}{\TBD}     % LPDOC R2 | GM amvf/hs_id/value | seen 98.75
+\newcommand{\lpCleanTruthNN}{\TBD} % LPDOC Sec. 3 | t = 0.99 Clean/truth | seen 74.35
+\newcommand{\lpEmpty}{\TBD}        % LPDOC R2 | GM t0.97/totals/n_empty | seen 593
+\newcommand{\lpRthreeAssigned}{\TBD}% LPDOC R4 | R3A gnn_assigned_fraction | seen 92.38
+\newcommand{\lpRthreeAgree}{\TBD}  % LPDOC R4 | R3A agreement/1.0/vs_both_assigned | seen 96.03
+\newcommand{\lpRthreeAgreeW}{\TBD} % LPDOC R4 | R3A agreement/0.17/vs_both_assigned | seen 95.09
+\newcommand{\lpRthreeLead}{\TBD}   % LPDOC R4 | R3A leading_vertex_agreement | seen 91.20
+\newcommand{\lpCentroidShift}{\TBD}% LPDOC Sec. 4 | L/summary/diag_centroid_vs_mean.json eff difference [pt] | seen -0.04
+
+% low-mu behaviour of GNN v2 (gnn_v2_freeze_2026-11-12.md Sec. 6, v6 peaks, validation): final
+\newcommand{\lmTopOneLow}{97}
+\newcommand{\lmTopOneHigh}{71}
+\newcommand{\lmBelowNN}{24--34}
+\newcommand{\lmSmallClean}{92}
+\newcommand{\lmSmallCleanNN}{61}
+\newcommand{\lmSmallBelowLow}{47}
+\newcommand{\lmSmallBelowMid}{25}
+\newcommand{\lmSmallBelowHigh}{41}
+\newcommand{\lmTrackShare}{2}
+\newcommand{\lmVoneBelow}{47}
+\newcommand{\lmVtwoBelow}{33}
+\newcommand{\lmSplitHS}{60}
+\newcommand{\lmSplitOne}{63}
+\newcommand{\lmSplitDist}{0.8}
+\newcommand{\lmFakeMax}{0.4}
+\newcommand{\lmCleanPeakT}{\text{0.90--0.92}}
+% chain_extras finding (HL-LHC agent): GNN vs AMVF track F1 at mu 0-10
+\newcommand{\lmFOneGNN}{\TBD}  % HLDOC | CX trk_f1 vs mu, bin 0-10, gnn_t | seen 87.3
+\newcommand{\lmFOneAMVF}{\TBD} % HLDOC | CX trk_f1 vs mu, bin 0-10, amvf | seen 96.6
+% window audit (matching_window_audit_2026-11-09.md): final
+\newcommand{\greedyBias}{10}
+% resolution vs mu study (v6, resolution_vs_mu_2026-11-11.md): final
+\newcommand{\rvmChiLo}{4}
+\newcommand{\rvmChiHi}{57}
+\newcommand{\rvmExcessPVF}{1.61}
+\newcommand{\rvmExcessAMVF}{1.60}
+\newcommand{\rvmExcessTruth}{1.01}
+\newcommand{\optAMVFcleanLow}{77.06}
+\newcommand{\optAMVFHSres}{9.93}
+\newcommand{\optDvsAclean}{0.6}
+\newcommand{\optDvsAlow}{2.2}
+\newcommand{\optDvsAFone}{2.4}
+\newcommand{\optDvsAres}{0.17}
+\newcommand{\hsResAMVFstudy}{10.25}

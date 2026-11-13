@@ -1,0 +1,36 @@
+% Derived from rounded
+
+\DeclareOptionBeamer{shadow}[true]{\def\beamer@themePhiladelphia@shadow{#1}}
+\ExecuteOptionsBeamer{shadow=false}
+\ProcessOptionsBeamer
+
+\mode<presentation>
+
+\setbeamertemplate{blocks}[rounded][shadow=\beamer@themePhiladelphia@shadow]
+\setbeamertemplate{items}[ball]
+\setbeamertemplate{sections/subsections in toc}[ball]
+\setbeamertemplate{title page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themePhiladelphia@shadow]
+\setbeamertemplate{part page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themePhiladelphia@shadow]
+\setbeamertemplate{section page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themePhiladelphia@shadow]
+%\setbeamertemplate{subsection page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themePhiladelphia@shadow]
+\defbeamertemplate*{subsection page}{Philadelphia}[1][colsep=-4bp,rounded=true,shadow=\beamer@themePhiladelphia@shadow]
+{
+	\begingroup
+	\centering
+	{\usebeamerfont{subsection name}\usebeamercolor[fg]{subsection name}\subsectionname~\insertsectionnumber.\insertsubsectionnumber}
+	\vskip1em\par
+	\begin{beamercolorbox}[sep=8pt,center,#1]{subsection title}
+		\usebeamerfont{subsection title}\insertsubsection\par
+	\end{beamercolorbox}
+	\endgroup
+}
+\defbeamertemplate*{backup page}{Philadelphia}[1][colsep=-4bp,rounded=true,shadow=\beamer@themePhiladelphia@shadow]{%
+	\begingroup
+	\centering\par
+	\begin{beamercolorbox}[sep=8pt,center,#1]{section title}
+		\usebeamerfont{section title}Backup\par
+	\end{beamercolorbox}
+	\endgroup
+}
+
+\mode<all>

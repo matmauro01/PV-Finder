@@ -68,3 +68,12 @@ ANA-IDTR-2026-01-INT1-main/
 !presentations/mattia/11_13_2026_EB/images/*
 !presentations/mattia/11_13_2026_EB/logo-*/**
 presentations/mattia/11_13_2026_EB/.build/
+
+# Paper deck (13 November 2026): PDF, build script, figure manifest, images, theme and logos
+!presentations/mattia/11_13_2026_paper/PVFinder_paper_deck_2026-11-13.pdf
+!presentations/mattia/11_13_2026_paper/build.sh
+!presentations/mattia/11_13_2026_paper/images.txt
+!presentations/mattia/11_13_2026_paper/*.sty
+!presentations/mattia/11_13_2026_paper/images/*
+!presentations/mattia/11_13_2026_paper/logo-*/**
+presentations/mattia/11_13_2026_paper/.build/

@@ -1,0 +1,383 @@
+% PV-Finder paper deck, 13 November 2026. Build: bash build.sh
+% Every number is a macro from numbers.tex; red TBD = not final yet.
+% Figures come from images.txt through images_manifest.tex (written by build.sh).
+\input{preamble.tex}
+\input{numbers.tex}
+\input{images_manifest.tex}
+\hypersetup{pdftitle={PV-Finder, paper deck, November 13, 2026}}
+
+\newcommand{\twofig}[4]{% left name, left caption, right name, right caption
+\begin{columns}[T]
+\begin{column}{.49\linewidth}\centering\plot{#1}{.58}\fcap{#2}\end{column}
+\begin{column}{.49\linewidth}\centering\plot{#3}{.58}\fcap{#4}\end{column}
+\end{columns}}
+\newcommand{\threefig}[6]{%
+\begin{columns}[T]
+\begin{column}{.32\linewidth}\centering\plot{#1}{.42}\fcap{#2}\end{column}
+\begin{column}{.32\linewidth}\centering\plot{#3}{.42}\fcap{#4}\end{column}
+\begin{column}{.32\linewidth}\centering\plot{#5}{.42}\fcap{#6}\end{column}
+\end{columns}}
+\newcommand{\fourfig}[8]{%
+\begin{columns}[T]
+\begin{column}{.49\linewidth}\centering\plot{#1}{.33}\fcap{#2}\plot{#5}{.33}\fcap{#6}\end{column}
+\begin{column}{.49\linewidth}\centering\plot{#3}{.33}\fcap{#4}\plot{#7}{.33}\fcap{#8}\end{column}
+\end{columns}}
+
+\begin{document}
+\framelogo{}
+
+\begin{frame}[plain]\titlepage\end{frame}
+
+%======================================================================
+\begin{frame}{This Deck}
+\small
+\begin{columns}[T]
+\begin{column}{.52\linewidth}
+\textbf{For the colleague finishing the paper draft} (\texttt{PVFinderPaper\_11\_11\_2026.pdf}).
+\begin{enumerate}\setlength\itemsep{.3em}
+\item Frozen configuration, one table per regime
+\item Datasets and which file is used for what
+\item Metric definitions, with the code that computes each one
+\item Answers to the 29 questions in the draft, with page and line
+\item Answers to Mattia's own questions
+\item Results: every paper figure and number, main and backup
+\item Proposed internal-note edits
+\end{enumerate}
+\end{column}
+\begin{column}{.45\linewidth}
+\textbf{How to read it}
+\begin{itemize}\setlength\itemsep{.3em}
+\item Every number is a macro in \texttt{numbers.tex}.
+\item \TBD{} marks a number from the final recompute that is not in yet. Its source file and key are in the comment next to the macro.
+\item A framed red box marks a figure not produced yet, with its expected path.
+\item \mainbadge{} figures are proposed for the paper; \backupbadge{} figures go to the note or the backup.
+\item PV-Finder and AMVF are always compared on the same events with the same code.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+%======================================================================
+\partdivider{1}{Frozen Configuration}{One configuration per regime, used for every result}
+
+\begin{frame}{HL-LHC Configuration ($0\le\mu\le200$)}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.6\linewidth}
+\scriptsize\renewcommand{\arraystretch}{1.07}
+\begin{tabular}{@{}p{.25\linewidth}p{.69\linewidth}@{}}
+\toprule
+Density model & \hlModel: U-Net v2, \hlUnetCh{} channels, \hlLatent{} latent channel \\
+ & MLP $7\to$\hlHidden$\to1000$, \hlParams{} parameters \\
+Checkpoint & \texttt{\hlCkpt} \\
+\midrule
+Peak amplitude $\tau$ & \hlAmp \\
+Minimum width & \hlWidth{} bins (0.04 mm each) \\
+Minimum integral & \hlIntegral \\
+Minimum height & \hlHeight \\
+Position & local centroid, $\pm$\hlCentroid{} bins about the maximum \\
+\midrule
+GNN & full-$\mu$ v2, epoch \hlGnnEpoch, \gnnParams{} parameters \\
+Graph & $k=\gnnK$ nearest peaks per track \\
+Score cut $t$ & \hlT{} (top-1 edge per track kept if score $\ge t$) \\
+Output vertices & candidates with $\ge1$ assigned track \\
+\midrule
+Matching window & \winMM{} mm (all vertex results, both algorithms) \\
+Hard-scatter window & \hsWinMM{} mm \\
+$\svtx$ fit & counted peaks, \pairBins{} bins over $\pm6$ mm \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.37\linewidth}
+\begin{itemize}\setlength\itemsep{.25em}
+\item One line in code: \texttt{get\_regime("hllhc")} in \texttt{src/\allowbreak pv\_finder/\allowbreak utils/\allowbreak working\_points.py}.
+\item The integral and height cuts are the v6 cuts (0.30 / 0.03) scaled to give \hlModel{} the v6 fake rate.
+\item The $\svtx$ fit uses the same peaks as the counts. There is no second threshold.
+\item Clean requires $\ge\purityCut$ of a vertex's tracks from one truth vertex.
+\item Single-vertex residuals use an optimal one-to-one assignment within \assignMM{} mm. This is a measurement radius, not a matching window.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Low Pile-up Configuration (Run 2 MC, Run 2 and Run 3 Data)}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.6\linewidth}
+\scriptsize\renewcommand{\arraystretch}{1.07}
+\begin{tabular}{@{}p{.25\linewidth}p{.69\linewidth}@{}}
+\toprule
+Density model & \lpModel: U-Net v1, \lpUnetCh{} channels, 1 latent channel \\
+ & MLP $7\to$\lpHidden$\to1000$, \lpParams{} parameters \\
+Checkpoint & \texttt{\lpCkpt} \\
+Training & 50 epochs MLP to histogram, 400 end to end; no KDE \\
+\midrule
+Peak amplitude $\tau$ & \hlAmp \\
+Minimum width & \hlWidth{} bins \\
+Minimum integral & \lpIntegral \\
+Minimum height & none \\
+Position & local centroid, $\pm$\hlCentroid{} bins \\
+\midrule
+GNN & \texttt{\lpGnnCkpt} \\
+Score cut $t$ & \lpT{} (same as HL-LHC) \\
+Output vertices & candidates with $\ge1$ assigned track \\
+\midrule
+Matching window & \winMM{} mm \\
+Hard-scatter window & \hsWinMM{} mm \\
+$\svtx$ fit & counted peaks, \pairBins{} bins over $\pm6$ mm \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.37\linewidth}
+\begin{itemize}\setlength\itemsep{.25em}
+\item \texttt{get\_regime("lowpu")}, same file.
+\item One density model for every low pile-up result. The ep300 reproduction model and the two-stage KDE model are no longer used.
+\item The window is the HL-LHC value. At low pile-up it is \lpWinRatio{} times the PV-Finder 68\% residual of Run 2 MC.
+\item $t=\lpT$: no other $t$ is better in Clean/truth, HS identification and track $F_1$ together on Run 2 MC.
+\item There is no Run 3 MC. The simulation is called Run 2 MC.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{What Changed with Respect to the 11 November Draft}
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{.19\linewidth}p{.41\linewidth}p{.33\linewidth}@{}}
+\toprule
+Item & Draft of 11 November & Final \\
+\midrule
+HL-LHC density model & v6 (280 channels, 4 latent, 3.55 M parameters) & \hlModel{} (\hlUnetCh{} channels, 1 latent, \hlParams) \\
+HL-LHC peak cuts & integral 0.30, height 0.03 & \hlIntegral, \hlHeight{} \\
+$\svtx$ threshold & separate peak finding at integral 0.50 & the counted peaks \\
+Matching window & 0.1694 mm; 0.5 mm in the chain; fitted $\svtx$ at low $\mu$ & \winMM{} mm everywhere \\
+HL-LHC GNN & v4 (PU200 only), epoch 107 & full-$\mu$ v2, epoch \hlGnnEpoch \\
+GNN score cut & 0.98 (categories), 0.95 (HS) & \hlT{} for every use \\
+Low pile-up density model & ep300 (KDE-initialised), PVF-e400, KDE two-stage & \lpModel{} only \\
+Low pile-up GNN peaks & integral 0.2, full-region mean & integral \lpIntegral, local centroid \\
+Low pile-up $t$ & 0.99, 0.95 ($F_1$), 0.5 (HS), 0.98 (Run 3) & \lpT{} for every use \\
+HS selection & plain $\sum p_\mathrm{T}^2$ & Athena 24.0 rule, same code for both \\
+HS position & histogram peak & 3D adaptive fit with beam spot \\
+Categories & AMVF TTVA links vs GNN tracks & same, plus weighted cross-checks \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+%======================================================================
+\partdivider{2}{Datasets}{Training, validation and test samples}
+
+\begin{frame}{HL-LHC Files}
+\scriptsize
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}lrlp{.36\linewidth}@{}}
+\toprule
+File (mc21 14 TeV $t\bar t$, e8481\_s4494, ITk) & Events & Pile-up & Role \\
+\midrule
+SingleLep 601229 r16438 & 99{,}800 & 190--210, $\langle\mu\rangle=200.0$ & density training pool \\
+SingleLep 601229 r16633 & 99{,}800 & 190--210 & density training pool \\
+all-had 601237 r16633, part 1 & 1{,}421{,}400 & 190--210 & density training pool \\
+all-had 601237 r16633, part 2 & 1{,}498{,}600 & 190--210 & density training pool \\
+all-had 601237 r16633, part 3 & 1{,}200{,}000 & 190--210 & density training pool \\
+all-had 601237 r16633, part 4 & 854{,}000 & 190--210 & density training pool \\
+\textbf{PU200 pool} & \textbf{\nPoolEvt} & integers 190--210 & \\
+\midrule
+SingleLep 601229 r16443 & 100{,}000 & flat 0--200, $\langle\mu\rangle=99.6$ & entries 0--24,999: \textbf{test} of every result \\
+ & & & entries $\ge25{,}000$: GNN v2 training and validation \\
+SingleLep 601229 r16638 & 99{,}800 & flat 0--200, $\langle\mu\rangle=99.6$ & GNN v2 training (\gnnTrainB) \\
+ & & & second held-out file for the density model \\
+\bottomrule
+\end{tabular}
+\par\vspace{.6em}
+\begin{itemize}\setlength\itemsep{.25em}
+\item The density model never saw r16443 or r16638. The GNN never saw r16443 entries 0--24,999.
+\item Track selection: ITk paper Table 6. In-time pile-up only. Pile-up is \texttt{ActualNumOfInt}.
+\item PU200 = the \nEvtPU{} r16443 test events with $185\le\mu\le215$ (actual 185--200, $\langle\mu\rangle=\meanMuPU$), \nTruthPU{} truth vertices with $n_\mathrm{trk}\ge2$.
+\end{itemize}
+\src{docs/\allowbreak{}additional\_\allowbreak{}studies/\allowbreak{}paper\_\allowbreak{}questions\_\allowbreak{}2026-11-11.md Part 3; \allowbreak{}outputs/\allowbreak{}11\_\allowbreak{}11\_\allowbreak{}2026\_\allowbreak{}output/\allowbreak{}datasets/\allowbreak{}hllhc\_\allowbreak{}dataset\_\allowbreak{}inventory.json}
+\end{frame}
+
+\begin{frame}{HL-LHC Density Model: Training, Validation and Test}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.46\linewidth}
+{\scriptsize\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Role & 40 mm intervals & Event equiv. \\
+\midrule
+Training (96\%) & \nTrainSub & \nTrainEq \\
+Validation (3\%) & \nValSub & \nValEq \\
+Test (1\%, unused) & \nTestSub & \nTestEq \\
+\bottomrule
+\end{tabular}\par}
+\par\vspace{.5em}
+\begin{itemize}\setlength\itemsep{.25em}
+\item Seed-42 random permutation of the intervals of the PU200 pool. The roles therefore share its pile-up shape: uniform over 190--210, with $\mu=196$ doubled and $\mu=197$ nearly empty (production feature).
+\item Results never use the test intervals. They use the independent files r16443 and r16638.
+\end{itemize}
+\end{column}
+\begin{column}{.52\linewidth}\centering
+\plot{mu_training}{.3}\par\vspace{.2em}
+\begin{minipage}{.48\linewidth}\centering\plot{mu_validation}{.26}\end{minipage}\hfill
+\begin{minipage}{.48\linewidth}\centering\plot{mu_test}{.26}\end{minipage}%
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{HL-LHC Held-out Files and the GNN v2 Samples}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.55\linewidth}
+\scriptsize\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{@{}lp{.4\linewidth}r@{}}
+\toprule
+GNN v2 set & Source & Events \\
+\midrule
+Training & r16443 entries $\ge25{,}000$ & \gnnTrainA \\
+ & r16638 (stratified in 10-unit $\mu$ bins) & \gnnTrainB \\
+ & total & \gnnTrain \\
+Validation ($t$ choice) & r16443 entries $\ge25{,}000$ & \gnnVal \\
+\quad monitor (checkpoint) & subset of validation & \gnnMon \\
+Reserved test & r16443 entries $\ge25{,}000$ & \gnnResTest \\
+Reserved test & r16638 & \gnnResTestB \\
+\midrule
+Paper test & r16443 entries 0--24,999 & 25{,}000 \\
+\bottomrule
+\end{tabular}
+\par\vspace{.4em}
+\begin{itemize}\setlength\itemsep{.2em}
+\item Graphs use truth-vertex candidates, so no density model enters the GNN training data.
+\item No r16638 truth-$z$ or HS $(x,y,z)$ fingerprint occurs in r16443.
+\item Resolution vs $\mu$ (before the GNN): \nEvtResMu{} events of both files, fixed per-bin counts chosen before looking at results.
+\end{itemize}
+\end{column}
+\begin{column}{.42\linewidth}\centering
+\plot{mu_r16443}{.33}\par\vspace{.2em}
+\plot{mu_r16638}{.33}
+\end{column}
+\end{columns}
+\src{outputs/\allowbreak{}11\_\allowbreak{}11\_\allowbreak{}2026\_\allowbreak{}output/\allowbreak{}gnn\_\allowbreak{}fullmu\_\allowbreak{}v2/\allowbreak{}split\_\allowbreak{}manifest.json; \allowbreak{}docs/\allowbreak{}evaluation/\allowbreak{}gnn\_\allowbreak{}full\_\allowbreak{}pileup\_\allowbreak{}training\_\allowbreak{}v2\_\allowbreak{}2026-11-11.md}
+\end{frame}
+
+\begin{frame}{Low Pile-up Samples}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.54\linewidth}
+\scriptsize\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{@{}lrl@{}}
+\toprule
+Sample & Events & Use \\
+\midrule
+Run 2 MC ($t\bar t$, $\mu$ 0--80) & \lpMCTotal & \\
+\quad training (70\%) & \lpMCTrain & density model \\
+\quad validation (25\%) & \lpMCVal & density model \\
+\quad test (5\%) & \lpMCTest & \textbf{every MC result} \\
+\quad non-test (train + val) & \lpMCNonTest & GNN training \\
+Run 2 data (ZeroBias, run 364076) & 2{,}500 & data \\
+Run 3 data (\texttt{file\_3.root}) & 2{,}500 & data \\
+\bottomrule
+\end{tabular}
+\par\vspace{.4em}
+\begin{itemize}\setlength\itemsep{.2em}
+\item MC test: h5 events 48,450--50,999 (the last 5\%), \lpTruthMC{} truth vertices with $n_\mathrm{trk}\ge2$, $\langle\mu\rangle=\lpMuMC$.
+\item Run 2 data: entries 0--2,499. Run 3 data: the first 2,500 accepted entries of 0--3,158. Vertex finding and track association use the same events.
+\item Data have no truth: AMVF vertices ($n_\mathrm{trk}\ge2$, beam-spot corrected) are the reference.
+\end{itemize}
+\end{column}
+\begin{column}{.43\linewidth}\centering
+\plot{lowpu_mu}{.5}
+\fcap{Pile-up of the three evaluation samples.}
+\end{column}
+\end{columns}
+\end{frame}
+
+%======================================================================
+\partdivider{3}{Metric Definitions}{How each number is computed, and the code that computes it}
+
+\newcommand{\mtab}[1]{\scriptsize\renewcommand{\arraystretch}{1.22}%
+\begin{tabular}{@{}p{.14\linewidth}p{.54\linewidth}>{\raggedright\arraybackslash\tiny}p{.25\linewidth}@{}}
+\toprule
+Quantity & Definition & Code \\
+\midrule
+#1
+\bottomrule
+\end{tabular}}
+
+\begin{frame}{Before the GNN: Efficiency, Fakes, Splits}
+\mtab{%
+Efficiency (Eq.~1) & truth vertices ($n_\mathrm{trk}\ge2$) with $\ge1$ reco vertex within \winMM{} mm, over all truth vertices; ratio of sums over events. Equals clean + merged truth of the closest-first matcher (merged credit), event by event. & \texttt{compare\_res\_reco} in \texttt{efficiency\_res\_\allowbreak optimized\_atlas.py}; identity test \texttt{tests/\allowbreak test\_amvf\_fair\_\allowbreak matching.py} \\
+One-to-one efficiency & truth vertices that win a dedicated reco vertex in the closest-first assignment & same \\
+Fake fraction & reco vertices with no truth vertex within \winMM{} mm, over all reco vertices & same (\texttt{fake}) \\
+Fakes per event & the same count over the number of events & same \\
+Split & reco vertex with a truth vertex in its window that a closer reco vertex already took & same (\texttt{split}) \\
+HS reconstruction & events with a reco vertex within \hsWinMM{} mm of the true HS ($z$ only, ITk Sec.~5.5), over all events & \texttt{gnn/\allowbreak evaluation/\allowbreak hs\_metrics.py} \\
+}
+\par\vspace{.4em}{\footnotesize Truth: \texttt{TruthVertex} with $\ge2$ selected tracks. AMVF: stored vertices with $n_\mathrm{trk}\ge2$. Errors: event bootstrap (2,000 replicas); PV-Finder minus AMVF is paired on the same resampled events.}
+\end{frame}
+
+\begin{frame}{Before the GNN: Resolution and the Window}
+\mtab{%
+$\svtx$ & all within-event pairs of reco vertices; $\Delta z$ in \pairBins{} bins over $\pm6$ mm; fit $a/(1+e^{b(r-|x|)})+c$; $\svtx=|r|$. Same peaks as the counts. Quoted at PU200, and per $\mu$ bin only for $\mu\ge100$. & \texttt{fit\_dz} in \texttt{run\_eval\_\allowbreak pvf\_run3.py}; \texttt{amvf\_fair\_\allowbreak comparison/\allowbreak scan.py} \\
+68\% residual & 68th percentile of $|z_\mathrm{reco}-z_\mathrm{true}|$ after the optimal one-to-one assignment within \assignMM{} mm (most matches, then least total distance). The resolution versus $\mu$. & \texttt{matched\_residuals\_\allowbreak optimal}, \texttt{amvf\_fair\_\allowbreak comparison/\allowbreak matching.py} \\
+Window & $3\times$ the larger 68\% residual of the two algorithms at PU200, rounded: $3\times\pseAMVF~\mu$m $=0.1694$ mm $\to$ \winMM{} mm & \texttt{working\_points.\allowbreak MATCH\_WINDOW\_MM} \\
+Hard-scatter window & \hsWinMM{} mm, ITk performance paper & \texttt{working\_points.\allowbreak HS\_MATCH\_\allowbreak WINDOW\_MM} \\
+}
+\end{frame}
+
+\begin{frame}{After the GNN: Vertex Categories}
+\mtab{%
+Assignment & each track keeps its top-1 GNN edge if the score is $\ge t=\hlT$; candidates with no track are dropped from the output & \texttt{gnn/evaluation/\allowbreak chain\_inference.py} \\
+Track lists & PV-Finder: GNN-assigned tracks. AMVF: its TTVA links (\texttt{Nonprompt\_Hard\_MaxWeight}, \texttt{RecoVertex\_assocTracks}). One rule for both. & \\
+Clean, Merged, Fake & per vertex, the plurality truth vertex of its tracks. Fake if the plurality is unlabelled tracks; Clean if its share is $\ge\purityCut$; Merged otherwise & \texttt{classify\_\allowbreak assignments}, \texttt{gnn/evaluation/\allowbreak classification.py} \\
+Split & among vertices with the same plurality truth vertex, all but the largest $\sum p_\mathrm{T}^2$ & same \\
+Per event & Clean, Merged, Split, Fake vertices per event (bar plot at PU200, versus $\mu$) & \texttt{hs\_metrics.\allowbreak classify\_vertices} \\
+Clean/truth & Clean vertices over truth vertices with $n_\mathrm{trk}\ge2$ & \texttt{chain\_t\_summary} \\
+Cross-checks & AMVF with its fit tracks and fit weights; PV-Finder with GNN scores as weights & \texttt{weighted\_\allowbreak classification.py} \\
+Bounds & finder cap: peaks matched one to one within \winMM{} mm. Truth-guided: each labelled track to the peak nearest its own truth vertex & \texttt{hs\_metrics}, \texttt{chain\_gap\_\allowbreak decomposition.py} \\
+}
+\par\vspace{.3em}{\footnotesize Errors: event bootstrap (200 replicas), paired. Every category count is cross-checked by independent code.}
+\end{frame}
+
+\begin{frame}{After the GNN: Hard Scatter}
+\mtab{%
+HS selection & score $=\sum p_\mathrm{T}^2$ over a vertex's tracks with compatibility $\chi^2\le\chiCut$ (Athena 24.0 \texttt{SumPt2Sorting}); selected vertex = argmax. Reconstructed and selected: the selected vertex is the HS match (most HS tracks) and lies within \hsWinMM{} mm of the true HS. AMVF reference: its stored primary. & \texttt{gnn/evaluation/\allowbreak pv\_selection.py}; \texttt{hs\_selection\_\allowbreak identical\_rule.py} \\
+HS resolution & events where both algorithms have a vertex within \hsWinMM{} mm of the true HS; $z_\mathrm{reco}-z_\mathrm{HS}$ of the closest; width = iterative RMS within $\pm3$ RMS until stable (Athena \texttt{iterRMS\_convergence}). PV-Finder position: 3D adaptive fit with beam-spot constraint of the GNN-assigned tracks. & \texttt{itk\_resolution.\allowbreak iterative\_rms}; \texttt{hs\_position\_\allowbreak estimators.\allowbreak adaptive\_\allowbreak beamline\_fit} \\
+Clean-HS fraction & events with a Clean vertex whose plurality truth is the HS & \texttt{hs\_metrics} \\
+HS-track fraction & HS tracks on the HS-matched vertex over all HS tracks & same \\
+Local density & truth vertices within $\pm2$ mm of the true HS, HS excluded, over 4 mm (all truth vertices, ITk definition) & \texttt{itk\_resolution.\allowbreak local\_pu\_density} \\
+}
+\end{frame}
+
+\begin{frame}{After the GNN: Track Association}
+\mtab{%
+Correct track & assigned to a vertex whose plurality truth vertex is the track's own & \texttt{chain\_t\_metrics} \\
+Track efficiency & correct tracks / truth-labelled tracks; unassigned tracks stay in the denominator & same \\
+Track purity & correct tracks / assigned tracks with a truth label & same \\
+Track $F_1$ & $2\epsilon p/(\epsilon+p)$ & same \\
+Wrong rate & $1-$ purity & same \\
+Unassigned fraction & $1-$ (assigned labelled tracks / labelled tracks); efficiency $=$ purity $\times(1-$ unassigned fraction$)$ & \texttt{hllhc\_final\_\allowbreak chain\_extras.py} \\
+}
+\par\vspace{.4em}{\footnotesize Tracks without a truth label enter neither efficiency nor purity, only the assigned fraction.}
+\end{frame}
+
+%======================================================================
+\partdivider{4}{The 29 Questions}{Answers with page and line of the 11 November draft}
+
+\input{questions.tex}
+
+%======================================================================
+\partdivider{5}{Mattia's Questions}{Decisions behind the configuration}
+
+\input{mattia.tex}
+
+%======================================================================
+\partdivider{6}{Results}{Every paper figure and number; PV-Finder and AMVF on the same events}
+
+\input{results.tex}
+
+%======================================================================
+\partdivider{7}{Proposed Internal-Note Edits}{Old text and new [MM: ...] text, with page and line}
+
+\input{noteedits.tex}
+
+\end{document}

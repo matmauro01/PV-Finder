@@ -1,0 +1,300 @@
+% Answers to Mattia's own questions (meeting of 11 November 2026).
+
+\begin{frame}{M1. Why a \winMM{} mm Window}
+\small
+\begin{columns}[T]
+\begin{column}{.5\linewidth}\footnotesize
+\begin{itemize}\setlength\itemsep{.3em}
+\item The window asks whether a vertex was put where the truth vertex is. It is set by how precisely one vertex is placed, the same for both algorithms.
+\item PU200, \nEvtPU{} events: reco and truth vertices assigned one to one within \assignMM{} mm (most matches, then least total distance). 68\% residual: PV-Finder \pseVsix{} $\mu$m, AMVF \pseAMVF{} $\mu$m.
+\item Window $=3\times$ the larger $=3\times\pseAMVF~\mu\mathrm{m}=0.1694$ mm, rounded to \winMM{} mm. Not a Gaussian $3\sigma$: the residuals have tails.
+\item A greedy assignment would bias the width about \greedyBias\% low.
+\end{itemize}
+\end{column}
+\begin{column}{.47\linewidth}\centering
+\plot{window_decision}{.42}
+\fcap{Single-vertex residuals at PU200 (v6, 9 November). The \hlModel{} version is in Part 6.}
+\par\vspace{.3em}
+{\footnotesize Not $\svtx$: it measures how close two vertices can be and still be separated, and differs by 40\% between the algorithms. At low pile-up the window is \lpWinRatio{} times the PV-Finder residual.}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{M2. Hard Scatter at \hsWinMM{} mm, for ITk Consistency}
+\small
+\begin{itemize}\setlength\itemsep{.5em}
+\item The ITk performance paper (arXiv:2412.15090, Sec.~5.5, Fig.~26b) reconstructs the hard-scatter vertex with a \hsWinMM{} mm criterion and quotes only the hard scatter. The HS has tens of tracks and a resolution near 10~$\mu$m, so \hsWinMM{} mm is wide for it.
+\item The all-vertex population is dominated by low-multiplicity pile-up vertices with a 68\% residual of 55--56~$\mu$m; for them \hsWinMM{} mm would mix position precision into the efficiency. They keep \winMM{} mm.
+\item Every HS number uses \hsWinMM{} mm: reconstruction, selection, resolution.
+\item HS reconstruction at PU200: PV-Finder \hsRecoPVF\%, AMVF \hsRecoAMVF\%.
+\end{itemize}
+\takeaway{Sentence for the paper: ``For consistency with ITk performance studies, which quote only the hard-scatter vertex, we also give the hard-scatter results with a 0.1~mm window.''}
+\end{frame}
+
+\begin{frame}{M3. Why \hlModel{} Was Frozen}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.55\linewidth}
+\scriptsize\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}p{.5\linewidth}p{.44\linewidth}@{}}
+\toprule
+\hlModel{} minus v6, same events & \\
+\midrule
+Efficiency at the v6 fake rate (r16443, r16638) & \sEightDEffA{}, \sEightDEffB{} pt \\
+$\svtx$ & \sEightDSig{} $\mu$m \\
+68\% residual & \sEightDpse{} $\mu$m \\
+Clean/truth after the GNN ($t=\hlT$) & \sEightDClean{} pt \\
+HS selection after the GNN & \sEightDHSsel{} pt \\
+HS resolution after the GNN & \sEightDHSres{} $\mu$m \\
+\midrule
+CPU speed-up, packed, vs v6 as deployed & \spdSEightNov$\times$ (9 Nov), \spdPack$\times$ (12 Nov) \\
+Parameters & \hlParams{} vs 3,547,993 \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.42\linewidth}\scriptsize
+\begin{itemize}\setlength\itemsep{.25em}
+\item Bar: efficiency loss below 0.2 points at the v6 fake rate, and no worse resolution. Only \hlModel{} meets it.
+\item s5 (112 channels) separates close vertices worse: $\svtx$ \sFiveDSig{} $\mu$m at 6--7 standard deviations, with either schedule.
+\item Cuts: v6's 0.30 / 0.03 scaled until the fakes per event match v6; the two-file mean is \hlIntegral{} / \hlHeight.
+\item After the GNN the trends with $\mu$ are the same for both models.
+\end{itemize}
+\end{column}
+\end{columns}
+
+\vfill\src{model\_\allowbreak{}freeze\_\allowbreak{}candidates\_\allowbreak{}2026-11-12.md; \allowbreak{}gnn\_\allowbreak{}v2\_\allowbreak{}freeze\_\allowbreak{}2026-11-12.md Sec.~7; \allowbreak{}cpu\_\allowbreak{}small\_\allowbreak{}model\_\allowbreak{}2026-11-09.md}
+\end{frame}
+
+\begin{frame}{M3. \hlModel{} and v6 after the GNN}
+\centering
+\plot{v6_vs_s8_gnn}{.72}
+\fcap{Chain metrics versus $\mu$ for both density models with GNN v2, test events (12 November freeze). The trends are the same; the differences are at most a few tenths of a point.}
+\end{frame}
+
+\begin{frame}{M4. The GNN Score Cut $t=\hlT$}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.6\linewidth}
+\scriptsize\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}llccccc@{}}
+\toprule
+Rule (on validation) & $t$ & \multicolumn{3}{c}{Clean/truth [\%]} & $F_1$ & HS res \\
+ & & incl. & PU200 & $\mu<20$ & [\%] & [$\mu$m] \\
+\midrule
+A: max Clean/truth & 0.98 & \optAclean & \optAcleanPU & \optAcleanLow & \optAFone & \optAHSres \\
+\textbf{D: most $\mu$-robust} & \textbf{0.97} & \optDclean & \optDcleanPU & \optDcleanLow & \optDFone & \optDHSres \\
+B: max HS selection & 0.94 & \optBclean & & & & \\
+C: max track $F_1$ & 0.92 & \optCclean & & & & \\
+E: no cut & 0 & \optEclean & & & & \\
+AMVF & & \cleanTruthAMVFincl & \cleanTruthAMVF & \optAMVFcleanLow & \optAMVFFone & \optAMVFHSres \\
+\bottomrule
+\end{tabular}
+\par\vspace{.3em}
+{\tiny Test events, v6 peaks (12 November freeze). D: largest worst-case ratio, over five $\mu$ bins, of Clean/truth to its best value in the bin.}
+\end{column}
+\begin{column}{.37\linewidth}\scriptsize
+\begin{itemize}\setlength\itemsep{.2em}
+\item Checkpoint: epoch \hlGnnEpoch, the lowest validation-monitor loss (\gnnValLoss) of 540 shard epochs; plateaued at the learning-rate floor.
+\item $t=\hlT$ is within \optDvsAclean{} points of the maximum Clean/truth, gains \optDvsAlow{} points at $\mu<20$, \optDvsAFone{} points of $F_1$ and \optDvsAres~$\mu$m of HS resolution.
+\item $t=0.99$ is worse than 0.98 in Clean/truth, $F_1$, HS selection and HS resolution.
+\item Chosen by Mattia, 12 November; also used at low pile-up.
+\end{itemize}
+\end{column}
+\end{columns}
+
+\vfill\src{gnn\_\allowbreak{}v2\_\allowbreak{}freeze\_\allowbreak{}2026-11-12.md Sec.~1, 5; \allowbreak{}G/\allowbreak{}options.md}
+\end{frame}
+
+\begin{frame}{M4. The $t$ Scan in $\mu$ Bins}
+\centering
+\plot{t_scan_val_s8}{.72}
+\fcap{All chain metrics versus $t$ per $\mu$ bin, GNN validation events, \hlModel{} peaks.}
+\end{frame}
+
+\begin{frame}{M5. Behaviour of the GNN at Low $\mu$}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.55\linewidth}\scriptsize
+\textbf{Seen} at $\mu<20$: Clean/truth peaks at $t=\lmCleanPeakT$ and falls at higher $t$; above $\mu=50$ it rises up to 0.98.
+\par\vspace{.3em}
+\textbf{Why}, measured:
+\begin{itemize}\setlength\itemsep{.15em}
+\item At $\mu<10$, \lmTopOneLow\% of top-1 edges are correct (\lmTopOneHigh\% at $\mu$ 150--200). A higher $t$ then removes mostly good tracks.
+\item The network is less confident on small vertices at low $\mu$: \lmSmallBelowLow\% of correct tracks of 5--10-track vertices score below 0.99 at $\mu<10$ (\lmSmallBelowMid\% at $\mu$ 20--50, \lmSmallBelowHigh\% at 150--200), on truth-candidate graphs too.
+\item $\mu<20$ events hold about \lmTrackShare\% of the tracks of a flat-$\mu$ sample, so they weigh little in the loss.
+\item v1 was worse (\lmVoneBelow\% vs \lmVtwoBelow\% of correct tracks below 0.99 at $\mu<10$): the behaviour Mattia saw.
+\item Splits at low $\mu$ are HS satellites: \lmSplitHS\% have the HS as dominant truth, \lmSplitOne\% hold one track.
+\end{itemize}
+\end{column}
+\begin{column}{.42\linewidth}
+\begin{itemize}\setlength\itemsep{.25em}
+\item Fake/reco stays at or below \lmFakeMax\%; there is no failure mode.
+\item The satellite splits are weak density peaks next to the large HS peak, a larger share of the list when there are few vertices. They are not GNN errors.
+\item $t=\hlT$ is the compromise: within \optDvsAclean{} points of the best Clean/truth at high $\mu$, \optDvsAlow{} points better than 0.98 at $\mu<20$.
+\end{itemize}
+\end{column}
+\end{columns}
+\par\vspace{.2em}
+{\scriptsize At the working point, $\mu$ 0--10: track $F_1$ \lmFOneGNN\% (PV-Finder + GNN) vs \lmFOneAMVF\% (AMVF). No track-$F_1$ claim at low $\mu$ in the paper.}
+\end{frame}
+
+\begin{frame}{M5. Low-$\mu$ Event Displays}
+\centering
+\plot{lowmu_displays}{.72}
+\fcap{Validation events at $\mu\approx17$: isolated 7- and 11-track vertices whose tracks all score 0.9--0.99, so the vertex vanishes at $t=0.99$.}
+\end{frame}
+
+\begin{frame}{M6. CPU Timing against AMVF}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\textbf{Projected Athena CPU time} (Xeon 4216, one thread), from speed-ups measured on sneezy and the note's Athena table:
+\[T_\mathrm{chain}=\frac{\athCPUinf~\mathrm{ms}}{S}+\athOther~\mathrm{ms}+\athGNN~\mathrm{ms}\]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Chain & $S$ & $T_\mathrm{chain}$ [ms] \\
+\midrule
+v6 padded (Athena today) & 1 & \athCPUms \\
+\hlModel{} packed + GNN v2 & \spdPack & \projChain \\
+\hlModel{} padded + GNN v2 & \spdPad & \projChainPad \\
+AMVF (note figure, $\mu=200$) & & \athAMVF{} (\athAMVFlo--\athAMVFhi) \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.47\linewidth}
+\begin{itemize}\setlength\itemsep{.35em}
+\item With packed inference the chain is \projFactor$\times$ faster than AMVF on CPU. The worst case tried, \projWorst{} ms, is still below \athAMVFlo{} ms.
+\item Packed inference needs a new Athena tensor builder: a track list plus an interval index.
+\item With today's padded tensor, \hlModel{} is comparable to AMVF, not faster.
+\item The GNN is now the largest step (\athGNN{} ms in Athena).
+\item On GPU the full chain takes \athGPUms{} ms (note).
+\item AMVF cannot run on sneezy: its time is read off the note's figure. The chain time is a projection, not an Athena measurement.
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{H/\allowbreak{}cpu\_\allowbreak{}timing/\allowbreak{}README.md; \allowbreak{}note sections/\allowbreak{}04b\_\allowbreak{}timing.tex, tab:athena-timing-breakdown}
+\end{frame}
+
+\begin{frame}{M7. Binning: Is the Network or the 0.04 mm Grid the Limit?}
+\footnotesize
+\qtext{Professor's question: does the smaller Run 2 $\to$ HL-LHC gain of the AMVF/PV-Finder ratio mean that PV-Finder does not use the better HL-LHC tracks, so that finer bins are needed?}
+\begin{columns}[T]
+\begin{column}{.52\linewidth}
+Test: the training target is what a perfect network would output. It goes through the same peak finder and the same metrics.
+\par\vspace{.3em}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+$\svtx$ [mm] & Run 2 MC & HL-LHC PU200 \\
+\midrule
+Target, 0.04 mm grid & \tgtSigRunTwo & \tgtSigHL{} (\tgtSigHLwone$^\ast$) \\
+Target, 0.02 mm grid$^\ast$ & & \tgtSigHLfine \\
+PV-Finder & \pvfSigRunTwo & \pvfSigHLvsix{} (v6) \\
+AMVF & \amvfSigRunTwo & \sigAMVF \\
+\bottomrule
+\end{tabular}
+\par{\scriptsize $^\ast$1-bin minimum width, so that every HS target spike is found.}
+\end{column}
+\begin{column}{.45\linewidth}
+\begin{itemize}\setlength\itemsep{.3em}
+\item PV-Finder is 2.0 times its target in Run 2 and 1.5--1.7 times at HL-LHC: closer to its ideal at HL-LHC.
+\item A 0.02 mm grid improves the ideal by 10\%, far from the gap to PV-Finder.
+\item The 0.04 mm grid carries the HS position to \tgtHSum~$\mu$m; PV-Finder reaches \pvfHSum~$\mu$m.
+\item Track-based ideal precision of pile-up vertices: \idealPURunTwo{} $\to$ \idealPUHL~$\mu$m (1.7$\times$). At the same peak setting PV-Finder $\svtx$ also improves 1.7$\times$ (\pvfSigRunTwo{} $\to$ \pvfSigHLrunTwoCfg{} mm).
+\end{itemize}
+\end{column}
+\end{columns}
+\takeaway{The headroom is in the network, not in the grid. Finer bins are not needed.}
+\end{frame}
+
+\begin{frame}{M8. Hard-Scatter Selection with One Identical Rule}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\textbf{The Athena 24.0 rule} (read from source):
+\begin{itemize}\setlength\itemsep{.25em}
+\item vertices sorted by $\sum p_\mathrm{T}^2$ of their linked tracks (\texttt{SumPt2Sorting}); the first is \texttt{PriVtx};
+\item a track is linked if its compatibility with the vertex is $\chi^2\le\chiCut$; no weights, no $p_\mathrm{T}$ cap;
+\item HS match: the vertex with the most HS tracks (\texttt{bestHardScatterMatch}).
+\end{itemize}
+\textbf{Validation on AMVF} (first 3,000 entries): on its stored lists our implementation agrees with the stored primary in \ruleAgreeAll\% of events (\ruleAgreePU\% at PU200); plain $\sum p_\mathrm{T}^2$ gives \plainAgreeAll\%.
+\end{column}
+\begin{column}{.47\linewidth}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lc@{}}
+\toprule
+PU200, reco and selected (\hsWinMM{} mm) & [\%] \\
+\midrule
+PV-Finder + GNN, Athena rule & $\hsSelGNN\pm\hsSelGNNErr$ \\
+AMVF, stored primary & \hsSelAMVF \\
+AMVF, same rule, our code & \hsSelAMVFrule \\
+AMVF, plain $\sum p_\mathrm{T}^2$ (old note) & \hsSelAMVFplain \\
+\midrule
+PV-Finder + GNN $-$ AMVF stored & $\hsSelDiff\pm\hsSelDiffErr$ pt \\
+\bottomrule
+\end{tabular}
+\par\vspace{.4em}
+\begin{itemize}\setlength\itemsep{.25em}
+\item Headline: GNN with the Athena rule against AMVF's own stored primary. Our code can only lose AMVF information, so this favours AMVF.
+\item It replaces the note's +3.4 points, which compared different rules.
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{hs\_\allowbreak{}selection\_\allowbreak{}identical\_\allowbreak{}rule\_\allowbreak{}2026-11-11.md; \allowbreak{}src/\allowbreak{}gnn/\allowbreak{}evaluation/\allowbreak{}pv\_\allowbreak{}selection.py}
+\end{frame}
+
+\begin{frame}{M9. Hard-Scatter Resolution: Why PV-Finder + GNN Reaches AMVF}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lc@{}}
+\toprule
+HS position (GNN v4 study) & [$\mu$m] \\
+\midrule
+Histogram peak, local centroid & \hsResPeak \\
+1D adaptive fit of $z_0$, GNN tracks & \hsResOneD \\
+3D adaptive fit, all tracks within 1 mm & \hsResNoGNN \\
+3D adaptive fit, AMVF's own HS tracks & \hsResAMVFlist \\
+3D adaptive fit, true HS tracks & \hsResTruthTrk \\
+AMVF stored vertex & \hsResAMVFstudy \\
+\midrule
+\textbf{Final}, 3D fit, GNN tracks, $t=\hlT$ & $\hsResGNN\pm\hsResGNNErr$ \\
+\textbf{Final}, AMVF & $\hsResAMVF\pm\hsResAMVFErr$ \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.47\linewidth}
+\begin{itemize}\setlength\itemsep{.3em}
+\item The missing piece was the transverse vertex position. ITk tracks reach $|\eta|=4$ (median $|\cot\theta|=3.2$), so a 10--15~$\mu$m offset from the beam axis moves $z_0$ by tens to hundreds of $\mu$m.
+\item The fit: $(x,y,z)$ with a beam-spot constraint, $(d_0,z_0)$ covariance, adaptive weights with annealing, seeded at the histogram peak.
+\item GNN tracks do as well as the true HS tracks; on AMVF's own tracks the same fit beats AMVF's stored position. The fit model, not the association, made the difference.
+\item In the note: say only how it is computed.
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{itk\_\allowbreak{}hs\_\allowbreak{}resolution\_\allowbreak{}2026-11-09.md (2026-11-11 sections); \allowbreak{}hs\_\allowbreak{}position\_\allowbreak{}estimators.adaptive\_\allowbreak{}beamline\_\allowbreak{}fit}
+\end{frame}
+
+\begin{frame}{M10. Resolution versus $\mu$: the 68\% Residual}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\textbf{Choice}: the resolution versus $\mu$ in the paper is the 68\% residual $|z_\mathrm{reco}-z_\mathrm{true}|$. $\svtx$ is quoted at PU200 only, or per bin for $\mu\ge100$.
+\par\vspace{.4em}
+\textbf{Why}:
+\begin{itemize}\setlength\itemsep{.15em}
+\item Both algorithms make more close vertex pairs than truth has: close-pair rate over flat expectation \rvmExcessPVF{} (PV-Finder), \rvmExcessAMVF{} (AMVF), \rvmExcessTruth{} (truth) at $\mu<20$. The hard-scatter neighbourhood is the largest source.
+\item This excess is about constant per event while random pairs grow as $\mu^2$, so it dominates at low $\mu$. Below $\mu=100$ the sigmoid fit measures a notch inside it, not the separation ($\chi^2/\mathrm{ndf}$ \rvmChiLo--\rvmChiHi).
+\item $\svtx$ is not flat in $\mu$ for either algorithm, so a single all-$\mu$ value is wrong.
+\item The 68\% residual is defined at every $\mu$; the two algorithms agree within 2~$\mu$m in every bin.
+\end{itemize}
+\end{column}
+\begin{column}{.47\linewidth}\centering
+\plot{resolution_vs_mu}{.53}
+\fcap{68\% residual (top) and $\svtx$ (bottom; open markers below $\mu=100$), \hlModel.}
+\end{column}
+\end{columns}
+\vfill\src{resolution\_\allowbreak{}vs\_\allowbreak{}mu\_\allowbreak{}2026-11-11.md; \allowbreak{}H/\allowbreak{}resolution\_\allowbreak{}vs\_\allowbreak{}mu}
+\end{frame}

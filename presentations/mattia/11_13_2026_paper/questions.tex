@@ -1,0 +1,548 @@
+% Answers to the 29 questions of the 11 November draft.
+% Source: docs/additional_studies/paper_questions_2026-11-11.md, updated to the
+% frozen configuration of 12 November. Page and line refer to
+% final_paper/current_paper/paper/PVFinderPaper_11_11_2026.pdf.
+
+\begin{frame}{Q1. Do the 40 mm Intervals Overlap?}
+\draftref{p.~7, l.~190}
+\qtext{Do the intervals overlap slightly at their boundaries? If so, by how much, and how is a track in an overlap region assigned?}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{No overlap.} Interval $k$ covers $[-240+40k,\,-240+40(k+1))$ mm, $k=0,\dots,11$.
+\item Each track goes to the one interval that contains its $z_0$; the lower edge is included.
+\item Tracks outside $[-240,240)$ mm are dropped. The ntuple selection already requires $|z_0|\le200$ mm.
+\item One sentence worth adding: the target histogram is built on the full 12,000-bin grid and then cut into twelve pieces, so a truth vertex near a boundary can put target content into the neighbouring interval, which holds none of its tracks.
+\end{itemize}
+\vfill\src{src/\allowbreak{}pv\_\allowbreak{}finder/\allowbreak{}data/\allowbreak{}root\_\allowbreak{}to\_\allowbreak{}h5.py:34-36, 67-104, 108-140}
+\end{frame}
+
+\begin{frame}{Q2. Is Every Element of Fig.~3 Right, and Does It Cover Run 2/3?}
+\draftref{p.~8, Fig.~3 caption}
+\small
+\begin{columns}[T]
+\begin{column}{.52\linewidth}
+\textbf{Corrections for the final HL-LHC configuration}
+\begin{itemize}\setlength\itemsep{.35em}
+\item \textbf{Latent map: $1\times1000$}, not $4\times1000$. The frozen model \hlModel{} has one latent channel (v6 had four).
+\item \textbf{Inputs}: seven features per track, $d_0$, $z_0$, $\sigma(d_0)$, $\sigma(z_0)$, $\mathrm{cov}(d_0,z_0)$, interval start, interval end. The helix parameters $(\phi,\theta,q/p)$ of l.~183 do not enter the density network; $\theta$, $\phi$, $p_\mathrm{T}$ enter only the GNN.
+\item \textbf{GNN update order}: track-to-vertex and vertex-to-track updates run in parallel from the previous layer (one \texttt{HeteroConv}), not vertices first (l.~307--308).
+\end{itemize}
+\end{column}
+\begin{column}{.45\linewidth}
+\textbf{Run 2/3 differences}
+\begin{itemize}\setlength\itemsep{.35em}
+\item U-Net v1 instead of v2 (Q10).
+\item \lpUnetCh{} channels instead of \hlUnetCh.
+\item Fully connected track-vertex graphs instead of $k=\gnnK$.
+\end{itemize}
+\par\vspace{.6em}
+\final{one figure covers both regimes if the caption lists these three differences. The latent map is $1\times1000$ in both.}
+\end{column}
+\end{columns}
+\vfill\src{root\_\allowbreak{}to\_\allowbreak{}h5.py:37; \allowbreak{}src/\allowbreak{}gnn/\allowbreak{}models/\allowbreak{}ttva\_\allowbreak{}gat.py:67-121; \allowbreak{}working\_\allowbreak{}points.py}
+\end{frame}
+
+\begin{frame}{Q3. Target Widths Come from AMVF}
+\draftref{p.~9, l.~205}
+\qtext{The current target-width model is derived from AMVF vertex resolutions. Has anything been done to remove this dependence?}
+\small
+\begin{itemize}\setlength\itemsep{.4em}
+\item \textbf{Not for this paper.} The final models are trained on the AMVF-derived widths.
+\item Width model: $\sigma(n_\mathrm{trk})=A\,n_\mathrm{trk}^{-B}+C$, floor 2~$\mu$m; truth vertices with fewer than two tracks get one bin (0.04 mm).
+\item HL-LHC preset \texttt{hllhc\_alleta}: $A=0.14318$ mm, $B=0.362$, $C=-0.01797$ mm, a background-corrected fit of AMVF-truth residuals (Q29).
+\item Only the widths come from AMVF. The target positions are the truth vertex positions.
+\item What removing it takes: a preset fitted on the track-only precision (inverse-variance $z_0$ of the truth tracks, already computed as a diagnostic), a rebuild of the \nPoolEvt-event pool and a retrain (\hlModel: 13.7 h on one A100).
+\end{itemize}
+\vfill\src{root\_\allowbreak{}to\_\allowbreak{}h5.py:82-88; \allowbreak{}src/\allowbreak{}pv\_\allowbreak{}finder/\allowbreak{}data/\allowbreak{}resolution\_\allowbreak{}presets.py}
+\end{frame}
+
+\begin{frame}{Q4. U-Net v2 Details}
+\draftref{p.~9, l.~223}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.55\linewidth}
+\textbf{Yes, the Appendix E design}, with \hlUnetCh{} channels in the frozen model (\hlModel):
+\begin{itemize}\setlength\itemsep{.25em}
+\item \textbf{Encoder}: ConvBNReLU($1\to\hlUnetCh$, kernel 15) at 1000 bins; residual block (kernel 5) at 1000; max-pool 2, residual block at 500; max-pool 2, residual block at 250 (bottleneck, factor 4).
+\item \textbf{Decoder}, twice: nearest-neighbour upsample $\times2$ + Conv(kernel 3) + BN + ReLU, additive skip, residual block (kernel 5). 250 $\to$ 500 $\to$ 1000.
+\item \textbf{Head}: ConvBNReLU($80\to80$, k5), ConvBNReLU($80\to40$, k3), Conv($40\to1$, k1), softplus.
+\item Residual block: Conv + BN + ReLU + Dropout, plus identity.
+\end{itemize}
+\end{column}
+\begin{column}{.42\linewidth}
+\begin{itemize}\setlength\itemsep{.25em}
+\item \textbf{Normalisation}: BatchNorm after every convolution except the last $1\times1$. ReLU throughout.
+\item \textbf{Dropout} 0.25 after the ReLU of every convolution block; none in the MLP.
+\item \textbf{MLP}: $7\to128\times5\to1000$, LeakyReLU (0.01), softplus; padded tracks masked, output summed over tracks and scaled by $10^{-3}$.
+\item \textbf{Parameters}: \hlParams{} = MLP \hlParamsMLP{} + U-Net \hlParamsUnet.
+\end{itemize}
+\par\vspace{.4em}
+\final{Table B.1 (280 channels) and the 3.55 M parameters describe v6. Replace by \hlUnetCh{} channels and \hlParams.}
+\end{column}
+\end{columns}
+\vfill\src{src/\allowbreak{}pv\_\allowbreak{}finder/\allowbreak{}models/\allowbreak{}unet\_\allowbreak{}v2.py; \allowbreak{}autoencoder\_\allowbreak{}models.py:214-352; \allowbreak{}configs/\allowbreak{}vertex\_\allowbreak{}finding/\allowbreak{}config\_\allowbreak{}hllhc\_\allowbreak{}alleta\_\allowbreak{}v6\_\allowbreak{}small\_\allowbreak{}s8.yml}
+\end{frame}
+
+\begin{frame}{Q5. Concatenation or Smoothing? One Batch?}
+\draftref{p.~9, l.~232}
+\small
+\begin{itemize}\setlength\itemsep{.5em}
+\item \textbf{Plain concatenation in $z$ order.} No smoothing, normalisation or boundary treatment. The intervals do not overlap (Q1).
+\item The twelve intervals run as \textbf{one batch of 12}, padded to the widest interval.
+\item In Athena the input tensor is $(12, 7, N_\mathrm{trk})$, also one batch.
+\item Packed-track inference (CPU timing, M6) runs the MLP only on real tracks and scatters each into its interval. The output equals the padded one to $4\times10^{-6}$; it is the same model.
+\end{itemize}
+\vfill\src{run\_\allowbreak{}eval\_\allowbreak{}pvf\_\allowbreak{}run3.py:195-215; \allowbreak{}src/\allowbreak{}pv\_\allowbreak{}finder/\allowbreak{}models/\allowbreak{}packed\_\allowbreak{}inference.py}
+\end{frame}
+
+\begin{frame}{Q6. Phase 1: U-Net Absent or Frozen?}
+\draftref{p.~10, l.~244}
+\small
+\begin{itemize}\setlength\itemsep{.5em}
+\item \textbf{Absent.} Phase 1 runs only the MLP; its latent output is compared directly with the target histogram.
+\item The U-Net parameters are also set to \texttt{requires\_grad = False} in Phase 1 and switched on for Phase 2. They have no effect, because the U-Net is not in the forward pass.
+\item \final{the paper says ``absent''.}
+\end{itemize}
+\vfill\src{hllhc\_\allowbreak{}helpers.py:185-195 (phase1\_\allowbreak{}forward); \allowbreak{}train\_\allowbreak{}hllhc\_\allowbreak{}e2e.py:81-90, 128}
+\end{frame}
+
+\begin{frame}{Q7. Datasets, Checkpoint, Warm-up, Time, Hardware}
+\draftref{p.~10, l.~250}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\begin{itemize}\setlength\itemsep{.3em}
+\item \textbf{Sample}: the six PU200 files of Part 2, \nPoolEvt{} events.
+\item \textbf{Split}: seed-42 permutation of 62,083,200 intervals: \nTrainSub{} / \nValSub{} / \nTestSub{} (96/3/1\%). Results use r16443 and r16638 only.
+\item \textbf{Schedule of \hlModel}: Phase 1 one epoch, Phase 2 one epoch (v6: 2 + 2).
+\item \textbf{Checkpoint}: Phase 2 step 450,000 of 465,624 (97\%). The run stopped on a host-memory error after the last step, before the end-of-epoch checkpoint; step 450,000 is the last saved state. The learning rate there is $1.3\times10^{-6}$, at the cosine floor.
+\end{itemize}
+\end{column}
+\begin{column}{.47\linewidth}
+\begin{itemize}\setlength\itemsep{.3em}
+\item \textbf{Learning rate}: Phase 1 constant $10^{-3}$. Phase 2 per-step linear warm-up from $10^{-6}$ to $10^{-4}$ over 3,000 steps, then per-step cosine decay to $10^{-6}$.
+\item \textbf{Other}: Adam $(0.9, 0.999)$, batch 128, gradient-norm clip 1.0, MSE loss.
+\item \textbf{Time and hardware}: one NVIDIA A100-PCIE-40GB. Phase 1 9.1 h, Phase 2 4.6 h (resumed once after a cuDNN initialisation crash on the shared GPU). 13.7 h in total.
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{outputs/\allowbreak{}logs/\allowbreak{}hllhc\_\allowbreak{}alleta\_\allowbreak{}v6\_\allowbreak{}s8\_\allowbreak{}1p1ep\_\allowbreak{}20261109\_\allowbreak{}211919.log, \_\allowbreak{}20261110\_\allowbreak{}211930.log; \allowbreak{}build\_\allowbreak{}phase2\_\allowbreak{}scheduler, hllhc\_\allowbreak{}helpers.py:100-160}
+\end{frame}
+
+\begin{frame}{Q8. Peak Width, $\sigma_\mathrm{PV}$ and Height}
+\draftref{p.~10, l.~262}
+\small
+\begin{itemize}\setlength\itemsep{.4em}
+\item \textbf{Width}: square root of the amplitude-weighted variance of the bin index over the whole above-threshold region (up to a split point), times 0.04 mm.
+\item \textbf{$\sigma_\mathrm{PV}$}: this width, used directly in the first edge feature $(z_0-z_\mathrm{PV})/\sqrt{\sigma(z_0)^2+\sigma_\mathrm{PV}^2}$. Median at PU200: \sigmaPVmed{} mm.
+\item \textbf{Height}: the maximum bin value of the region, the raw predicted density without normalisation. Second vertex-node feature.
+\item \textbf{Training graphs differ}: truth $z$, $\sigma_\mathrm{PV}$ from the \texttt{hllhc\_alleta} $n_\mathrm{trk}$ parameterisation, height from the target recipe. The text near l.~441 (Eq.~4) describes $\sigma_\mathrm{PV}$ as the $n_\mathrm{trk}$ parameterisation; at inference it is the peak width.
+\end{itemize}
+\vfill\src{efficiency\_\allowbreak{}res\_\allowbreak{}optimized\_\allowbreak{}atlas.py:16-190; \allowbreak{}graph\_\allowbreak{}construction.py:105-168; \allowbreak{}chain\_\allowbreak{}inference.py}
+\end{frame}
+
+\begin{frame}{Q9. Final Peak-Finding Configurations; Local Centroid at Low Pile-up?}
+\draftref{p.~10, l.~269}
+\small
+\begin{columns}[T]
+\begin{column}{.55\linewidth}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & HL-LHC & Low pile-up \\
+\midrule
+Amplitude & \hlAmp & \hlAmp \\
+Minimum width & \hlWidth{} bins & \hlWidth{} bins \\
+Integral & \hlIntegral & \lpIntegral \\
+Minimum height & \hlHeight & none \\
+Position & centroid $\pm$\hlCentroid & centroid $\pm$\hlCentroid \\
+$\svtx$ peaks & counted peaks & counted peaks \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.42\linewidth}
+\begin{itemize}\setlength\itemsep{.35em}
+\item \textbf{Yes}, the local centroid is now used at low pile-up too. On Run 2 MC it changes the efficiency by \lpCentroidShift{} points.
+\item The HL-LHC cuts are those of \hlModel. The draft's 0.30 / 0.03 are the v6 values.
+\item The note's ``0.50 for the HL-LHC resolution fit'' described the old code. It is gone: the fit uses the counted peaks.
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{working\_\allowbreak{}points.py; \allowbreak{}lowpu\_\allowbreak{}final\_\allowbreak{}numbers\_\allowbreak{}2026-11-12.md Sec.~4}
+\end{frame}
+
+\begin{frame}{Q10. Run 2/3 Density Model}
+\draftref{p.~11, l.~281}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.52\linewidth}
+\textbf{\lpModel{}, every low pile-up result.}
+\begin{itemize}\setlength\itemsep{.25em}
+\item \textbf{MLP}: $7\to100\times5\to1000$, LeakyReLU (0.01), softplus, 1 latent channel.
+\item \textbf{U-Net v1}, \lpUnetCh{} channels, the original design: encoder ConvBNReLU kernels 25, 7, 5, 5 with max-pool, $1000\to500\to250\to125$ (bottleneck 125); decoder three ConvTranspose(2, 2) + ConvBNReLU(k5) with concatenated skips; output Conv($128\to64$, k5), Conv($64\to1$, k5), softplus; dropout 0.25 in every convolution block.
+\item \textbf{Parameters}: \lpParams{} trainable.
+\item \textbf{Inputs}: the same seven track features as HL-LHC.
+\end{itemize}
+\end{column}
+\begin{column}{.45\linewidth}
+\begin{itemize}\setlength\itemsep{.25em}
+\item \textbf{Training}: Phase 1, 50 epochs MLP to histogram; Phase 2, 400 epochs end to end; Adam, constant $10^{-3}$ in both phases, batch 128, MSE. Checkpoint: last epoch (400).
+\item \textbf{Data}: \lpMCTotal{} Run 2 MC events, 70 / 25 / 5\% (Part 2).
+\item \textbf{No KDE in any step}: two-phase, the same procedure as HL-LHC.
+\item \textbf{Target preset}: Qi Bin's file; upstream constants (preset \texttt{run3}) $A=0.23817$ mm, $B=0.49491$, $C=-0.00079$ mm.
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{configs/\allowbreak{}vertex\_\allowbreak{}finding/\allowbreak{}config\_\allowbreak{}mlp\_\allowbreak{}hist\_\allowbreak{}e2e.yml; \allowbreak{}autoencoder\_\allowbreak{}models.py:801-1000; \allowbreak{}train\_\allowbreak{}mlp\_\allowbreak{}hist\_\allowbreak{}then\_\allowbreak{}e2e.py}
+\end{frame}
+
+\begin{frame}{Q11. GNN Details}
+\draftref{p.~12, l.~314}
+\footnotesize
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\begin{itemize}\setlength\itemsep{.3em}
+\item \textbf{Layers}: PyG \texttt{GATConv} (original GAT, not GATv2), 4 heads averaged (\texttt{concat=False}), edge features in the attention (\texttt{edge\_dim=3}), no self-loops. Two \texttt{HeteroConv} layers.
+\item \textbf{Activations}: LeakyReLU (0.01) after the two linear encoders and the two hidden edge-MLP layers; ReLU after each residual sum; sigmoid score.
+\item \textbf{Normalisation}: none. \textbf{Dropout}: none. The stored \texttt{dropout=0.25} is not used in \texttt{forward}, so the trained model has no dropout.
+\end{itemize}
+\end{column}
+\begin{column}{.47\linewidth}
+\begin{itemize}\setlength\itemsep{.3em}
+\item \textbf{Parameters}: \gnnParams{} (v2 epoch \hlGnnEpoch).
+\item \textbf{$d_0$}: as stored in the ntuple. In the HL-LHC simulation the beam spot is at $(0,0,0)$ with $\sigma_{xy}=12~\mu$m, so ``relative to the beam spot'' and ``relative to the origin'' are the same.
+\item \textbf{Tracks}: exactly the tracks of the density network; the chain builds both inputs from the same arrays.
+\item \textbf{Track features}: $d_0$, $z_0$, $\sigma(d_0)$, $\sigma(z_0)$, cov, $\theta$, $\phi$, $p_\mathrm{T}/50$ GeV.
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{src/\allowbreak{}gnn/\allowbreak{}models/\allowbreak{}ttva\_\allowbreak{}gat.py:54-137; \allowbreak{}pu200\_\allowbreak{}chain\_\allowbreak{}graphs.py:189-217; \allowbreak{}constants.py:10}
+\end{frame}
+
+\begin{frame}{Q12. Eq.~(1) and the Fake Fraction}
+\draftref{p.~14, l.~361}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{Eq.~(1) equals the note's efficiency exactly}: truth with $\ge1$ reco vertex within the window = clean + merged truth after the closest-first assignment. Checked event by event on every model and on AMVF. No recalculation of the definition is needed; the numbers are recomputed for the final configuration.
+\item \textbf{Fake fraction} (reco vertices without truth within \winMM{} mm, over reco vertices), PU200, \nEvtPU{} events:
+\end{itemize}
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & Fake / reco [\%] & Fakes / event & Splits / event \\
+\midrule
+PV-Finder (\hlModel) & \fakeFracPVF & \fakeEvtPVF & \splitEvtPVF \\
+AMVF & \fakeFracAMVF & \fakeEvtAMVF & \splitEvtAMVF \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vfill\src{metric\_\allowbreak{}definitions.md Sec.~3.3a; \allowbreak{}model\_\allowbreak{}freeze\_\allowbreak{}candidates\_\allowbreak{}2026-11-12.md; \allowbreak{}HLDOC}
+\end{frame}
+
+\begin{frame}{Q13. One Window for Everything?}
+\draftref{p.~14, l.~367}
+\qtext{We think we agreed on a single window of 0.1 mm for all results. Is that correct?}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{One window, \winMM{} mm}, for every vertex result, both algorithms, both regimes. \textbf{\hsWinMM{} mm for hard-scatter results only}, as in the ITk performance paper.
+\item Not 0.1 mm for all vertices: the 68\% single-vertex residual at PU200 is 55--56~$\mu$m for both algorithms, and 0.1 mm is less than twice that.
+\item Every other window in the draft is replaced: 0.1694 mm, the 0.5 mm one-to-one match of the chain, the fitted 0.416 mm (Run 2 MC) and the fitted data $\svtx$ are all \winMM{} mm in the final numbers.
+\item The 1 mm of the single-vertex residuals is the assignment radius used to measure the residual that sets the window. It is not a matching window and must stay wider than it.
+\end{itemize}
+\vfill\src{working\_\allowbreak{}points.py; \allowbreak{}matching\_\allowbreak{}window\_\allowbreak{}audit\_\allowbreak{}2026-11-09.md}
+\end{frame}
+
+\begin{frame}{Q14. Hard-Scatter Vertex Resolution}
+\draftref{p.~15, l.~392}
+\small
+\begin{columns}[T]
+\begin{column}{.55\linewidth}
+\textbf{Include it.} Definition (ITk Fig.~28, Athena \texttt{iterRMS\_convergence}):
+\begin{itemize}\setlength\itemsep{.3em}
+\item events where both algorithms have a vertex within \hsWinMM{} mm of the true HS;
+\item residual $z_\mathrm{reco}-z_\mathrm{HS}$ of the closest such vertex;
+\item width = iterative RMS: restrict to the mean $\pm3$ RMS and recompute until the selection is stable.
+\item PV-Finder position: 3D adaptive vertex fit with a beam-spot constraint of the tracks the GNN assigns to the HS candidate at $t=\hlT$.
+\end{itemize}
+\end{column}
+\begin{column}{.42\linewidth}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lc@{}}
+\toprule
+PU200, \hsResN{} events & Resolution [$\mu$m] \\
+\midrule
+PV-Finder + GNN & $\hsResGNN\pm\hsResGNNErr$ \\
+AMVF & $\hsResAMVF\pm\hsResAMVFErr$ \\
+\bottomrule
+\end{tabular}
+\par\vspace{.6em}
+In the note, say only how it is computed (M9).
+\end{column}
+\end{columns}
+\vfill\src{itk\_\allowbreak{}hs\_\allowbreak{}resolution\_\allowbreak{}2026-11-09.md; \allowbreak{}CH hs\_\allowbreak{}resolution\_\allowbreak{}um}
+\end{frame}
+
+\begin{frame}{Q15. Local Pile-up Density}
+\draftref{p.~15, l.~396}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{Include it.} Density as in the ITk paper: truth vertices within $\pm2$ mm of the true HS, HS excluded, over 4 mm. All truth vertices are counted, from Trey's side ntuple (same events, all truth vertices).
+\item HS reconstruction at \hsWinMM{} mm is at least \hsRecoDensMin\% in every density bin for both algorithms.
+\item HS selection (same Athena rule): PV-Finder + GNN leads AMVF by \hsSelDensLo{} to \hsSelDensHi{} points in every bin.
+\item HS resolution: PV-Finder + GNN narrower by \hsResDensLo{} to \hsResDensHi{} $\mu$m in every bin, flat in density.
+\item Also available (backup): vertex efficiency before and after the GNN versus local density.
+\end{itemize}
+\vfill\src{hllhc\_\allowbreak{}supplementary\_\allowbreak{}2026-11-12.md; \allowbreak{}SUP hs\_\allowbreak{}vs\_\allowbreak{}density.json}
+\end{frame}
+
+\begin{frame}{Q16. Track Efficiency and Purity Entering $F_1$}
+\draftref{p.~16, l.~428}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{Correct track}: assigned to a vertex whose plurality truth vertex is the track's own truth vertex.
+\item \textbf{Efficiency} $\epsilon$ = correct tracks / all tracks with a truth vertex. Unassigned tracks count in the denominator.
+\item \textbf{Purity} $p$ = correct tracks / assigned tracks that have a truth vertex.
+\item \textbf{Tracks without truth} are excluded from both; they enter only the assigned fraction.
+\item $F_1=2\epsilon p/(\epsilon+p)$.
+\end{itemize}
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+PU200 & Efficiency [\%] & Purity [\%] & $F_1$ [\%] \\
+\midrule
+PV-Finder + GNN & \trkEffGNN & \trkPurGNN & \trkFOneGNN \\
+AMVF & \trkEffAMVF & \trkPurAMVF & \trkFOneAMVF \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vfill\src{threshold\_\allowbreak{}scan.py:149-164, 240-252; \allowbreak{}chain\_\allowbreak{}scan.py:96-130}
+\end{frame}
+
+\begin{frame}{Q17. Wrong-Assignment and Unassigned-Track Metrics}
+\draftref{p.~16, l.~434}
+\small
+\begin{itemize}\setlength\itemsep{.4em}
+\item \textbf{Include them} (backup figures in Part 6). With $N_\mathrm{lab}$ labelled tracks, $N_\mathrm{at}$ assigned labelled tracks, $N_c$ correct:
+\begin{itemize}
+\item wrong-assignment rate $=(N_\mathrm{at}-N_c)/N_\mathrm{at}=1-p$: PV-Finder + GNN \wrongGNN\%, AMVF \wrongAMVF\% (PU200);
+\item unassigned fraction $u=1-N_\mathrm{at}/N_\mathrm{lab}$;
+\item lost unassigned: labelled tracks left unassigned whose truth vertex has no candidate within \winMM{} mm: \lostUnassigned;
+\item unlabelled tracks correctly left unassigned / all unlabelled tracks: \unlabelledLeft.
+\end{itemize}
+\item \textbf{Relation to $F_1$}: $\epsilon=p\,(1-u)$. The wrong rate is the complement of the purity; the unassigned fraction is what separates efficiency from purity.
+\end{itemize}
+\vfill\src{hllhc\_\allowbreak{}final/\allowbreak{}chain\_\allowbreak{}extras/\allowbreak{}README.md; \allowbreak{}CX}
+\end{frame}
+
+\begin{frame}{Q18. Significance-Based Association, Eq.~(4)}
+\draftref{p.~16, l.~445}
+\small
+\begin{columns}[T]
+\begin{column}{.52\linewidth}
+\begin{itemize}\setlength\itemsep{.35em}
+\item \textbf{Eq.~(4) confirmed}: $s=|z_0-z_\mathrm{PV}|/\sqrt{\sigma(z_0)^2+\sigma_\mathrm{PV}^2}$, the same combination as the GNN edge feature.
+\item Run on the same graph: each track's $k=\gnnK$ nearest peaks; the track goes to the smallest-$s$ peak if $s<s_\mathrm{max}$. $\sigma_\mathrm{PV}$ = peak width.
+\item The best $s_\mathrm{max}$ is chosen on the reported events, which favours the baseline.
+\end{itemize}
+\end{column}
+\begin{column}{.45\linewidth}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lc@{}}
+\toprule
+PU200 & Clean/truth [\%] \\
+\midrule
+PV-Finder + GNN & \cleanTruthGNN \\
+Eq.~(4), best $s_\mathrm{max}$ & \eqFourBest \\
+Eq.~(4), $s_\mathrm{max}=3$ & \eqFourThree \\
+nearest $z_0$ & \zNear \\
+$|z_0-z_\mathrm{PV}|<3\sigma(z_0)$ & \zThree \\
+AMVF & \cleanTruthAMVF \\
+\bottomrule
+\end{tabular}
+\end{column}
+\end{columns}
+\vfill\src{graph\_\allowbreak{}construction.py:128; \allowbreak{}chain\_\allowbreak{}extras README; \allowbreak{}CX}
+\end{frame}
+
+\begin{frame}{Q19. Why 25,000 Events and the 1,920 PU200 Events?}
+\draftref{p.~17, l.~453}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{Compute budget}, not physics. The 25,000 are the first entries of r16443 (100,000 events, flat $\mu$ 0--200, about 500 per integer $\mu$).
+\item The \nEvtPU{} are those with $185\le\mu\le215$ (actual 185--200, $\langle\mu\rangle=\meanMuPU$). The whole file has 7,680 events in that range.
+\item \textbf{The full chain cannot use more of these files}: r16443 entries $\ge25{,}000$ and r16638 are GNN v2 training and validation data.
+\item Before the GNN, more events are used where it helps: r16638 is the second held-out file (\nEvtPUb{} PU200 events) and the resolution versus $\mu$ uses \nEvtResMu{} events of both files.
+\end{itemize}
+\vfill\src{paper\_\allowbreak{}questions\_\allowbreak{}2026-11-11.md Q19; \allowbreak{}gnn\_\allowbreak{}full\_\allowbreak{}pileup\_\allowbreak{}training\_\allowbreak{}v2\_\allowbreak{}2026-11-11.md}
+\end{frame}
+
+\begin{frame}{Q20. Chance Matches, Window Scan, Efficiency vs $\mu$, $n_\mathrm{trk}$, Separation}
+\draftref{p.~17, l.~470}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{Window scan}: show it as an auxiliary figure. PV-Finder minus AMVF is between \scanLo{} and \scanHi{} points for windows of 0.10--0.20 mm.
+\item \textbf{3 mm-shift chance match} at \winMM{} mm: PV-Finder \chancePVF\%, AMVF \chanceAMVF\%. Keep it in the note.
+\item \textbf{Efficiency vs $\mu$}: available, proposed for the paper.
+\item \textbf{Efficiency vs truth $n_\mathrm{trk}$} (PUB-note style): available before and after the GNN.
+\item \textbf{Efficiency vs separation}: available as efficiency versus $\Delta z$ to the nearest truth vertex, and versus local density (backup). The merged credit of Eq.~(1) credits both vertices of a shared peak, so it stays high at small separation; the one-to-one efficiency falls there.
+\end{itemize}
+\vfill\src{h1\_\allowbreak{}vertex\_\allowbreak{}finding/\allowbreak{}plots; \allowbreak{}chain\_\allowbreak{}extras/\allowbreak{}plots}
+\end{frame}
+
+\begin{frame}{Q21. $\svtx$ Threshold, AMVF Value and Fit}
+\draftref{p.~17, l.~481}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{One threshold.} The fit uses the counted peaks (\hlModel{}: integral \hlIntegral, height \hlHeight). The draft's 0.229 mm came from a second peak finding at integral 0.50; v6 at its counted peaks gives 0.218 mm.
+\item \textbf{Final}: PV-Finder $\svtx=\sigPVF\pm\sigPVFErr$ mm, AMVF $\sigAMVF\pm\sigAMVFErr$ mm, same \nEvtPU{} events.
+\item \textbf{Fit}: all within-event pairs of vertices ($n_\mathrm{trk}\ge2$ for AMVF), $\Delta z$ histogram with \pairBins{} bins over $\pm6$ mm (0.04 mm), sigmoid $a/(1+e^{b(r-|x|)})+c$, $\svtx=|r|$. Same code for both. The error is the fit error.
+\item The sigmoid assumes a flat plateau of pile-up pairs. It describes the data at high $\mu$ only, which is why $\svtx$ is quoted at PU200 (M10).
+\end{itemize}
+\vfill\src{run\_\allowbreak{}eval\_\allowbreak{}pvf\_\allowbreak{}run3.py fit\_\allowbreak{}dz; \allowbreak{}model\_\allowbreak{}freeze\_\allowbreak{}candidates\_\allowbreak{}2026-11-12.md Sec.~2}
+\end{frame}
+
+\begin{frame}{Q22. Merged and Split after the GNN at PU200; Empty Candidates}
+\draftref{p.~18, l.~500}
+\small
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+PU200, per reco [\%] & PVF + GNN & AMVF \\
+\midrule
+Clean & \cleanRecoGNN & \cleanRecoAMVF \\
+Merged & \mergedRecoGNN & \mergedRecoAMVF \\
+Split & \splitRecoGNN & \splitRecoAMVF \\
+Fake & \fakeRecoGNN & \fakeRecoAMVF \\
+\midrule
+Clean / truth & \cleanTruthGNN & \cleanTruthAMVF \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{.47\linewidth}
+\begin{itemize}\setlength\itemsep{.35em}
+\item Table 4 now has the four categories of Table 5.
+\item \textbf{Remove candidates without tracks from the output}, not only from the rates. A vertex without tracks cannot be written as an xAOD vertex with tracks. \emptyDropped{} candidates are dropped at PU200.
+\item The paper figure is the number of vertices per event in each category (Part 6).
+\end{itemize}
+\end{column}
+\end{columns}
+\vfill\src{CH table4; \allowbreak{}SUP classes}
+\end{frame}
+
+\begin{frame}{Q23. GNN Thresholds at PU200; One Working Point?}
+\draftref{p.~18, l.~514}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{One working point, $t=\hlT$}, for vertex classification, HS selection, HS resolution and track $F_1$, in both regimes. The 0.98 and 0.95 values of the draft are dropped.
+\item Chosen on the \gnnVal{} GNN validation events (disjoint from the test set) as the most $\mu$-robust value; details in M4.
+\item At $t=\hlT$, HS reconstructed and selected at PU200 is \hsSelGNN\% (AMVF stored primary \hsSelAMVF\%).
+\end{itemize}
+\vfill\src{gnn\_\allowbreak{}v2\_\allowbreak{}freeze\_\allowbreak{}2026-11-12.md Sec.~5; \allowbreak{}working\_\allowbreak{}points.py}
+\end{frame}
+
+\begin{frame}{Q24. AMVF Run 2 Resolution and Efficiency on the Same Events}
+\draftref{p.~20, l.~528}
+\small
+\textbf{Both are now on the same \lpMCTest{} Run 2 MC events with the same code.}
+\begin{center}\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & $\svtx$ [mm] & Eff., \winMM{} mm [\%] & Fake/reco [\%] & 68\% res. [$\mu$m] \\
+\midrule
+PV-Finder (\lpModel) & $\lpSigPVF\pm\lpSigPVFErr$ & $\lpEffPVF\pm\lpEffPVFErr$ & \lpFakeFracPVF & \lpPsePVF \\
+AMVF & $\lpSigAMVF\pm\lpSigAMVFErr$ & \lpEffAMVF & \lpFakeFracAMVF & \lpPseAMVF \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{itemize}\setlength\itemsep{.3em}
+\item The draft's AMVF 0.793 mm was on 2,500 other events; the PV-Finder 0.416 mm used 60 bins and the ep300 model.
+\end{itemize}
+\vfill\src{LPDOC R1; \allowbreak{}VF mc}
+\end{frame}
+
+\begin{frame}{Q25. Low Pile-up GNN at Integral 0.2, Vertex Finding at 0.50}
+\draftref{p.~20, l.~535}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{Final: integral \lpIntegral{} for both}, on \lpModel{} peaks with the local centroid.
+\item The difference was more than the threshold: the draft's GNN numbers (77.43\% Clean/truth, $t=0.99$) came from PVF-e400 at integral 0.2 and the full-region mean; the vertex finding from the ep300 model at 0.50.
+\item \textbf{Recalculated}: graphs rebuilt from the frozen model at \lpIntegral, GNN at $t=\lpT$:
+\begin{itemize}
+\item Clean/truth \lpCleanTruth\% (AMVF \lpCleanTruthAMVF\%);
+\item Clean / Merged / Split / Fake per reco: \lpClean{} / \lpMerged{} / \lpSplit{} / \lpFake\%.
+\end{itemize}
+\item Integral \lpIntegral{} finds fewer candidates than 0.2, mostly small vertices; that and the lower $t$ explain the change from 77.43\%.
+\end{itemize}
+\vfill\src{LPDOC R2, Sec.~4; \allowbreak{}GM}
+\end{frame}
+
+\begin{frame}{Q26. GNN Thresholds in Run 2 Simulation}
+\draftref{p.~21, l.~548}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{One $t=\lpT$} for vertex classification, track $F_1$ and HS identification. The 0.99 / 0.95 / 0.5 of the draft are dropped.
+\item Rule: the HL-LHC value unless clearly worse at low pile-up. No $t$ beats \lpT{} in Clean/truth, HS identification and $F_1$ together by more than two paired standard errors.
+\item At $t=\lpT$: Clean/truth \lpCleanTruth\%, $F_1$ \lpFOne\% (AMVF \lpFOneAMVF\%), HS identification \lpHSID\% (AMVF \lpHSIDAMVF\%).
+\item $t=0.99$ gives Clean/truth \lpCleanTruthNN\%, with a lower $F_1$; its gain comes from $\mu>40$ only, and at $\mu<20$ $t=\lpT$ is better.
+\item The draft's 98.98\% HS identification was obtained at $t=0.99$, not at the 0.5 the note lists.
+\end{itemize}
+\vfill\src{LPDOC Sec.~3; \allowbreak{}L/\allowbreak{}gnn\_\allowbreak{}mc/\allowbreak{}t\_\allowbreak{}options.md}
+\end{frame}
+
+\begin{frame}{Q27. Run 3 Data Association: $t$, Peak Threshold, Events}
+\draftref{p.~22, l.~574}
+\small
+\begin{columns}[T]
+\begin{column}{.5\linewidth}
+\begin{itemize}\setlength\itemsep{.4em}
+\item \textbf{Final}: $t=\lpT$, \lpModel{} at integral \lpIntegral{} with the local centroid.
+\item \textbf{Events}: the same 2,500 Run 3 events and the same peaks as the vertex finding. The draft's 2,000 events were a random sample of \texttt{file\_3.root}; only 8 were in the vertex-finding set.
+\item The draft's model was the two-stage KDE model at $t=0.98$; both are replaced.
+\end{itemize}
+\end{column}
+\begin{column}{.47\linewidth}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lc@{}}
+\toprule
+Run 3 data, $t=\lpT$ & [\%] \\
+\midrule
+Tracks assigned (GNN) & \lpRthreeAssigned \\
+Agreement with AMVF, 1 mm & \lpRthreeAgree \\
+Agreement with AMVF, \winMM{} mm & \lpRthreeAgreeW \\
+Leading-vertex agreement & \lpRthreeLead \\
+\bottomrule
+\end{tabular}
+\par\vspace{.4em}
+{\footnotesize Agreement is over tracks assigned by both. These are agreement numbers, not efficiencies.}
+\end{column}
+\end{columns}
+\vfill\src{LPDOC R4; \allowbreak{}R3A}
+\end{frame}
+
+\begin{frame}{Q28. ``integral=0.2'' in the Fig.~10 Panel Titles}
+\draftref{p.~23, Fig.~10 caption}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{0.5 was used}; the titles were stale. Re-running the old checkpoint on 25 Run 2 MC events reproduces the stored peak lists in 23 of 25 events at 0.5 and in 7 of 25 at 0.2; the other 2 differ by CPU/GPU rounding.
+\item The label came from the April 2026 plotting code, which carried the then-default value.
+\item \textbf{Final}: all panels are regenerated with \lpModel{} at the final configuration. Every panel states ``integral threshold 0.50''; simulation panels say ``Simulation Internal'', data panels ``Internal''; the Run 3 panels name the simulation Run 2 MC.
+\end{itemize}
+\vfill\src{LPDOC Sec.~6; \allowbreak{}L/\allowbreak{}summary/\allowbreak{}figures/\allowbreak{}fig10*}
+\end{frame}
+
+\begin{frame}{Q29. AMVF Dependence; Sample of \texttt{hllhc\_alleta}; Run 2/3 Parameters}
+\draftref{p.~28, l.~652}
+\small
+\begin{itemize}\setlength\itemsep{.45em}
+\item \textbf{AMVF dependence}: Q3.
+\item \textbf{\texttt{hllhc\_alleta}} was fitted on the \textbf{full-$|\eta|$ sample} ($|\eta|<4$): 601229 r16633, 99,800 events, 2.31 M truth vertices with $n_\mathrm{trk}\ge2$, background-corrected fit of AMVF-truth residuals. Not the $|\eta|<2.5$ sample.
+\item Parameters: $A=0.14318$ mm, $B=0.362$, $C=-0.01797$ mm.
+\item \textbf{Run 2/3} (preset \texttt{run3}, Qi Bin's file): $A=0.23817443$ mm, $B=0.49491396$, $C=-0.000787436$ mm.
+\end{itemize}
+\vfill\src{src/\allowbreak{}pv\_\allowbreak{}finder/\allowbreak{}data/\allowbreak{}resolution\_\allowbreak{}presets.py; \allowbreak{}outputs/\allowbreak{}07\_\allowbreak{}31\_\allowbreak{}2026\_\allowbreak{}output/\allowbreak{}amvf\_\allowbreak{}resolution\_\allowbreak{}alleta/\allowbreak{}}
+\end{frame}

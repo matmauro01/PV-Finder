@@ -1,0 +1,41 @@
+% Proposed internal-note edits. To be filled by the note-edit agent:
+% replace each \noteedit placeholder by the page, line, old text and the new
+% red [MM: ...] text. The topics are those of
+% docs/additional_studies/meeting_2026-11-11_plan.md ("Note edits").
+
+\newcommand{\editbox}[2]{% label, colour
+  {\setlength{\fboxsep}{5pt}\fcolorbox{#2!60!black}{#2!4}{\parbox[c][.22\textheight][t]{.93\linewidth}{%
+  {\scriptsize\bfseries\textcolor{#2!60!black}{#1}}\par\vspace{.3em}{\footnotesize\textcolor{red}{TBD}}}}}}
+\newcommand{\noteedit}[2]{% number, topic
+\begin{frame}{Note Edit #1: #2}
+\vspace*{.8em}{\small\textbf{Note page, line}: \textcolor{red}{TBD} \hfill \textbf{Section}: \textcolor{red}{TBD}}
+\par\vspace{.5em}\centering
+\editbox{Old text}{black}\par\vspace{.6em}
+\editbox{New text, in red [MM: ...]}{red}
+\end{frame}}
+
+\begin{frame}{Note Edits: List}
+\small
+Internal note, GitLab main. Changes in red as \textcolor{red}{[MM: ...]} on a branch with a merge request.
+\begin{enumerate}\setlength\itemsep{.3em}
+\item The \winMM{} mm window with its justification plot; the hard scatter also at \hsWinMM{} mm.
+\item Split-inclusive efficiency: one sentence.
+\item HS longitudinal resolution from the 3D adaptive fit: one paragraph and one figure.
+\item Timing claim restricted to GPU.
+\item Simulation on the Fig.~6.2 panels, and the AMVF-reference bias.
+\item $z_0$ baselines in Fig.~7.2.
+\item AMVF HS selection \hsSelAMVF\% and the HS numbers.
+\item The AMVF-weights paragraph.
+\item The frozen configuration: \hlModel, GNN v2 epoch \hlGnnEpoch, $t=\hlT$; \lpModel{} at low pile-up.
+\end{enumerate}
+\end{frame}
+
+\noteedit{1}{Matching Window}
+\noteedit{2}{Split-Inclusive Efficiency}
+\noteedit{3}{Hard-Scatter Longitudinal Resolution}
+\noteedit{4}{Timing Claim}
+\noteedit{5}{Fig.~6.2 and the AMVF Reference}
+\noteedit{6}{$z_0$ Baselines in Fig.~7.2}
+\noteedit{7}{AMVF Hard-Scatter Selection}
+\noteedit{8}{AMVF Weights}
+\noteedit{9}{Frozen Configuration}

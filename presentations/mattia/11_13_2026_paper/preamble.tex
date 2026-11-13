@@ -1,0 +1,228 @@
+\documentclass[xcolor=table,aspectratio=169]{beamer}
+
+\usepackage[defaultsans,scale=0.95]{opensans}
+\usepackage{FiraMono}
+\usepackage{fourier}
+\usefonttheme{professionalfonts}
+\DeclareMathAlphabet{\mathcal}{OMS}{cmsy}{m}{n}
+\newcommand\bmmax{2}
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+\usepackage{subcaption}
+\usepackage{multicol}
+
+\usepackage{tikz}
+\usetikzlibrary{decorations.pathreplacing}
+\usepackage{wrapfig}
+
+% COLORS
+\usepackage{xcolor}
+\colorlet{myred}{red!80!black}
+\colorlet{myblue}{blue!80!black}
+\colorlet{mygreen}{green!60!black}
+\colorlet{myorange}{orange!70!red!60!black}
+\colorlet{mydarkred}{red!30!black}
+\colorlet{mydarkblue}{blue!40!black}
+\colorlet{mydarkgreen}{green!30!black}
+\colorlet{mylightblue}{blue!60!white}
+\colorlet{mydarkyellow}{yellow!70!black}
+\colorlet{myyellowred}{yellow!70!red}
+
+\usepackage{float}
+\usepackage{hyperref}
+
+\usepackage{amsmath, amsthm, amssymb, amsfonts}
+\usepackage{esint}
+\usepackage{mathtools}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily}
+
+\usepackage{physics}
+\usepackage[makeroom]{cancel}
+% siunitx + mhchem commented out due to version clash with chemgreek on this TL2017 install
+\usepackage[italic]{heppennames}
+\usepackage{xpatch}
+\makeatletter
+\xpatchcmd\@HepConStyle
+{\edef\@upcode{\updefault}}
+{\ifdefined\shapedefault\edef\@upcode{\shapedefault}\else\edef\@upcode{\updefault}\fi}
+{}{}
+\makeatother
+\usepackage{tensor}
+\usepackage{feynmp-auto}
+\usepackage{listofitems}
+\usetikzlibrary{arrows.meta}
+\usepackage[outline]{contour}
+\usepackage{booktabs}
+
+%%% ---- shared TikZ vocabulary for the Part I method figures ----
+\usetikzlibrary{positioning,calc,backgrounds}
+\tikzset{
+    pvflow/.style   ={-{Latex[length=2.4mm,width=1.9mm]}, line width=0.9pt, draw=black!55},
+    pvpoint/.style  ={-{Latex[length=2.0mm,width=1.6mm]}, line width=0.9pt},
+    pvaxis/.style   ={-{Latex[length=1.9mm,width=1.5mm]}, line width=0.7pt, draw=black!60},
+    pvdim/.style    ={{Latex[length=1.7mm,width=1.4mm]}-{Latex[length=1.7mm,width=1.4mm]},
+                      line width=0.7pt},
+    pvcurve/.style  ={line width=1.0pt, line join=round, line cap=round},
+    pvthresh/.style ={dash pattern=on 2.6pt off 2.2pt, line width=0.8pt,
+                      draw=myorange!85!black},
+    pvsplit/.style  ={dash pattern=on 3pt off 2.4pt, line width=1.0pt, draw=pennred},
+    pvguide/.style  ={line width=0.5pt, draw=black!15},
+    pvcard/.style   ={rounded corners=6pt, draw=black!15, fill=black!2, line width=0.7pt},
+    pvbox/.style    ={rounded corners=6pt, align=center, line width=0.9pt},
+}
+\newcommand{\pvcap}[1]{{\scriptsize\textcolor{black!55}{#1}}}
+
+
+\addtobeamertemplate{frametitle}{}{\vspace{-15.5pt}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\backupbegin}{
+    \newcounter{finalframe}
+    \setcounter{finalframe}{\value{framenumber}}
+    \setbeamertemplate{footline}{}
+    \begin{frame}[plain]
+        \centering
+        \vfill
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}\\[0.8em]
+        {\LARGE\textbf{\textcolor{pennred}{Backup}}}\\[0.8em]
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}
+        \vfill
+    \end{frame}
+}
+\newcommand{\backupend}{
+    \setcounter{framenumber}{\value{finalframe}}
+    \setbeamertemplate{footline}[frame number]
+}
+
+\newcommand{\ntrk}{\ensuremath{n_\mathrm{trk}}}
+
+\def\thisframelogos{}
+\newcommand{\framelogo}[1]{\def\thisframelogos{#1}}
+
+\addtobeamertemplate{frametitle}{}{%
+\begin{tikzpicture}[remember picture,overlay]
+\node[anchor=north east,yshift=3.5pt] at (current page.north east) {%
+    \foreach \img in \thisframelogos {%
+        \hspace{.5ex}%
+        \includegraphics[height=0.8cm, keepaspectratio]{\img}%
+    }%
+};
+\end{tikzpicture}}
+
+% Asset folders are symlinked locally (e.g. logo-ATLAS -> ../../legacy/...)
+
+% ---------------------------------------------------------------------------
+% (Copied from the EB deck, 11_13_2026_EB; the paper deck uses the reading build.)
+% Two builds from one source.  See build.sh.
+%
+%   slides.pdf       reading version   (default, \talkbuild = 0)
+%   slides_talk.pdf  presentation      (pdflatex "\def\talkbuild{1}\input{slides}")
+%
+% \readingonly{...} keeps its argument only in the reading build; \talkonly{...}
+% only in the talk build.  Every number lives in exactly one place, so the two
+% versions cannot drift apart.
+\providecommand{\talkbuild}{0}
+\newcommand{\readingonly}[1]{\ifnum\talkbuild=0\relax#1\fi}
+\newcommand{\talkonly}[1]{\ifnum\talkbuild=1\relax#1\fi}
+% \bnum{reading}{talk} expands to a bare number, so it can be used inside a
+% length: \includegraphics[height=\bnum{0.5}{0.6}\textheight]{...}.  The talk
+% build drops prose, which frees vertical room for the figure that is left.
+\newcommand{\bnum}[2]{\ifnum\talkbuild=0 #1\else #2\fi}
+% ---------------------------------------------------------------------------
+
+% Part-divider helper: \partdivider{numeral}{title}{one-line subtitle}
+\newcommand{\partdivider}[3]{%
+    \begin{frame}[plain]
+        \centering
+        \vfill
+        \begin{tikzpicture}
+            \fill[pennred] (0,0) circle (0.72cm);
+            \node[text=white, font=\Large\bfseries] at (0,0.02) {#1};
+        \end{tikzpicture}\\[0.85em]
+        {\LARGE\textbf{\textcolor{pennred}{#2}}}\\[0.75em]
+        {\color{pennred!28}\rule{0.30\linewidth}{1.1pt}}\\[0.75em]
+        {\small\textcolor{black!50}{#3}}
+        \vfill
+    \end{frame}%
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usetheme{Philadelphia}
+\hypersetup{colorlinks,allcolors=pennred}
+
+\title[PV-Finder]{PV-Finder: primary vertex reconstruction and track association with neural networks}
+\subtitle{Paper deck: configuration, definitions, answers and figures}
+
+\author[Mattia Mauro]{Qi-Bin Lei, Rocky B. Garg, Lauren Tompkins,\\\textcolor{pennred}{Mattia Mauro}, Trey Warner}
+
+\institute[]{Stanford University}
+
+\date{November 13, 2026}
+
+\titlegraphic{
+    \hspace{5pt}
+    \href{https://stanford.edu/group/stanford_atlas/}{\includegraphics[height=1cm]{logo-Stanford/Block_S_2_color.png}}
+    \href{https://atlas.cern/}{\includegraphics[trim={0 11.5cm 0 11.5cm},clip,height=1cm]{logo-ATLAS/ATLAS-Logo-Ref-Pantone.pdf}}
+    \href{https://iris-hep.org/}{\includegraphics[height=1cm]{logo-iris-hep/Iris-hep-4-no-long-name.png}}
+}
+
+
+\newcommand{\readingnote}[1]{\readingonly{\par\vspace{.35em}%
+  {\footnotesize\color{black!65}#1\par}}}
+\newcommand{\takeaway}[1]{\par\vspace{.65em}{\centering
+  \setlength{\fboxsep}{7pt}\colorbox{pennred!5}{\parbox{.94\linewidth}{%
+  \centering\small\textcolor{pennred}{#1}}}\par}}
+\newcommand{\context}[1]{{\centering\footnotesize\color{black!55}#1\par}\vspace{.65em}}
+\newcommand{\bigvalue}[2]{{\LARGE\bfseries\textcolor{pennred}{#1}}\\[.4em]{\small #2}\par}
+\newcommand{\pubnote}{\href{https://cds.cern.ch/record/2858348}{ATL-PHYS-PUB-2023-011}}
+\newcommand{\notelink}{\href{https://gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1}{ANA-IDTR-2026-01-INT1}}
+\newcommand{\treysource}{\href{https://gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1/-/blob/4c50ed51500c897dd6a1b5bb52b0f1e3c12e7575/sections/04b_timing.tex}{Note Sec. 5.1 (18 Sep 2026)}}
+
+\newcommand{\svtx}{\sigma_{\mathrm{vtx-vtx}}}
+\setbeamertemplate{navigation symbols}{}
+\hypersetup{pdftitle={PV-Finder, paper deck, November 13, 2026},
+  pdfauthor={Mattia Mauro, Qi-Bin Lei, Rocky B. Garg, Lauren Tompkins, Trey Warner}}
+
+% ---------------------------------------------------------------------------
+% Paper deck helpers
+\usepackage{array}
+% \imgsrc{name}{expected source path}{ext}: written by build.sh into
+% images_manifest.tex. \plot{name}{height} includes images/name.ext when the
+% figure exists and draws a framed placeholder with the expected path if not.
+\makeatletter
+\newcommand{\imgsrc}[3]{%
+  \expandafter\def\csname pd@src@#1\endcsname{#2}%
+  \expandafter\def\csname pd@ext@#1\endcsname{#3}}
+\newcommand{\plot}[2]{%
+  \expandafter\ifx\csname pd@ext@#1\endcsname\relax
+    \pd@placeholder{#1}{#2}{(not in images.txt)}%
+  \else
+    \edef\pd@e{\csname pd@ext@#1\endcsname}%
+    \ifx\pd@e\@empty
+      \pd@placeholder{#1}{#2}{\csname pd@src@#1\endcsname.\{pdf,png\}}%
+    \else
+      \includegraphics[width=\linewidth,height=#2\textheight,keepaspectratio]{images/#1.\pd@e}%
+    \fi
+  \fi}
+\newcommand{\pd@placeholder}[3]{%
+  {\setlength{\fboxsep}{6pt}\setlength{\fboxrule}{0.8pt}%
+   \fcolorbox{red!60!black}{red!3}{\parbox[c][#2\textheight][c]{.9\linewidth}{\centering
+   {\small\bfseries\textcolor{red!60!black}{Figure not produced yet}}\\[.5em]
+   {\scriptsize\ttfamily #3}\\[.4em]
+   {\tiny\textcolor{black!55}{image \texttt{\detokenize{#1}}; rebuild with build.sh when it exists}}}}}}
+\makeatother
+% Role badges for the results section
+\newcommand{\mainbadge}{{\setlength{\fboxsep}{2pt}\colorbox{mygreen!15}{\scriptsize\bfseries\textcolor{mygreen!70!black}{PAPER MAIN}}}}
+\newcommand{\backupbadge}{{\setlength{\fboxsep}{2pt}\colorbox{black!8}{\scriptsize\bfseries\textcolor{black!60}{BACKUP / NOTE}}}}
+\newcommand{\fcap}[1]{\par\vspace{.25em}{\footnotesize\color{black!70}#1\par}}
+\newcommand{\src}[1]{{\raggedright\tiny\color{black!50}\texttt{#1}\par}}
+\newcommand{\draftref}[1]{{\small\textcolor{pennred}{\textbf{Draft #1}}}}
+\newcommand{\qtext}[1]{{\footnotesize\itshape\color{black!65}#1\par}\vspace{.4em}}
+\newcommand{\final}[1]{\textcolor{mydarkblue}{\textbf{Final:}} #1}
