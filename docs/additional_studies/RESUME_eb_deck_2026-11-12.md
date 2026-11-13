@@ -52,7 +52,7 @@ status table as items finish, and commit + push this file each time.
 | EB rebuild at t = 0.94 | DONE, commit 876dcae (32 pages) |
 | investigations 1,2,3,4,10,11,15 | DONE, docs/additional_studies/eb_deck_answers_2026-11-13.md (d9f799f) |
 | deck edits 1-15 | DONE, commits 4de40dd + dc474ff (36 pages; answers doc integrated). Not done: no s8 sigma-summary image exists (backup image dropped, table kept) |
-| paper deck fill | todo |
-| note edits + MR | todo |
+| paper deck fill | ON HOLD until after the EB talk (keep usage free for last-minute EB fixes); resume when Mattia says so |
+| note edits + MR | ON HOLD, after the paper deck |
 
 Note 13 Nov: at t = 0.94 Clean HS 88.3 vs AMVF 92.5 and HS purity 82.3 vs 88.4 are below AMVF (at 0.97 they were 94.6 / 88.2); HS selection 95.1 and HS resolution 9.5 um still better. Report this to Mattia plainly.
