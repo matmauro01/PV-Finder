@@ -39,6 +39,7 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 - [cpu_small_model_2026-11-09](evaluation/cpu_small_model_2026-11-09.md) — smaller PV-Finder for CPU: where CPU time goes, exact packed-track inference, s5/s8 runs and held-out comparison
 - [model_freeze_candidates_2026-11-12](evaluation/model_freeze_candidates_2026-11-12.md) — HL-LHC density-model freeze candidates (v6, s5 1+1, s5 2+2, s8) at the final working point: efficiency, fakes, HS, resolution, matched fake rate
 - [gnn_v2_freeze_2026-11-12](evaluation/gnn_v2_freeze_2026-11-12.md) — GNN v2 checkpoint (e527), t scan in mu bins with t options, low-mu diagnosis, v6 vs s8 after the GNN, AMVF on the same events
+- [**lowpu_final_numbers_2026-11-12**](evaluation/lowpu_final_numbers_2026-11-12.md) — final low pile-up numbers (Run 2 MC, Run 2 and Run 3 data) at the frozen `lowpu` working point: vertex finding vs AMVF, GNN chain, Run 3 association, Figs. 8-10, gates; vertices need >= 2 tracks after association; low pile-up GNN frozen at mu60 v2 e115, t = 0.97
 - [additional studies summary (PDF)](additional_studies/additional_studies_summary.pdf) — one-page status of the reviewer-requested studies
 - [paper_figures](evaluation/paper_figures.md) — figures and Table 1 for the short ATLAS paper: sources, conventions, open items
 - [vertex_association](evaluation/vertex_association.md) — GNN metrics

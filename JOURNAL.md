@@ -5306,6 +5306,57 @@ sigma paragraph in the CPU-model page is marked superseded.
 - Doc: `docs/evaluation/gnn_v2_freeze_2026-11-12.md`. Outputs:
   `outputs/11_12_2026_output/gnn_v2_freeze/`.
 
+## 2026-11-12 — Low pile-up final numbers at the frozen working point (R1-R4)
+
+- **Working point:** `lowpu` (PVF-e400, integral 0.50, centroid ±3, 0.17 mm,
+  HS 0.1 mm). Samples: Run 2 MC (2,550 test events), Run 2 and Run 3 data
+  (2,500 each, the April events). PV-Finder and AMVF on the same events.
+- **R1, Run 2 MC:**
+  - efficiency 81.55 ± 0.14 % vs AMVF 75.74 ± 0.17 %;
+  - fake fraction 9.86 vs 11.06 %;
+  - σ_vtx-vtx 0.392 vs 0.789 mm;
+  - 68% residual 72.5 vs 66.8 µm, so 0.17 mm = 2.35 / 2.54 × p68;
+  - HS efficiency at 0.1 mm 98.94 vs 99.29 %.
+- **R3, data vs AMVF reference:**
+  - recovery 94.39 % (Run 2) and 94.03 % (Run 3);
+  - 3.0 / 3.2 PV-Finder vertices without an AMVF vertex per event;
+  - σ_vtx-vtx 0.356 / 0.333 mm;
+  - Run 2 MC with the AMVF reference gives 93.1 % and 3.0 per event, so data
+    agrees with MC.
+- **R2, chain:**
+  - graphs rebuilt from the e400 peaks at integral 0.50 (Q25);
+  - GNN = mu60 v2 e115, the July low pile-up model;
+  - vertices count only with ≥ 2 associated tracks, for both algorithms
+    (decided 12 Nov); 1,358 PV-Finder and 593 AMVF 1-track candidates dropped;
+  - at t = 0.97: Clean/truth 71.48 % vs AMVF 60.47 %;
+  - track efficiency 84.05 vs 83.87 %, purity 89.91 vs 85.88 %, F1 86.88 vs
+    84.86 %;
+  - HS-ID 99.06 vs 98.75 %;
+  - ≥ 1-track backup: 72.84 % vs 60.91 %;
+  - July's 77.43 % was at integral 0.2, t = 0.99, ≥ 1 track.
+- **t frozen at 0.97** (same as HL-LHC, Mattia's rule). No t beats it in
+  Clean/truth, HS-ID and track F1 together. The maximum Clean/truth is at
+  0.985 (+0.45 points, track F1 −1.1). `working_points.LOWPU` is now frozen
+  (checkpoint and t); tests updated. `lowpu_chain` and `run3_assoc_lowpu` take
+  `--min-tracks` (default 2).
+- **R4, Run 3 association** on the R3 events and peaks (Q27), at t = 0.97,
+  ≥ 2 tracks:
+  - GNN assigns 92.2 % of tracks (AMVF 94.8 %);
+  - agreement 95.2 % of the tracks assigned by both (0.17 mm);
+  - the leading vertex agrees in 91.2 % of events.
+- **Fix:** `run_eval_pvf_run3.py` treated the empty TruthVertex branches of
+  collision data as MC truth (since 23 Apr). Data evals now use AMVF again.
+- **Gates:**
+  - identical events and peaks across all four results;
+  - per-event bookkeeping;
+  - the chain code reproduces paper Table 5 exactly on the July graphs;
+  - AMVF anchors reproduce;
+  - independent recomputation in `crosscheck/`.
+- **Figures:** Figs. 8-10 regenerated in ATLAS style, labelled with integral
+  0.50 (Q28).
+- Doc: `docs/evaluation/lowpu_final_numbers_2026-11-12.md`. Outputs:
+  `outputs/11_12_2026_output/lowpu_final/`.
+
 ## 2026-11-13: Paper deck for the paper draft (structure and placeholders)
 
 - **Deck:** `presentations/mattia/11_13_2026_paper/` (104 pages, EB-deck

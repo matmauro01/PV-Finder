@@ -339,7 +339,7 @@ in the result (`provenance.regime_overrides` in `eval_results.pkl`,
 | | HL-LHC (`hllhc`) | Low pile-up (`lowpu`) |
 |---|---|---|
 | Samples | ITk simulation, 0 ≤ μ ≤ 200 | Run 2 simulation; Run 2 and Run 3 data |
-| Density model | v6 production, **freeze pending** (candidate s8 runs at integral 0.184, height 0.0184 (matched to v6 fake rate, 12 Nov 2026)) | PVF-e400 (two-phase, no KDE; 50 + 400 epochs, 359,616 parameters) |
+| Density model | v6 production, **freeze pending** (candidate s8 runs at integral 0.184, height 0.0184 (matched to v6 fake rate, 12 Nov 2026)) | PVF-e400 (two-phase, no KDE; 50 + 400 epochs, 358,713 trainable parameters, 359,616 with the batch-norm buffers) |
 | Peak finding: amplitude / min width | 0.01 / 3 bins | 0.01 / 3 bins |
 | Integral / min height | 0.30 / 0.03 | 0.50 / none |
 | Position estimator | local centroid ±3 bins | local centroid ±3 bins |
@@ -347,7 +347,7 @@ in the result (`provenance.regime_overrides` in `eval_results.pkl`,
 | Matching window | 0.17 mm | 0.17 mm |
 | Hard-scatter window | 0.1 mm | 0.1 mm |
 | Residual assignment radius | 1 mm | 1 mm |
-| GNN | full-μ v2, checkpoint and t **pending** | t = 0.99 proposed, **pending** |
+| GNN | full-μ v2, checkpoint and t **pending** | mu60 v2 epoch 115, t = 0.97 (same as HL-LHC), **frozen 12 Nov 2026** ([lowpu_final_numbers_2026-11-12](lowpu_final_numbers_2026-11-12.md)) |
 
 - **One threshold.** σ_vtx-vtx is fitted on the same peaks as the counts:
   `--integral-threshold-res` defaults to `--integral-threshold`. Until
