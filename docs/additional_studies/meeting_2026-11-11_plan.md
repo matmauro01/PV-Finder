@@ -135,3 +135,10 @@ Tracked in `paper_questions_2026-11-11.md`.
 5. Answers to the 29 questions, each with its page and line in the draft.
 6. Answers to Mattia's own questions from the meeting (window justification, HS 0.1 mm, model freeze, GNN t, low-mu behaviour, CPU timing, Run 2 vs HL-LHC binning).
 7. The proposed internal-note edits, each with page and line, the old text and the new [MM: ...] text.
+
+## Paper metric structure (Mattia, 12 Nov 2026, after Trey's suggestions)
+Err on the side of more plots; the colleague can leave some out.
+- Before the GNN: one vertex efficiency (truth with >= 1 reco within 0.17 mm), fake fraction, 68% residual vs mu. One-to-one, finder cap and oracle variants go to the note/backup.
+- After the GNN: HS reconstruction and HS selection efficiencies (ITk definitions), HS longitudinal resolution, HS metrics vs local pile-up density (truth vertices within +-2 mm of the true HS, excluding it, / 4 mm), pile-up vertex quality as the average number of Clean/Merged/Split/Fake vertices per event (bar plot at PU200 and vs mu, AMVF-note style), track F1.
+- Headline classification: one rule for both (AMVF TTVA Nonprompt_Hard_MaxWeight links vs GNN-assigned tracks). Cross-checks: AMVF with its own fit weights, PV-Finder with GNN scores as weights.
+- Supplementary ntuple from Trey: /share/lazy/pv-finder/Paper_2026Nov12/ (r16443, all truth vertices, RecoVertex_fitTracks/fitWeights). Side table joined by entry index; inputs still from the original file.
