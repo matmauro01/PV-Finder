@@ -187,9 +187,9 @@ def truth_tables(truth: np.ndarray, flags: np.ndarray, fnames: list[str], tf: li
     return out
 
 
-def tscan(rec, mask: np.ndarray, w: np.ndarray) -> dict:  # noqa: ANN001
-    """GNN t scan (chain_t_metrics record): Clean/truth, track eff/pur/F1."""
-    g = lambda f: rec.cf(f, 0)[mask].astype(np.float64)  # noqa: E731
+def tscan(rec, mask: np.ndarray, w: np.ndarray, m: int) -> dict:  # noqa: ANN001
+    """GNN t scan (chain_t_metrics record, min-tracks index m): Clean/truth, track eff/pur/F1."""
+    g = lambda f: rec.cf(f, m)[mask].astype(np.float64)  # noqa: E731
     n_lab = np.repeat(rec.ev("n_labelled")[mask, None], g("clean").shape[1], 1)
     n_tru = np.repeat(rec.ev("n_truth_ge2")[mask, None], g("clean").shape[1], 1)
     out = {"t": list(rec.meta["t_grid"]) + ["amvf"]}
@@ -239,7 +239,7 @@ def main() -> None:
     fnames = ["found_pvf", "found_amvf", "o2o_pvf", "o2o_amvf", "o2o_gnn", *(f"clean_{x}" for x in arms), *(f"clean2_{x}" for x in arms)]  # fmt: skip
     flags = np.column_stack([truth[:, tf.index(k)] for k in fnames[:5]] + [z["truth_clean"].astype(np.float64), z["truth_clean2"].astype(np.float64)])  # fmt: skip
     gi = arms.index("gnn_t")
-    gnn_reco, gnn_fake = counts[:, gi, 0, cf.index("n_reco")], counts[:, gi, 0, cf.index("fake")]  # fmt: skip
+    gnn_rf = [(counts[:, gi, m, cf.index("n_reco")], counts[:, gi, m, cf.index("fake")]) for m in (0, 1)]  # fmt: skip
     mu = ev["mu"]
     out: dict = {"meta": {"events": str(a.events), "ref": str(a.ref), "n_boot": N_BOOT, "seed": SEED, "git": git_state(), "replay_meta": {k: meta[k] for k in ("checkpoints", "regime", "window_mm", "t", "s_max", "knn", "arms", "gnn", "events_sha256", "git")}}, "gates": meta["gates"], "bins": {}, "per_truth": {}, "tscan": {}}  # fmt: skip
     for label, (lo, hi) in {
@@ -252,25 +252,32 @@ def main() -> None:
             "n_events": int(mask.sum()), "mean_mu": mu[mask].mean(),
             "n_truth_ge2": ev["n_truth_ge2"][mask].sum(),
             "arms": arm_tables(ev, counts, cf, mask, w, arms),
-            "event": event_tables(ev, mask, w, gnn_reco, gnn_fake),
+            # "event": empty / all-peaks fake under drop-empty (>= 1 track);
+            # "event_min2": candidates without >= 2 tracks counted as dropped
+            "event": event_tables(ev, mask, w, *gnn_rf[0]),
+            "event_min2": event_tables(ev, mask, w, *gnn_rf[1]),
         }  # fmt: skip
-        out["tscan"][label] = tscan(rec, mask, w)
+        out["tscan"][label] = {f"min{m + 1}": tscan(rec, mask, w, m) for m in (0, 1)}
         if label in SAMPLES:
             out["per_truth"][label] = truth_tables(truth, flags, fnames, tf, mask, w)
     # Eq. (4): best s_max by Clean/truth at PU200 (optimistic for the baseline)
     eq4 = [x for x in arms if x.startswith("eq4_")]
-    pu = out["bins"][PU200]["arms"]["min1"]
-    vals = [pu["clean_per_truth"]["value"][arms.index(x)] for x in eq4]
-    out["eq4_best"] = {"arm": eq4[int(np.argmax(vals))], "by": "clean_per_truth, PU200, min1", "scan": dict(zip(eq4, vals))}  # fmt: skip
+    out["eq4_best"] = {}
+    for rule in ("min1", "min2"):
+        pu = out["bins"][PU200]["arms"][rule]
+        vals = [pu["clean_per_truth"]["value"][arms.index(x)] for x in eq4]
+        out["eq4_best"][rule] = {"arm": eq4[int(np.argmax(vals))], "by": f"clean_per_truth, PU200, {rule}", "scan": dict(zip(eq4, vals))}  # fmt: skip
     pu_mask = (mu >= MU_BINS[PU200][0]) & (mu < MU_BINS[PU200][1])
     out["sigma_pv_check"] = {s: sigma_pv_check(truth, tf, mu, (mu >= MU_BINS[s][0]) & (mu < MU_BINS[s][1])) for s in SAMPLES}  # fmt: skip
     out["amvf_tracks_in_several_vertices"] = int(ev["n_amvf_multi"].sum())
     b = out["bins"][PU200]
-    t4 = {}
-    for arm in ("gnn_t", "amvf"):
-        k, tot, r = arms.index(arm), b["arms"]["min1"]["totals"], b["arms"]["min1"]
-        t4[arm] = {"vertices_with_tracks": tot["n_reco"][k], **{f: tot[f][k] for f in ("clean", "merged", "split", "fake", "clean_dom_ge2")}, **{f: r[f]["value"][k] for f in ("clean_per_reco", "clean_per_truth", "clean_ge2_per_truth", "merged_per_reco", "split_per_reco", "fake_per_reco")}}  # fmt: skip
-    out["table4_pu200"] = {"n_events": b["n_events"], "n_truth_ge2": b["n_truth_ge2"], **t4, "empty_candidates": b["event"]["empty_candidates"], "fake_rate_all_peaks": b["event"]["fake_rate_all_peaks"], "n_events_check": int(pu_mask.sum())}  # fmt: skip
+    out["table4_pu200"] = {"n_events": b["n_events"], "n_truth_ge2": b["n_truth_ge2"], "n_events_check": int(pu_mask.sum())}  # fmt: skip
+    for rule, evk in (("min2", "event_min2"), ("min1", "event")):
+        t4 = {}
+        for arm in arms:
+            k, tot, r = arms.index(arm), b["arms"][rule]["totals"], b["arms"][rule]
+            t4[arm] = {"vertices_with_tracks": tot["n_reco"][k], **{f: tot[f][k] for f in ("clean", "merged", "split", "fake", "clean_dom_ge2")}, **{f: [r[f]["value"][k], r[f]["err"][k], r[f]["diff_amvf_err"][k]] for f in ("clean_per_reco", "clean_per_truth", "clean_ge2_per_truth", "merged_per_reco", "split_per_reco", "fake_per_reco", "trk_eff", "trk_pur", "trk_f1", "wrong_rate", "labelled_unassigned_frac", "unlabelled_left_unassigned")}}  # fmt: skip
+        out["table4_pu200"][rule] = {**t4, "dropped_candidates": b[evk]["empty_candidates"], "fake_rate_all_peaks": b[evk]["fake_rate_all_peaks"]}  # fmt: skip
     path = a.out or a.events.parent / "chain_extras_summary.json"
     path.write_text(json.dumps(_jsonable(out), indent=1, default=float) + "\n")
     print(f"wrote {path}")
