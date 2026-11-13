@@ -12,7 +12,8 @@ For entries 0-24,999 this script
    vertices of the new file within +-2 mm of the HS, HS excluded, / 4 mm)
    next to the old stored-truth density, and the HS-reconstruction flags;
 3. classifies the vertices Clean / Merged / Split / Fake at the frozen t
-   (``get_regime("hllhc")``, drop-empty) for PV-Finder + GNN and AMVF, with
+   (``get_regime("hllhc")``) for PV-Finder + GNN and AMVF, keeping vertices
+   with >= 1 and with >= 2 tracks (the same rule for both algorithms), with
    the unweighted same-rule taxonomy (``hs_metrics.classify_vertices``,
    asserted equal to ``chain_t_metrics``) and the weighted cross-checks
    (``weighted_classification``: AMVF fitTracks + fitWeights, GNN scores).
@@ -81,6 +82,10 @@ NEW_ONLY = ("RecoVertex_fitTracks", "RecoVertex_fitWeights", "RecoVertex_nTracks
 ARMS = ("pvf_unit", "pvf_score", "amvf_assoc", "amvf_fit_unit", "amvf_fitw",
         "amvf_fitw_unwpt2")  # fmt: skip
 CLS_FIELDS = ("clean", "merged", "split", "fake", "n_reco", "n_zero_weight")
+# Vertex track-multiplicity rules (same rule for both algorithms): a vertex
+# counts if it has >= mt tracks (AMVF: assocTracks or fitTracks; PV-Finder:
+# GNN-assigned tracks at t). 1 = drop-empty, 2 = the headline rule.
+MIN_TRACKS = (1, 2)
 EV_FIELDS = (
     "entry", "mu", "has_hs", "hs_z", "dens_itk", "dens_old", "dens_new_ge1",
     "n_truth_old", "n_truth_new", "n_truth_new_tn0", "pvf_any", "pvf_ge1", "pvf_ge2",
@@ -252,7 +257,9 @@ def process_chunk(path: str) -> dict:
     whist = np.zeros(len(W_BINS) - 1, np.int64)
     w_min, w_max = np.inf, -np.inf
     ev = np.zeros((len(entries), len(EV_FIELDS)))
-    cls = np.zeros((len(entries), len(ARMS), len(CLS_FIELDS)), np.int64)
+    cls = np.zeros(
+        (len(entries), len(MIN_TRACKS), len(ARMS), len(CLS_FIELDS)), np.int64
+    )
     for i, e in enumerate(entries.tolist()):
         o, n = old[e - lo], new[e - lo]
         check_identity(e, o, n, stats)
@@ -315,16 +322,16 @@ def process_chunk(path: str) -> dict:
         tg = z[f"targets_{GNN_KEY}"][toff[i] : toff[i + 1]]
         sc = z[f"scores_{GNN_KEY}"][toff[i] : toff[i + 1]].astype(np.float64)
         all_p = hm.lists_from_targets(hm.assign_from_scores(tg, sc, T), len(peaks))
-        keep = [k for k, x in enumerate(all_p) if len(x) >= 1]
-        pv = [all_p[k] for k in keep]
         alists = [np.unique(x) for x in alists_raw]
-        fkeep = [k for k, x in enumerate(flists) if len(x) >= 1]
-        lists = {
-            "pvf": (pv, [sc[x] for x in pv]),
-            "amvf": ([x for x in alists if len(x) >= 1], None),
-            "fit": ([flists[k] for k in fkeep], [fweights[k] for k in fkeep]),
-        }
-        cls[i] = classify_event(e, lists, pt, truth)
+        for m, mt in enumerate(MIN_TRACKS):
+            pv = [x for x in all_p if len(x) >= mt]
+            fkeep = [k for k, x in enumerate(flists) if len(x) >= mt]
+            lists = {
+                "pvf": (pv, [sc[x] for x in pv]),
+                "amvf": ([x for x in alists if len(x) >= mt], None),
+                "fit": ([flists[k] for k in fkeep], [fweights[k] for k in fkeep]),
+            }
+            cls[i, m] = classify_event(e, lists, pt, truth)
         # ---- HS reconstruction flags and densities
         hz = oz[h_o] if h_o >= 0 else np.nan
         npk = np.array([len(x) for x in all_p], np.int64)
@@ -415,7 +422,7 @@ def main() -> None:
     whist = sum(p["whist"] for p in parts)
     a.out.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(a.out / "per_event.npz", ev=ev, cls=cls, whist=whist, w_bins=W_BINS)  # fmt: skip
-    meta = {"ev_fields": EV_FIELDS, "arms": ARMS, "cls_fields": CLS_FIELDS,
+    meta = {"ev_fields": EV_FIELDS, "arms": ARMS, "cls_fields": CLS_FIELDS, "min_tracks": MIN_TRACKS,
             "provenance": prov, "n_events": len(ev)}  # fmt: skip
     (a.out / "per_event.json").write_text(json.dumps(meta, indent=2) + "\n")
     cdf = np.cumsum(whist) / whist.sum()
@@ -459,10 +466,14 @@ def cross_check_metrics(ev: np.ndarray, cls: np.ndarray) -> dict:
         "pvf_any_eq_pvf_hs_within": np.array_equal(ev[:, EV_FIELDS.index("pvf_any")], events[:, ef.index("pvf_hs_within")]),
         "amvf_ge2_eq_amvf_hs_within": np.array_equal(ev[:, EV_FIELDS.index("amvf_ge2")], events[:, ef.index("amvf_hs_within")]),
     }  # fmt: skip
-    for arm, a in (("pvf_unit", a_t), ("amvf_assoc", -1)):
-        for k in ("clean", "merged", "split", "fake", "n_reco"):
-            ref = counts[:, a, 0, cf.index(k)]
-            g[f"{arm}_{k}_eq_metrics"] = np.array_equal(cls[:, ARMS.index(arm), CLS_FIELDS.index(k)], ref)  # fmt: skip
+    if tuple(meta["min_tracks"]) != MIN_TRACKS:
+        raise AssertionError("chain_t_metrics min-track rules differ")
+    for m, mt in enumerate(MIN_TRACKS):
+        for arm, a in (("pvf_unit", a_t), ("amvf_assoc", -1)):
+            for k in ("clean", "merged", "split", "fake", "n_reco"):
+                ref = counts[:, a, m, cf.index(k)]
+                got = cls[:, m, ARMS.index(arm), CLS_FIELDS.index(k)]
+                g[f"min{mt}_{arm}_{k}_eq_metrics"] = np.array_equal(got, ref)
     g = {k: bool(v) for k, v in g.items()}
     if not all(g.values()):
         raise AssertionError(f"recomputation differs from chain_t_metrics: {g}")
