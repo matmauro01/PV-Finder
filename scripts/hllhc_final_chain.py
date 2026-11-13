@@ -61,6 +61,9 @@ DENSITY_BINS = ((0.0, 0.5), (0.5, 1.0), (1.0, 1.5), (1.5, 2.0), (2.0, 4.0))
 N_BOOT = 200
 SEED = 20261112
 PVF_COLOR, AMVF_COLOR, RULE_COLOR = "#0072B2", "#D55E00", "#E69F00"
+# Vertex rule of the headline: a vertex counts only with >= this many tracks
+# (PV-Finder: GNN-assigned at t; AMVF: associated). Set from --vertex-min-tracks.
+VTX_MIN = {"n": 2}
 
 
 def sha256(path: Path) -> str:
@@ -169,7 +172,7 @@ def hs_res_vs_density(rec: ChainRecord, a: int) -> list[dict]:
 def headline(s: dict, tot: dict, a: int, label: str) -> dict:
     """Flat, named headline numbers of one bin for arm ``a`` and AMVF."""
     b = s["bins"][label]
-    r = b["ratios_min1"]
+    r = b[f"ratios_min{VTX_MIN['n']}"]
 
     def pair(key: str) -> dict:
         v, e, d = r[key]["value"], r[key]["err"], r[key]["diff_err"]
@@ -200,7 +203,7 @@ def headline(s: dict, tot: dict, a: int, label: str) -> dict:
         "n_common": hr["n"][a],
     }  # fmt: skip
     arm = s["arms"][a]
-    t1 = tot["min1"]
+    t1 = tot[f"min{VTX_MIN['n']}"]
     g, am = t1[arm], t1["amvf"]
     out["table4"] = {
         "vertices_with_tracks": {"gnn": g["n_reco"], "amvf": am["n_reco"]},
@@ -208,7 +211,10 @@ def headline(s: dict, tot: dict, a: int, label: str) -> dict:
         "pos": {c: {"gnn": g[f"p_{c}"], "amvf": am[f"p_{c}"]}
                 for c in ("clean", "merged", "split", "fake", "truth_found")},
         "n_truth_ge2": tot["n_truth_ge2"], "n_peaks": tot["n_peaks"],
-        "empty_candidates_dropped": tot["n_peaks"] - g["n_reco"],
+        "empty_candidates_dropped": tot["n_peaks"] - tot["min1"][arm]["n_reco"],
+        "one_track_candidates_dropped": tot["min1"][arm]["n_reco"] - tot["min2"][arm]["n_reco"],
+        "amvf_one_track_dropped": tot["min1"]["amvf"]["n_reco"] - tot["min2"]["amvf"]["n_reco"],
+        "vertex_min_tracks": VTX_MIN["n"],
         "fake_rate_all_peaks": (g["fake"] + tot["n_peaks"] - g["n_reco"]) / tot["n_peaks"],
         "n_events": tot["n_events"],
     }  # fmt: skip
@@ -230,7 +236,8 @@ def _series(
         elif kind == "res":
             x, y = b["hs_resolution"]["rms_um"][a], b["hs_resolution"]["err_um"][a]
         else:
-            x, y = b["ratios_min1"][key]["value"][a], b["ratios_min1"][key]["err"][a]
+            r = b[f"ratios_min{VTX_MIN['n']}"]
+            x, y = r[key]["value"][a], r[key]["err"][a]
         v.append(np.nan if x is None else x)
         e.append(np.nan if y is None else y)
     return np.array(v, float), np.array(e, float)
@@ -368,10 +375,19 @@ def main() -> None:
     ap.add_argument("--metrics", required=True, type=Path)
     ap.add_argument("--gnn", default="v2e527")
     ap.add_argument("--out", required=True, type=Path)
+    ap.add_argument(
+        "--vertex-min-tracks", type=int, default=2, choices=(1, 2),
+        help="headline vertex rule (identical for both algorithms); must equal "
+        "the HS rule the metrics were made with (chain_t_metrics --hs-min-tracks)",
+    )  # fmt: skip
     a = ap.parse_args()
+    VTX_MIN["n"] = a.vertex_min_tracks
     a.out.mkdir(parents=True, exist_ok=True)
     full = load(a.metrics)  # asserts the per-event bookkeeping identities
     prov = verify_frozen(full.meta, a.gnn)
+    if full.meta.get("hs_min_tracks", 1) != a.vertex_min_tracks:
+        raise RuntimeError("HS quantities were made with another vertex rule")
+    prov["vertex_min_tracks"] = a.vertex_min_tracks
     t = get_regime("hllhc").gnn.t
     rec = subset(full, (0.0, t))  # arms: t = 0 (no cut, reference), frozen t, AMVF
     mu = rec.ev("mu")
