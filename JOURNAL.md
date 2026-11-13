@@ -5535,3 +5535,24 @@ Doc: `docs/evaluation/gnn_v3_campaign_2026-11-13.md` (outputs in `outputs/11_13_
   - b: interaction network hidden 64 x 3, BCE;
   - c: as b, softmax + no-vertex;
   - d: hidden 128 x 4, softmax + no-vertex.
+
+## 2026-11-13 — HL-LHC peak finding consolidated (item A)
+
+Mattia after the EB talk: too many peak-finding parameters; justify the position estimator and see
+whether one cut is enough. Study on tuning data only (r16638 entries 0-24,999, even entries tune /
+odd report; confirmation on the r16443 GNN-validation entries in 25,000-49,999, new s8 evaluation on
+GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved s8 densities
+(`scripts/peak_consolidation*.py`), bit-identical to the production scan and matcher, paired bootstrap.
+- Position: keep the local centroid ±3. Best or tied p68 of 8 estimators (54.84 um at PU200); max bin
+  +1.2 um, full region +1.5 um; the 3-point parabola is -0.3 um on r16638 (+0.06 on r16443) but
+  +18 um in sigma_vtx-vtx and +0.36 splits/event. sigma_vtx-vtx moves by -7 to +19 um with the
+  estimator alone on identical peaks, so it is only comparable at a fixed estimator.
+- Cuts: at the current point the height floor binds on 0.1% of peaks. Integral only, 0.186 (width 3,
+  no height), matched on the tuning half: report half PU200 dEff -0.00 ± 0.00 pt, dFakes +0.01 ± 0.01,
+  dSplits -0.001; every mu bin within 0.01 pt; r16443: -0.00 ± 0.01 pt, +0.02 ± 0.03 fakes. Height
+  only (0.0265) and amplitude only (0.0269) match at PU200 but add splits, lose 0.1-0.3 pt below
+  mu = 100 and miss the fake rate by +0.2 on r16443. "Height 0.5" literally: 57.6 % efficiency.
+- Proposed (not applied): hllhc peaks 0.01 / 3 / 0.186 / no height / centroid ±3, the low pile-up
+  structure with a different integral. The current 0.184 was partly tuned on the test set; 0.186 is not.
+- Doc: `docs/evaluation/hllhc_peak_finding_consolidation_2026-11-13.md`; outputs
+  `outputs/11_13_2026_output/peak_finding/`.
