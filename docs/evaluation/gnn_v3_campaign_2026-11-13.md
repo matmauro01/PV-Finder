@@ -4,8 +4,11 @@ Goal (Mattia, 13 Nov): every chain metric better than AMVF at one score cut t,
 Clean HS and HS purity included; then, among the best models, the fastest.
 t is chosen with him afterwards, so everything is reported against t.
 
-Baseline to beat: s8 peaks (cuts 0.01 / 3 / 0.184 / 0.0184, centroid ±3) +
-GNN v2 e527 (39,521 params), >= 2-track vertices, t = 0.94.
+Baseline to beat: s8 peaks + GNN v2 e527 (39,521 params), >= 2-track vertices,
+t = 0.94. Sections 1-3 used the 12 Nov cuts (0.01 / 3 / 0.184 / 0.0184, centroid
+±3). From section 5 on, every evaluation uses the 13 Nov cuts in `working_points.py`
+(0.01 / 3 / integral 0.186 / no height cut / centroid ±3). The training graphs were
+built with the old cuts. That moves about 0.17% of the peaks, so they were not rebuilt.
 Outputs: `outputs/11_13_2026_output/gnn_v3_campaign/`.
 
 Selection set: the 7,500 r16443 GNN validation entries (25,006-99,995; 568
@@ -197,28 +200,179 @@ Why these choices:
 - CPU: GNN forward per PU200 event, 1 thread, interleaved round-robin over
   models, median paired ratio against v2. Parameter count.
 
-## 5. Status
+## 5. Phase-1 results (13 Nov, 13 Nov cuts)
 
-Phase 1 launched 13 Nov, 11:28 local time. Measured shard-epoch times and
-ETAs for 540 epochs (local time):
+Checkpoints: lowest monitor loss, a e516, b e526, c e528 (each within 3e-5 of
+the last epoch). Same 7,500 validation events for every model; AMVF on the same
+events. Summary: `eval/phase1_abc/summary/summary.md` (every t, every mu bin;
+failure lists, matched points, trade-off figures). Run d is evaluated
+automatically when it finishes (tmux `gnnv3_eval_d`, output `eval/phase1_d` and the
+combined `eval/phase1_all`).
 
-| run | s / shard epoch | ETA |
-|---|---:|---|
-| a | about 30 | 13 Nov, about 16:00 |
-| b | about 38 | 13 Nov, about 17:15 |
-| c | about 38 | 13 Nov, about 17:15 |
-| d | about 90 | 14 Nov, about 01:00 |
+**Single-t test.** For each run and each t of the grid (0 to 0.995), a (metric, bin)
+pair fails if the run is worse than AMVF. There are 13 metrics in 22 bins:
+inclusive, PU200 and 20 bins of width 10 in mu.
 
-GPU 0 holds a (14 GB) and d (24.5 GB), close to the 40 GB limit. If one of
-them stops with an out-of-memory error, restart it with
-`RUN=<run> bash scripts/run_gnn_v3_train.sh --resume`.
+| run | t with fewest failures | strict | > 1 sigma | what fails there |
+|---|---:|---:|---:|---|
+| v2 e527 | 0.98 | 62 | 56 | track eff and F1 in all 22 bins, low-mu Clean/truth, Clean HS, HS sel |
+| a | 0.75 | 50 | 42 | Clean HS (19 bins), HS purity (22), HS sel (5) |
+| b | 0.96 | 31 | 28 | track eff (21 bins), HS purity at mu < 80 (8) |
+| c | 0.55 | 30 | 26 | track eff (22 bins), HS purity at mu < 50 (5, > 1 sigma) and 70-80 |
 
-The softmax runs' scores are calibrated probabilities, so their useful t is
-lower. After 5 epochs on the monitor: c has F1 0.79 at t = 0.5, while b has
-F1 0.79 at t = 0.9-0.94. Runs are therefore compared at matched operating
-points, not at the same t.
+No run has a t without failures. The conflict is the same for every run:
+- **Global track efficiency against HS purity.** For b and c, track efficiency
+  passes only at t <= 0.85 (b) or t <= 0.2 (c). At those cuts HS purity is 5-6
+  points below AMVF (PU200: c 82.6 against 88.9).
+- At the t where HS purity passes (c at t >= 0.55), track efficiency is 9-11
+  points low in every bin (PU200: 57.4 against 68.4).
+- In the track efficiency/purity plane, AMVF sits at the t = 0 end of our curve.
+  At AMVF's own track purity, c reaches 69.7 against 68.4 at PU200 and 75.6 against
+  74.3 inclusive. Track efficiency is therefore capped near t = 0, by the vertices
+  s8 does not find (one-to-one efficiency 73% at PU200, section 7).
+- In the HS planes every candidate-trained run lies far above AMVF. At AMVF's
+  fraction of HS tracks on the HS vertex (74.3% at PU200), c reaches HS purity 96.6
+  against 88.9 and Clean HS 99.1 against 93.8.
 
-Results, phase 2 and the speed selection: to follow.
+Values (model / AMVF marks: x = worse, **x** = worse by > 1 sigma, paired
+bootstrap). Clean/truth, Clean/reco, track and HS columns in %, HS res in um, the
+last three per event.
+
+PU200 (185-215), 568 events:
+
+| model | t | C/truth | C/reco | trk eff | trk pur | F1 | HS sel | Clean HS | HS pur | HS on HS | HS res | Fake | Merged | Split |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AMVF | - | 30.9 | 35.0 | 68.4 | 68.7 | 68.5 | 94.5 | 93.8 | 88.9 | 74.3 | 9.21 | 0.060 | 41.7 | 22.1 |
+| v2 e527 | 0.94 | 50.5 | 70.7 | 62.9 **x** | 79.5 | 70.2 | 95.4 | 87.9 **x** | 81.9 **x** | 88.2 | 8.42 | 0.044 | 19.5 | 3.83 |
+| b | 0.96 | 54.6 | 83.0 | 58.4 **x** | 86.3 | 69.7 | 96.8 | 97.9 | 91.4 | 85.5 | 8.49 | 0.016 | 11.5 | 0.97 |
+| c | 0.2 | 43.7 | 61.2 | 68.8 | 73.3 | 71.0 | 95.4 | 90.8 **x** | 82.6 **x** | 92.0 | 8.54 | 0.035 | 28.3 | 2.57 |
+| c | 0.55 | 55.0 | 84.2 | 57.4 **x** | 87.3 | 69.3 | 96.8 | 98.2 | 92.2 | 84.5 | 8.58 | 0.016 | 10.6 | 0.85 |
+| c | 0.7 | 54.9 | 89.2 | 50.4 **x** | 91.6 | 65.1 **x** | 96.7 | 98.8 | 95.0 | 79.5 | 8.70 | 0.009 | 7.06 | 0.33 |
+
+Inclusive (7,500 events):
+
+| model | t | C/truth | C/reco | trk eff | trk pur | F1 | HS sel | Clean HS | HS pur | HS on HS | HS res | Fake | Merged | Split |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AMVF | - | 40.8 | 43.7 | 74.3 | 74.9 | 74.6 | 95.2 | 97.0 | 92.7 | 77.6 | 9.87 | 0.035 | 18.9 | 11.6 |
+| v2 e527 | 0.94 | 58.0 | 75.9 | 69.4 **x** | 83.5 | 75.8 | 96.9 | 94.6 **x** | 87.7 **x** | 91.4 | 9.39 | 0.024 | 8.61 | 2.03 |
+| b | 0.96 | 60.6 | 86.5 | 66.1 **x** | 88.8 | 75.8 | 97.6 | 98.5 | 93.4 | 91.0 | 9.38 | 0.009 | 5.06 | 0.43 |
+| c | 0.2 | 52.5 | 69.4 | 75.0 | 78.4 | 76.6 | 96.9 | 95.7 **x** | 88.1 **x** | 95.0 | 9.37 | 0.020 | 12.3 | 1.10 |
+| c | 0.55 | 60.9 | 87.5 | 65.3 **x** | 89.5 | 75.5 | 97.7 | 98.8 | 93.9 | 90.4 | 9.35 | 0.009 | 4.65 | 0.37 |
+
+mu 0-10 (375 events):
+
+| model | t | C/truth | C/reco | trk eff | trk pur | F1 | HS sel | Clean HS | HS pur | HS on HS | HS res | Fake | Merged | Split |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AMVF | - | 83.8 | 67.7 | 95.6 | 97.8 | 96.7 | 98.7 | 99.7 | 98.1 | 83.8 | 9.13 | 0.003 | 0.21 | 1.25 |
+| v2 e527 | 0.94 | 81.1 **x** | 94.1 | 84.8 **x** | 98.6 | 91.2 **x** | 99.7 | 99.5 x | 97.6 **x** | 90.2 | 8.89 | 0 | 0.05 | 0.13 |
+| b | 0.96 | 86.9 | 98.1 | 95.6 | 98.6 | 97.1 | 99.5 | 100.0 | 97.8 **x** | 99.2 | 8.95 | 0 | 0.05 | 0.01 |
+| c | 0.55 | 87.4 | 98.2 | 95.4 x | 98.7 | 97.0 | 99.7 | 100.0 | 97.9 **x** | 99.3 | 8.95 | 0 | 0.05 | 0.01 |
+| c | 0.7 | 84.3 | 98.7 | 93.9 **x** | 99.2 | 96.4 **x** | 99.7 | 100.0 | 98.3 | 98.6 | 8.95 | 0 | 0.04 | 0.00 |
+
+What phase 1 established:
+1. **Training on s8 candidates fixes low mu.** At mu 0-10, Clean/truth is
+   87.4 against v2's 81.1 and AMVF's 83.8, with track efficiency at AMVF's level.
+   Clean HS at PU200 is 98.2 against 87.9 for v2.
+2. **Architecture (a to b) is the second step.** a (the v2 network on candidates)
+   reaches PU200 Clean HS 97.7 / HS purity 92.9 at t = 0.98, but with track
+   efficiency 49.1. At the PU200 and inclusive matched points, b and c are above a:
+   - track efficiency at 85% purity: PU200 60.1 against 57.4;
+   - HS purity at AMVF's HS-track fraction: 96.6 against 93.8.
+3. **Loss (b to c): equal performance, different scale.** At matched points
+   (PU200, track purity 85%), track efficiency is 59.9 for b and 60.1 for c, F1
+   70.3 against 70.4. c's score is a calibrated probability, so its useful t is
+   0.5-0.7 instead of 0.95-0.99. Phase 2 uses c's loss (one failure fewer, scale
+   easier to discuss).
+4. **HS resolution, fakes, merged and split are not limiting.** All runs beat AMVF
+   in nearly every bin. The few HS-resolution failures (2-3 isolated bins of 375
+   events) are within 1 sigma.
+
+Run d (hidden 128, 4 layers), monitor at epoch 257 of 540: loss 0.6997, equal to
+c's final 0.69935. d is ahead of c at the same epoch (c: 0.7023 at 250), so
+capacity buys a little. The gain over c will be known when d finishes.
+
+CPU time of the GNN forward per PU200 event (1 thread, 60 r16438 events, mean
+1,367 tracks and 27,330 edges, 3 passes interleaved round-robin; median of the
+per-event paired ratio to v2, 16-84% band). The h* rows are untrained networks of
+c's design, timed only for architecture cost. Load average 89 at start, 148 at
+the end.
+
+| model | params | median ms | ratio to v2 (16-84%) |
+|---|---:|---:|---:|
+| v2 e527 / a | 39,521 | 81.5 / 82.0 | 1.00 / 1.02 (0.95-1.08) |
+| h32 l2 | 47,606 | 78.4 | 0.98 (0.89-1.10) |
+| h32 l3 (= p2c) | 66,880 | 107.9 | 1.33 (1.22-1.51) |
+| h48 l3 | 147,920 | 157.2 | 1.99 |
+| h64 l2 | 185,302 | 157.9 | 2.00 |
+| b / c (h64 l3, = p2a) | 256,479 / 260,704 | 216.6 / 218.1 | 2.74 (2.5-3.0) |
+| h96 l3 | 581,504 | 380.3 | 4.80 |
+| h96 l4 | 749,898 | 475.1 | 6.09 |
+| d (h128 l4, = p2b) | 1,327,530 | 713.4 | 8.95 (8.2-9.9) |
+
+`cpu_timing/timing_phase1_and_probes.json`.
+
+**Not done: a two-threshold working point.** The conflict is between a global
+quantity (all tracks) and an HS-vertex quantity. One deployable resolution has
+two cuts: a low t for every vertex, and a stricter t_HS on the tracks of the
+vertex the Athena rule selects as HS. On the tables above, c at (t = 0.2,
+t_HS = 0.55) would roughly combine track efficiency from the first row with the HS
+numbers from the second. This needs a new chain_t_metrics path: select the HS at
+t, then apply t_HS and recount. It is not computed. It changes the working-point
+definition, so it is for Mattia to decide.
+
+## 6. Phase-2 graph check: are the training candidates realistic?
+
+s8 was trained on PU200 events of r16438 and r16633. The phase-2 training graphs
+use events from both files, so their candidates could be better than at
+deployment. `scripts/gnn_v3_peak_quality.py --residual` compares them with the
+r16443 validation entries (never seen by s8 or any GNN): ref = 7,500 validation
+entries; thin = r16438 thinned shards 00-02 (15,000 events); pu200 = r16633 shards
+00-01 (10,000 events). The residual is candidate z minus truth z of the owning
+truth vertex, as the half-width of the central 68% interval. Truth z comes from
+ROOT; for the thinned shards the thinning RNG is replayed, checked against every
+graph's track count.
+
+| set | mu bin | events | one-to-one eff [%] | candidates / truth | unmatched / event | res68 all [um] | res68 HS [um] |
+|---|---|---:|---:|---:|---:|---:|---:|
+| ref | 0-20 | 750 | 85.3 ± 0.5 | 1.191 | 2.15 ± 0.06 | 36.4 ± 0.6 | 11.7 ± 0.6 |
+| thin | 0-20 | 1,499 | 85.9 ± 0.4 | 1.222 | 2.41 ± 0.05 | 37.1 ± 0.6 | 12.3 ± 0.4 |
+| ref | 50-100 | 1,930 | 79.4 ± 0.1 | 1.009 | 9.45 ± 0.08 | 42.6 ± 0.2 | 12.7 ± 0.3 |
+| thin | 50-100 | 3,715 | 79.1 ± 0.1 | 1.021 | 10.17 ± 0.06 | 42.6 ± 0.2 | 12.8 ± 0.2 |
+| ref | PU200 | 568 | 73.2 ± 0.2 | 0.908 | 19.6 ± 0.2 | 43.6 ± 0.2 | 12.6 ± 0.6 |
+| thin | PU200 | 1,119 | 73.2 ± 0.1 | 0.906 | 19.5 ± 0.1 | 44.4 ± 0.2 | 13.6 ± 0.5 |
+| pu200 | PU200 | 10,000 | 73.0 ± 0.04 | 0.900 | 19.7 ± 0.04 | 44.1 ± 0.1 | 12.9 ± 0.1 |
+
+All bins: `peak_quality/peak_quality.md`. s8 is not optimistic on its own
+training files: efficiency and residual agree with validation within 1 point and
+1 um. The thinned events have 0.3-0.7 more unmatched candidates per event below
+mu = 100. These come from unowned tracks kept at the pile-up fraction. They are
+slightly harder than real low-mu events, which is acceptable for training. The
+check reads the old-cut graphs; the new cuts move 0.17% of the peaks.
+
+## 7. Phase 2 (launched 13 Nov, 17:44)
+
+All three runs use c's loss (softmax + no-vertex) and the same data. That is 70
+shards, 349,420 events, interleaved:
+- the 30 phase-1 shards (149,820 events);
+- 20 r16438 shards thinned to flat mu (99,800 events);
+- 20 r16633 PU200 shards (99,800 events).
+
+Each run has 1,260 shard epochs (18 passes, 2.3x phase-1's steps), the same
+monitor, batch 32, cosine from 1e-3 and a 128 GiB virtual-memory limit. The
+worst-case PU200 batch (the 32 largest events) peaks at 11.3 GiB for h64 l3 and
+27.6 GiB for h128 l4 (`memprobe`).
+
+| run | tmux | GPU | network | params | CPU vs v2 | axis | s / shard epoch (base / PU200) | ETA (local) |
+|---|---|---|---|---:|---:|---|---|---|
+| p2a | gnnv3_p2a | 1 | h64 l3 (c) | 260,704 | 2.7x | data volume (vs c) | 40 / 61 | 14 Nov about 10:00 |
+| p2b | gnnv3_p2b | 2 | h128 l4 (d) | 1,327,530 | 9.0x | capacity (vs p2a) | 66 / about 110 | 14 Nov about 21:30 |
+| p2c | gnnv3_p2c | 3 | h32 l3 | 66,880 | 1.3x | speed (vs p2a) | 31 / 45 | 14 Nov about 06:00 |
+
+p2a's epoch 0 reproduces c's epoch 0 exactly (same first shard and seed).
+Evaluation: `TAG=phase2_<run> GPU=<g> bash scripts/run_gnn_v3_eval.sh <run>`, then
+`gnn_v3_eval_summary.py` with all runs. If p2a is not clearly above c, more data is
+not the lever. 601237 thinning is then not worth building, and the two-threshold
+point (section 5) is the next step.
 
 ## Reproduction
 
@@ -233,4 +387,17 @@ PYTHONPATH=src venv/bin/python -u scripts/gnn_v3_hs_diagnosis.py --arm s8=output
 GPU=0 PART=0 NPART=3 bash scripts/run_gnn_v3_build_chain.sh   # and PART=1,2 on GPUs 1,2
 # training (tmux gnnv3_<run>)
 RUN=b bash scripts/run_gnn_v3_train.sh        # add --resume to continue
+# phase-1 evaluation (tmux gnnv3_eval_p1), 13 Nov cuts read from working_points.py at run time
+TAG=phase1_abc GPU=1 bash scripts/run_gnn_v3_eval.sh a b c
+bash scripts/run_gnn_v3_eval_d_when_done.sh   # tmux gnnv3_eval_d: waits for d, evaluates, combined summary
+# CPU timing (graphs: --build once; probes = untrained h*/l* networks with a model_config.json)
+CUDA_VISIBLE_DEVICES="" PYTHONPATH=src venv/bin/python -u scripts/gnn_v3_cpu_timing.py \
+    --graphs outputs/11_13_2026_output/gnn_v3_campaign/cpu_timing/r16438_pu200_60evt_s8_graphs.pt \
+    --gnn v2e527=... a=... b=... c=... d=... h32l3=... --out .../cpu_timing/timing_phase1_and_probes.json
+# phase-2 graph check
+PYTHONPATH=src venv/bin/python -u scripts/gnn_v3_peak_quality.py --residual --set ref=.../phase2/r16443_validation_all.pt \
+    --set thin=.../phase2/r16438_thin_shard_0{0,1,2}.pt --set pu200=.../phase2/r16633_pu200_shard_0{0,1}.pt \
+    --out outputs/11_13_2026_output/gnn_v3_campaign/peak_quality
+# phase 2 (tmux gnnv3_p2{a,b,c}); configs written by scripts/gnn_v3_make_config.py
+VMEM_KB=134217728 RUN=p2a bash scripts/run_gnn_v3_train.sh   # add --resume to continue
 ```

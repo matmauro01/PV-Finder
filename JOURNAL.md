@@ -5564,3 +5564,25 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   unchanged within errors. 0.186 was tuned on r16638 only (0.184 had partly used the test set).
 - Local centroid ±3 kept: best or tied 68% residual on both files; the parabola adds splits.
 - Every chain number needs one recompute with these cuts (GNN v3 campaign will use them).
+
+## 2026-11-13: GNN v3 phase-1 evaluation; phase 2 launched
+- Took over the v3 campaign at 17:20. Evaluated a, b, c (lowest monitor loss: e516, e526, e528) and
+  v2 e527 on the 7,500 r16443 validation entries with the 13 Nov s8 cuts (integral 0.186, no
+  height). The training graphs were built with the old cuts (0.17% of the peaks differ); no rebuild.
+- No run beats AMVF on every metric in every mu bin at a single t. The blocking pair is global
+  track efficiency against HS purity: at PU200, c reaches HS purity 92.2 / Clean HS 98.2 at
+  t = 0.55 (AMVF 88.9 / 93.8), but track efficiency is 57.4 against 68.4. Track efficiency
+  matches AMVF only near t = 0, where HS purity is 82.6. Fewest failures: c, 30 of 286 at t = 0.55
+  (track eff in all bins, HS purity at mu < 50). b ties c at matched points; a and v2 are below.
+- Candidate training fixed low mu: Clean/truth at mu 0-10 is 87.4 (v2 81.1, AMVF 83.8).
+- CPU forward per PU200 event, 1 thread, paired to v2: h64 l3 2.7x, h128 l4 9.0x, h32 l3 1.3x,
+  h32 l2 1.0x.
+- s8 candidates on the PU200 training files match validation (one-to-one efficiency 73.0-73.2% at
+  PU200, residual 44 um), so s8 is not optimistic on its own training files. Added the residual
+  (truth z from ROOT, thinning RNG replayed) to `scripts/gnn_v3_peak_quality.py`.
+- Phase 2 launched 17:44, softmax loss, 349,420 events (v2 events + r16438 thinned + r16633
+  PU200), 1,260 shard epochs: p2a h64 l3 (GPU 1), p2b h128 l4 (GPU 2), p2c h32 l3 (GPU 3).
+  d's evaluation runs automatically when it finishes.
+- Not done: a two-threshold working point (low t for all tracks, stricter t_HS on the selected HS
+  vertex); this needs a chain_t_metrics extension and Mattia's agreement.
+- Doc: `docs/evaluation/gnn_v3_campaign_2026-11-13.md` sections 5-7.
