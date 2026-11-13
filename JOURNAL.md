@@ -5514,3 +5514,24 @@ correct tracks), and Clean-HS / HS purity are below AMVF (88.3 / 82.3 against 92
   defined on the slides; HS selection quoted as 95.1 vs 92.9% (AMVF stored primary, ITk definition).
 - Low pile-up slides moved to the e400 final numbers (`lowpu_final/summary/vf_results.json`): `scripts/eb_numbers.py`
   low pile-up group repointed, AMVF sigma added everywhere. Answers: `docs/additional_studies/eb_deck_answers_2026-11-13.md`.
+
+## 2026-11-13: GNN v3 campaign, diagnosis done and phase-1 runs launched
+
+Doc: `docs/evaluation/gnn_v3_campaign_2026-11-13.md` (outputs in `outputs/11_13_2026_output/gnn_v3_campaign/`).
+- Diagnosis on the 7,500 validation entries (PU200, t = 0.94). Running GNN v2 on truth candidates instead of
+  s8 peaks takes Clean HS from 87.9 to 95.8% (AMVF 93.8%) and HS purity from 81.9 to 86.3% (AMVF 88.9%).
+  Candidate mismatch is the main Clean HS loss. The largest excess on the HS vertex is pile-up tracks whose
+  own vertex has a candidate (11.5% of its tracks, AMVF 5.5%), the same on truth candidates: a network
+  problem. Finder merges into the HS equal AMVF's (3.4%).
+- Negative result: a post-GNN 3D adaptive-fit chi2 cut (9 or 18.42) leaves HS purity unchanged (+0.2 / -0.4 pt)
+  and removes 17-21% of the HS tracks.
+- New training data: s8-candidate graphs with truth labels (one-to-one matching, largest truth vertex first),
+  on the v2 events. Oracle Clean/truth 73.0% at PU200. `gnn.data.chain_training_graphs`.
+- New code: `gnn.models.ttva_v3` (interaction network: edge updates, multi-aggregation with a soft count;
+  per-track softmax + no-vertex loss), `gnn.training.train_ttva_v3`, `gnn.evaluation.chain_inference_v3`
+  (reproduces the v2 reference within 4e-5).
+- Phase-1 runs, 540 shard epochs each, tmux gnnv3_a/b/c/d:
+  - a: v2 network on s8 graphs;
+  - b: interaction network hidden 64 x 3, BCE;
+  - c: as b, softmax + no-vertex;
+  - d: hidden 128 x 4, softmax + no-vertex.
