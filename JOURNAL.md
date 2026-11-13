@@ -5505,3 +5505,12 @@ Findings: no larger GNN was ever tried (all configs hidden_dim 32); AMVF Clean/t
 equals nearest-z0 in every mu bin, and rises to about 41.6 % with its own fit weights;
 at t = 0.94 PV-Finder + GNN is 2.5 ± 0.6 pt below AMVF at mu 0-10 (cut removes 11 % of
 correct tracks), and Clean-HS / HS purity are below AMVF (88.3 / 82.3 against 92.5 / 88.4 %).
+
+## 2026-11-13: EB deck, Mattia's comments applied
+
+- Deck `presentations/mattia/11_13_2026_EB/` now 36 pages (commits 4de40dd, dc474ff). Both regimes in the
+  working-point table; new slides on the 40 mm intervals (boundary check), definitions after the GNN and
+  why AMVF is close to nearest z0; post-GNN yields use the >= 2-track AMVF-note-style plots; HS quantities
+  defined on the slides; HS selection quoted as 95.1 vs 92.9% (AMVF stored primary, ITk definition).
+- Low pile-up slides moved to the e400 final numbers (`lowpu_final/summary/vf_results.json`): `scripts/eb_numbers.py`
+  low pile-up group repointed, AMVF sigma added everywhere. Answers: `docs/additional_studies/eb_deck_answers_2026-11-13.md`.
