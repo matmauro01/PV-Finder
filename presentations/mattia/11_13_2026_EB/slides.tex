@@ -78,22 +78,7 @@ Twelve $40$ mm intervals: $12{,}000$ bins of $0.04$ mm over $|z|<240$ mm.
 
 %----------------------------------------------------------------------
 %----------------------------------------------------------------------
-\begin{frame}{Forty-Millimetre Intervals}
-\relax
-{\centering\includegraphics[width=.9\linewidth,height=.4\textheight,keepaspectratio]{images/boundary_efficiency.png}\\[.1em]
-\footnotesize Efficiency (left) and fake fraction (right) versus distance to the nearest interval edge, PU200\par}
-\par\vspace{.5em}
-\begin{columns}[t]
-\begin{column}{.31\linewidth}\small\textbf{Why split}\\[.3em]\footnotesize
-Fixed $1{,}000$-bin ($40$ mm) network output. A whole $480$ mm event would need a $12{,}000$-bin output per track: $12\times$ the memory. The U-Net needs only local context.
-\end{column}
-\begin{column}{.31\linewidth}\small\textbf{Boundaries}\\[.3em]\footnotesize
-No overlap. Each track goes to the interval of its $z_0$ and carries the interval bounds as inputs. Peaks are found on the stitched $12{,}000$-bin histogram. The GNN sees the whole event.
-\end{column}
-\begin{column}{.32\linewidth}\small\textbf{Check}\\[.3em]\footnotesize
-Efficiency is flat to within $0.1$ mm of an edge ($82$--$85\%$ against $83.1\%$). Extra fakes at the edges: $0.2$ per event, $1\%$ of the fakes. AMVF, with no intervals, is the control.
-\end{column}\end{columns}
-\end{frame}
+
 
 %----------------------------------------------------------------------
 \begin{frame}{Peak Finding and the Working Point}
@@ -101,21 +86,19 @@ Efficiency is flat to within $0.1$ mm of an edge ($82$--$85\%$ against $83.1\%$)
 \img{.42}{method_example_e2e.png}
 \end{column}\begin{column}{.55\linewidth}
 \centering\small
-\renewcommand{\arraystretch}{.95}\begin{tabular}{lcc}\toprule
- & HL-LHC & Low pile-up\\\midrule
-Density network & s8 & e400\\
-Amplitude threshold & $\ampThr$ & $\ampThrLow$\\
-Minimum width [bins] & $\minWidth$ & $\minWidthLow$\\
-Minimum integral & $\intThr$ & $0.50$\\
-Minimum height & $\heightThr$ & none\\
-Position & \multicolumn{2}{c}{local centroid, $\pm\centroidHW$ bins}\\
-GNN score cut $t$ & $\gnnT$ & $\gnnTLow$\\
-Matching window & \multicolumn{2}{c}{$\windowMM$ mm}\\
-Hard-scatter window & \multicolumn{2}{c}{$\hsWindowMM$ mm}\\
-Vertex after the GNN & \multicolumn{2}{c}{$\geq2$ tracks}\\\bottomrule
+\renewcommand{\arraystretch}{.95}\begin{tabular}{lc}\toprule
+ & HL-LHC\\\midrule
+Density network & s8\\
+Amplitude threshold & $\ampThr$\\
+Minimum width [bins] & $\minWidth$\\
+Minimum integral & $\intThr$\\
+Minimum height & $\heightThr$\\
+Position & local centroid, $\pm\centroidHW$ bins\\
+GNN score cut $t$ & $\gnnT$\\
+Matching window & $\windowMM$ mm\\
+Hard-scatter window & $\hsWindowMM$ mm\\
+Vertex after the GNN & $\geq2$ tracks\\\bottomrule
 \end{tabular}
-\par\vspace{.6em}\raggedright\footnotesize
-Two networks, two sets of cuts: integral and height are in units of each network's output, each set chosen at a matched fake rate. HL-LHC cuts at low pile-up: $+1.8$ points efficiency, but $4.0$ fakes per event instead of $2.4$ (AMVF $2.5$).
 \end{column}\end{columns}
 \end{frame}
 
@@ -128,7 +111,7 @@ Two networks, two sets of cuts: integral and height are in units of each network
 \textbf{Edges:} each track to its $k=20$ nearest vertices, with
 \[\frac{z_0-z_{\rm PV}}{\sqrt{\sigma_{z_0}^2+\sigma_{\rm PV}^2}},\quad \frac{d_0}{\sigma_{d_0}},\quad |z_0-z_{\rm PV}|.\]
 \textbf{Output:} a score per edge. A track goes to its best vertex if the score passes $t=\gnnT$.\\[.6em]
-Graph attention network, $\gnnParams$ parameters. Size not scanned yet: training and validation loss are equal and flat, and more training data helped, so a wider network is the next test.
+Graph attention network, $\gnnParams$ parameters.
 \end{column}\begin{column}{.45\linewidth}\centering\resizebox{.85\linewidth}{!}{\begin{tikzpicture}[x=0.85cm, y=0.85cm]
   \foreach \y/\n in {3.6/1, 2.4/2, 1.2/3, 0.0/4} {
     \filldraw[fill=mydarkblue!14, draw=mydarkblue!70, thick] (0,\y) circle (8pt) node[font=\scriptsize] {\(t_\n\)};}
@@ -153,8 +136,6 @@ Graph attention network, $\gnnParams$ parameters. Size not scanned yet: training
 $\nTrainEvt$M training events at PU200.
 \par\vspace{.4em}
 It sees one $40$ mm interval at a time, and PU200 events already contain low-density intervals ($|z|>100$ mm).
-\par\vspace{.4em}
-It works at all $\mu$: the efficiency gain over AMVF is largest at $\mu<10$ ($+4.6$ points). Position at $\mu<20$: $1$--$1.6~\mu$m worse than AMVF.
 \end{column}
 \begin{column}{.31\linewidth}\textbf{GNN}\\[.5em]\small
 $\gnnTrainEvt$ training events at all $\mu$, $0$ to $200$.
@@ -358,7 +339,7 @@ HS selected & $\hsSelGNN\%$ & $\hsSelAMVF\%$\\\bottomrule
 \textbf{Clean HS:} the vertex dominated by HS tracks is Clean ($\geq70\%$ HS tracks).\\
 \textbf{HS tracks on HS vertex:} HS tracks on it / all selected HS tracks.\\
 \textbf{HS purity:} HS tracks on it / all tracks on it.\\
-\textbf{HS selected (ITk definition):} the vertex with the largest $\sum p_T^2$ is the HS vertex and lies within $\hsWindowMM$ mm of the true HS. GNN: Athena 24.0 rule on its tracks. AMVF: its stored primary, which is the $\sum p_T^2$ leader of its fit tracks in $\amvfFitAgreeN$ of $\amvfFitAgreeN$ events.
+\textbf{HS selected (ITk):} the highest-$\sum p_T^2$ vertex is within $\hsWindowMM$ mm of the true HS.
 \par\vspace{.4em}\footnotesize
 The GNN puts more HS tracks on the HS vertex, and more pile-up tracks too: Clean HS and HS purity are below AMVF. HS selection is higher by $\hsSelDiff\pm\hsSelDiffErr$ points.
 \end{column}\begin{column}{.45\linewidth}\centering
@@ -456,13 +437,13 @@ AMVF, CPU & $\sim\athAMVF$\\\bottomrule
 \begin{columns}[t]\begin{column}{.52\linewidth}
 \small\textbf{Same data and loss, narrower U-Net}
 \par\vspace{.5em}\centering
-\begin{tabular}{lrrr}\toprule
- & v6 & s5 & s8\\\midrule
-U-Net channels & 280 & 112 & 80\\
-CPU time [ms] & $\cpuVsixPad$ & $\cpuSFivePack$ & $\cpuSEightPack$\\
-Speed-up & $1$ & $\spdSFive\times$ & $\spdSEight\times$\\
-$\Delta$eff. at v6 fake rate [pt] & & $\sFiveDEffA$ & $\sEightDEffA$\\
-$\Delta$fake / event & & $\sFiveDFake$ & $\sEightDFake$\\\bottomrule
+\begin{tabular}{lrr}\toprule
+ & v6 & s8\\\midrule
+U-Net channels & 280 & 80\\
+CPU time [ms] & $\cpuVsixPad$ & $\cpuSEightPack$\\
+Speed-up & $1$ & $\spdSEight\times$\\
+$\Delta$eff. at v6 fake rate [pt] & & $\sEightDEffA$\\
+$\Delta$fake / event & & $\sEightDFake$\\\bottomrule
 \end{tabular}
 \par\vspace{.5em}\raggedright\footnotesize
 ONNX Runtime, one thread, one PU200 event. Small models use packed inference: tracks only, no padding, identical output.
@@ -472,12 +453,11 @@ ONNX Runtime, one thread, one PU200 event. Small models use packed inference: tr
 \begin{tabular}{lr}\toprule
 Chain & ms/event\\\midrule
 v6 + GNN & $\athCPUms$\\
-s5 + GNN & $\sim\projSFive$\\
 s8 + GNN & $\sim\projSEight$\\
 AMVF & $\sim\athAMVF$\\\bottomrule
 \end{tabular}
 \par\vspace{.6em}\raggedright\footnotesize
-Packed inference alone: $\spdVsixPack\times$ for v6 at no cost. s5: 9 Nov measurement.
+Packed inference alone: $\spdVsixPack\times$ for v6 at no cost.
 \end{column}\end{columns}
 \takeaway{With the frozen small network the projected CPU chain is faster than AMVF at $\mu=200$.}
 \end{frame}
@@ -499,6 +479,23 @@ Packed inference alone: $\spdVsixPack\times$ for v6 at no cost. s5: 9 Nov measur
 %----------------------------------------------------------------------
 %----------------------------------------------------------------------
 \backupbegin
+\begin{frame}{Backup: Forty-Millimetre Intervals}
+\relax
+{\centering\includegraphics[width=.9\linewidth,height=.4\textheight,keepaspectratio]{images/boundary_efficiency.png}\\[.1em]
+\footnotesize Efficiency (left) and fake fraction (right) versus distance to the nearest interval edge, PU200\par}
+\par\vspace{.5em}
+\begin{columns}[t]
+\begin{column}{.31\linewidth}\small\textbf{Why split}\\[.3em]\footnotesize
+Fixed $1{,}000$-bin ($40$ mm) network output. A whole $480$ mm event would need a $12{,}000$-bin output per track: $12\times$ the memory. The U-Net needs only local context.
+\end{column}
+\begin{column}{.31\linewidth}\small\textbf{Boundaries}\\[.3em]\footnotesize
+No overlap. Each track goes to the interval of its $z_0$ and carries the interval bounds as inputs. Peaks are found on the stitched $12{,}000$-bin histogram. The GNN sees the whole event.
+\end{column}
+\begin{column}{.32\linewidth}\small\textbf{Check}\\[.3em]\footnotesize
+Efficiency is flat to within $0.1$ mm of an edge ($82$--$85\%$ against $83.1\%$). Extra fakes at the edges: $0.2$ per event, $1\%$ of the fakes. AMVF, with no intervals, is the control.
+\end{column}\end{columns}
+\end{frame}
+
 
 \begin{frame}{Backup: Efficiency Difference versus Matching Window}
 \begin{columns}[c]\begin{column}{.6\linewidth}\centering
