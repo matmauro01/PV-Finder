@@ -40,6 +40,10 @@ RATIOS: dict[str, tuple[str, str]] = {
     "assigned_frac": ("n_assigned", "n_tracks"),
     "hs_clean": ("hs_clean", "has_hs"),
     "hs_track_frac": ("hs_match_hs_tracks", "n_hs_tracks"),
+    "hs_purity": ("hs_match_hs_tracks", "hs_match_tracks"),
+    "merged_per_event": ("merged", "one"),
+    "split_per_event": ("split", "one"),
+    "fake_per_event": ("fake", "one"),
 }
 
 

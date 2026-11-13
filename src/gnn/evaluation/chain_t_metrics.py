@@ -123,14 +123,16 @@ def hs_selection(
 
 
 def process_chunk(
-    path: str, root: str, gnn: str, do_hs: bool, hs_min_tracks: int = 1
-) -> dict:
+    path: str, root: str, gnn: str, do_hs: bool, hs_min_tracks: int = 1,
+    t_grid: tuple[float, ...] = T_GRID,
+) -> dict:  # fmt: skip
     """All metrics for one inference chunk.
 
     ``hs_min_tracks`` is the vertex track-multiplicity rule of the HS
     quantities (selection, residual), applied identically to both algorithms:
     only vertices with at least that many assigned (PV-Finder) or associated
     (AMVF) tracks are candidates. 1 keeps the original drop-empty behaviour.
+    ``t_grid``: score cuts to replay (default ``T_GRID``).
     """
     with np.load(path) as f:
         z = {k: f[k] for k in f.files}
@@ -140,11 +142,11 @@ def process_chunk(
     tree = uproot.open(root)["PVFinderData"]
     lo_e, hi_e = int(entries[0]), int(entries[-1]) + 1
     data = tree.arrays(BRANCHES, entry_start=lo_e, entry_stop=hi_e, library="ak")
-    n, na = len(entries), len(T_GRID) + 1
+    n, na = len(entries), len(t_grid) + 1
     counts = np.zeros((n, na, len(MIN_TRACKS), len(COUNT_FIELDS)), np.int64)
     sel = np.zeros((n, na + 1, len(SEL_FIELDS)), np.int64)
     res = np.full((n, na), np.nan)
-    fallback = np.zeros((n, len(T_GRID)), np.int64)
+    fallback = np.zeros((n, len(t_grid)), np.int64)
     ev_out = np.zeros((n, len(EVENT_FIELDS)))
     for i, e in enumerate(entries):
         ev = data[int(e) - lo_e]
@@ -180,7 +182,7 @@ def process_chunk(
             k_hs = -1
         pvf_hs_within = int(k_hs >= 0)  # any peak, before the GNN
         m_hs = MIN_TRACKS.index(hs_min_tracks)
-        for a, t in enumerate(T_GRID):
+        for a, t in enumerate(t_grid):
             all_lists = hm.lists_from_targets(
                 hm.assign_from_scores(tg, sc, t), len(peaks)
             )
@@ -273,7 +275,14 @@ def main() -> None:
         help="vertex track rule for the HS selection and residual (both algorithms)",
     )  # fmt: skip
     ap.add_argument("--max-chunks", type=int, default=0)
+    ap.add_argument(
+        "--t-grid", type=float, nargs="+", default=None,
+        help="score cuts to replay (default: T_GRID)",
+    )  # fmt: skip
     a = ap.parse_args()
+    t_grid = tuple(a.t_grid) if a.t_grid else T_GRID
+    if list(t_grid) != sorted(set(t_grid)):
+        raise ValueError("--t-grid must be strictly increasing")
     meta_in = json.loads((a.infer / "metadata.json").read_text())
     if not (a.infer / "DONE").exists() and not a.max_chunks:
         raise RuntimeError(f"{a.infer} inference not finished")
@@ -282,7 +291,7 @@ def main() -> None:
         paths = paths[: a.max_chunks]
     t0 = time.monotonic()
     with ProcessPoolExecutor(a.workers) as pool:
-        futs = [pool.submit(process_chunk, p, meta_in["root"], a.gnn, not a.no_hs, a.hs_min_tracks) for p in paths]  # fmt: skip
+        futs = [pool.submit(process_chunk, p, meta_in["root"], a.gnn, not a.no_hs, a.hs_min_tracks, t_grid) for p in paths]  # fmt: skip
         parts = []
         for k, f in enumerate(futs):
             parts.append(f.result())
@@ -294,8 +303,8 @@ def main() -> None:
     np.savez_compressed(a.out, **cat)
     meta = {
         "infer": str(a.infer), "infer_metadata": meta_in, "gnn": a.gnn,
-        "t_grid": T_GRID, "min_tracks": MIN_TRACKS, "count_fields": COUNT_FIELDS,
-        "sel_fields": SEL_FIELDS, "sel_arms": [*(f"t{t}" for t in T_GRID), "amvf_stored", "amvf_rule"],
+        "t_grid": t_grid, "min_tracks": MIN_TRACKS, "count_fields": COUNT_FIELDS,
+        "sel_fields": SEL_FIELDS, "sel_arms": [*(f"t{t}" for t in t_grid), "amvf_stored", "amvf_rule"],
         "event_fields": EVENT_FIELDS, "window_mm": WINDOW, "hs_window_mm": HS_WINDOW,
         "max_vertex_chi2": ps.MAX_VERTEX_CHI2, "hs_computed": not a.no_hs,
         "hs_min_tracks": a.hs_min_tracks,
