@@ -28,7 +28,7 @@ first item not marked done. Commit + push this file whenever the table changes.
 ## Status
 | item | owner | status |
 |---|---|---|
-| A. HL-LHC peak-finding consolidation | agent peakfind | **done 13 Nov**: keep centroid ±3; propose integral 0.186 only (width 3, no height), loses nothing measurable (dEff -0.00 ± 0.00 pt, dFakes +0.01 ± 0.01 at PU200; same on r16443-val). Not applied to `working_points.py`. [doc](../evaluation/hllhc_peak_finding_consolidation_2026-11-13.md) |
+| A. HL-LHC peak-finding consolidation | agent peakfind | DONE (06add98). Adopted 13 Nov in working_points.py: s8 0.01/3/integral 0.186/no height/centroid ±3. Chain numbers need one recompute |
 | B. GNN v3 campaign: diagnostics + phase-1 runs | agent gnn-v3 | diagnosis DONE; phase-1 runs a-d TRAINING since 13 Nov 11:28 (tmux gnnv3_a/b/c/d, GPUs 0/1/2/0; logs outputs/11_13_2026_output/gnn_v3_campaign/train_*.log; ETA a 16:00, b/c 17:15, d 01:00 14 Nov; resume: `RUN=x bash scripts/run_gnn_v3_train.sh --resume`). Doc docs/evaluation/gnn_v3_campaign_2026-11-13.md |
 | C. GNN v3: scale best recipe, speed, selection | gnn-v3 | after B: evaluate a-d on the 7,500 validation entries (chain_inference_v3, one pass), CPU timing, then phase 2. Waiting for the coordinator's go |
 | D. Working-point options for Mattia | me | after C |

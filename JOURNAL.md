@@ -5556,3 +5556,11 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   structure with a different integral. The current 0.184 was partly tuned on the test set; 0.186 is not.
 - Doc: `docs/evaluation/hllhc_peak_finding_consolidation_2026-11-13.md`; outputs
   `outputs/11_13_2026_output/peak_finding/`.
+
+## 2026-11-13: HL-LHC peak finding consolidated (s8)
+- Adopted the consolidation study (docs/evaluation/hllhc_peak_finding_consolidation_2026-11-13.md):
+  s8 cuts are now amplitude 0.01, width 3, integral 0.186, no height cut, local centroid ±3,
+  the same structure as low pile-up. The height cut removed 0.1% of peaks; efficiency and fakes
+  unchanged within errors. 0.186 was tuned on r16638 only (0.184 had partly used the test set).
+- Local centroid ±3 kept: best or tied 68% residual on both files; the parabola adds splits.
+- Every chain number needs one recompute with these cuts (GNN v3 campaign will use them).

@@ -135,15 +135,17 @@ S8 = DensityModel(
     unet_channels=80,
     latent_channels=1,
     hidden=(128,) * 5,
-    # Cuts that give v6's fake rate: matched-FP scan at 0.17 mm, 12 Nov 2026,
-    # 0.182/0.0182 on r16443 and 0.186/0.0186 on r16638; the two-file mean
-    # 0.184 gives fakes/event -0.06 / +0.10 vs v6 (0.18 gave +0.09 / +0.24).
-    # docs/evaluation/model_freeze_candidates_2026-11-12.md
+    # Consolidated 13 Nov 2026: integral only, no height cut (the low pile-up
+    # structure). 0.186 matches v6's fake rate on r16638 even entries; the
+    # 0.0184 height cut removed 0.1% of peaks and changed nothing measurable
+    # (efficiency -0.00, fakes +0.01/event at PU200). The 12 Nov value 0.184
+    # was partly tuned on r16443 0-24,999 (the test set); 0.186 never read it.
+    # docs/evaluation/hllhc_peak_finding_consolidation_2026-11-13.md
     peaks=PeakFinding(
         amplitude=0.01,
         min_width=3,
-        integral=0.184,
-        min_height=0.0184,
+        integral=0.186,
+        min_height=0.0,
         centroid_halfwidth=3,
     ),
     frozen=True,
