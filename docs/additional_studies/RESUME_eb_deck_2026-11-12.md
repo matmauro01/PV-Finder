@@ -50,7 +50,7 @@ status table as items finish, and commit + push this file each time.
 | item | status |
 |---|---|
 | EB rebuild at t = 0.94 | DONE, commit 876dcae (32 pages) |
-| investigations 1,2,3,4,10,11,15 | in progress -> docs/additional_studies/eb_deck_answers_2026-11-13.md |
+| investigations 1,2,3,4,10,11,15 | DONE, docs/additional_studies/eb_deck_answers_2026-11-13.md (d9f799f) |
 | deck edits 1-15 | in progress (deck-edit agent, started ~01:00 13 Nov) |
 | paper deck fill | todo |
 | note edits + MR | todo |

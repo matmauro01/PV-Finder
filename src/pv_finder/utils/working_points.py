@@ -184,9 +184,10 @@ HLLHC = Regime(
         ),
         # t = 0.94, 12 Nov 2026 (rescan under the >= 2-track vertex rule, both
         # algorithms; replaces 0.97, chosen under the >= 1-track convention).
-        # Best all-round: beats AMVF in Clean/truth in every mu range (0.97
-        # falls below AMVF at mu < 20), track F1 above AMVF at PU200 and
-        # inclusive, highest HS selection.
+        # Best all-round: Clean/truth above AMVF for mu >= 10 (2.5 pt below at
+        # mu 0-10; 0.97 is below AMVF over all of mu < 20), track F1 above AMVF
+        # at PU200 and inclusive, highest HS selection. Trade-off: Clean HS and
+        # HS purity fall below AMVF (0.97 keeps them level).
         # outputs/11_12_2026_output/hllhc_final/t_rescan_min2/t_rescan_min2.md
         t=0.94,
         frozen=True,
