@@ -49,8 +49,10 @@ status table as items finish, and commit + push this file each time.
 ## Status
 | item | status |
 |---|---|
-| EB rebuild at t = 0.94 | in progress (HL-LHC agent resumed 00:51 13 Nov after usage reset) |
+| EB rebuild at t = 0.94 | DONE, commit 876dcae (32 pages) |
 | investigations 1,2,3,4,10,11,15 | in progress -> docs/additional_studies/eb_deck_answers_2026-11-13.md |
-| deck edits 1-15 | todo |
+| deck edits 1-15 | in progress (deck-edit agent, started ~01:00 13 Nov) |
 | paper deck fill | todo |
 | note edits + MR | todo |
+
+Note 13 Nov: at t = 0.94 Clean HS 88.3 vs AMVF 92.5 and HS purity 82.3 vs 88.4 are below AMVF (at 0.97 they were 94.6 / 88.2); HS selection 95.1 and HS resolution 9.5 um still better. Report this to Mattia plainly.
