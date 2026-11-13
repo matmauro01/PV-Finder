@@ -9,6 +9,7 @@ window outside a documented allowlist.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import re
 import subprocess
 import sys
@@ -59,10 +60,19 @@ def test_decided_values() -> None:
 
 
 def test_unfrozen_regime_raises() -> None:
+    pending = dataclasses.replace(wp.LOWPU, pending=("GNN t",))
     with pytest.raises(RuntimeError, match="not frozen"):
-        wp.LOWPU.require_frozen()
+        pending.require_frozen()
     with pytest.raises(ValueError):
         wp.get_regime("run4")
+
+
+def test_lowpu_frozen_12nov2026() -> None:
+    """Low pile-up freeze, 12 Nov 2026: e400 density, mu60 v2 e115, t = 0.97."""
+    wp.LOWPU.require_frozen()
+    assert wp.LOWPU.density.name == "e400" and wp.LOWPU.density.frozen
+    assert wp.LOWPU.gnn.frozen and wp.LOWPU.gnn.t == wp.HLLHC.gnn.t == 0.97
+    assert wp.LOWPU.gnn.checkpoint.endswith("ttva_gat_mu60_v2_aug_epoch_115.pyt")
 
 
 def test_regime_dict_is_plain() -> None:
@@ -151,6 +161,8 @@ ALLOWLIST: dict[str, str] = {
     "note Fig. 7.2 for comparison only",
     "scripts/target_readout.py": "documented pre-freeze study (11 Nov 2026)",
     "scripts/eb_numbers.py": "EB deck source keys; repointed in the recompute",
+    "scripts/lowpu_final_summary.py": "reproduces the pre-freeze AMVF anchors at "
+    "0.1694 mm (gate)",
     "src/pv_finder/diagnostics/amvf_fairness_audit.py": "printed text only",
     "src/pv_finder/diagnostics/metric_worked_example.py": "worked example",
     "src/pv_finder/diagnostics/satellite_mechanism.py": "mechanism study",

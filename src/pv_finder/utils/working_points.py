@@ -199,12 +199,19 @@ LOWPU = Regime(
     pairwise_bins=PAIRWISE_BINS,
     density=E400,
     gnn=GNNWorkingPoint(
-        checkpoint=None,
-        t=0.99,
-        frozen=False,
-        note="t = 0.99 proposed; GNN to be re-run on e400 peaks",
+        # The low pile-up (mu 0-80) GNN behind every earlier low pile-up chain
+        # number (JOURNAL 2026-07-14): v2 retrain with fixed heights and
+        # augmentation, trained on the 48,450 non-test Run 2 MC events.
+        checkpoint="model_weights/ttva_gnn_mu60_v2/ttva_gat_mu60_v2_aug_epoch_115.pyt",
+        # Same t as HL-LHC (Mattia, 12 Nov 2026), kept because the Run 2 MC scan
+        # on e400 peaks at integral 0.50 shows it is not worse all-round: no
+        # other t beats it in Clean/truth, HS identification and track F1
+        # together. docs/evaluation/lowpu_final_numbers_2026-11-12.md
+        t=0.97,
+        frozen=True,
+        note="mu60 v2 e115, t = 0.97 (= HL-LHC); FROZEN 12 Nov 2026",
     ),
-    pending=("GNN checkpoint", "GNN t"),
+    pending=(),
 )
 
 REGIMES: dict[str, Regime] = {r.name: r for r in (HLLHC, LOWPU)}
