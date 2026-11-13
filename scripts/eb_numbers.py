@@ -46,6 +46,8 @@ SOURCES: dict[str, dict] = {
         "t": "regime value (gnnT below); vertices with >= 2 tracks for both algorithms",
         "chain": FIN / "chain/chain_headline.json",
         "extras": FIN / "chain_extras/chain_extras_summary.json",
+        "q15": OUT
+        / "11_13_2026_output/eb_questions/item15_hs_selection/amvf_primary_from_fit_tracks.json",
         "recon": OUT
         / "11_09_2026_output/hs_selection_reconciliation/reconciliation.json",
     },
@@ -160,6 +162,14 @@ def numbers() -> list[Num]:
             "AMVF stored primary"),
         Num("hsSelAMVFrule", "gnn", "chain", f"{p}/hs_selection/amvf_rule", 100, "{:.1f}",
             "AMVF with the identical rule (our code)"),
+        Num("hsSelGNNErr", "gnn", "chain", f"{p}/hs_selection/gnn_rule_err", 100, "{:.1f}"),
+        Num("hsSelAMVFErr", "gnn", "chain", f"{p}/hs_selection/amvf_stored_err", 100, "{:.1f}"),
+        Num("hsSelDiffErr", "gnn", "chain", f"{p}/hs_selection/gnn_minus_stored_err", 100, "{:.1f}"),
+        Num("amvfFitAgreePU", "gnn", "q15", "result/fit/pu200/frac", 100,
+            "{:.1f}", "AMVF stored primary = sum pT^2 leader of its fit tracks"),
+        Num("amvfFitAgreeN", "gnn", "q15", "result/fit/all/agree", 1, "{:,.0f}"),
+        Num("amvfFitWAgreePU", "gnn", "q15", "result/fit_w05/pu200/frac", 100, "{:.1f}"),
+        Num("amvfAssocAgreePU", "gnn", "q15", "result/assoc/pu200/frac", 100, "{:.1f}"),
         Num("hsSelAMVFrerank", "gnn", "recon", "pu200_185_200/flags/rerank_plurality/value", 100),
         Num("hsResGNN", "gnn", "chain", f"{p}/hs_resolution_um/gnn", 1, "{:.1f}",
             "3D adaptive beam-spot fit on the GNN tracks at t"),
@@ -313,6 +323,7 @@ def _derived(v: dict[str, float]) -> dict[str, str]:
         # s5 was not re-measured on 12 Nov: its speed-up is from the 9 Nov invocation
         "spdSFive": f"{v['cpuVsixPadNovNine'] / v['cpuSFivePack']:.1f}",
         "cleanRatio": f"{v['cleanTruthGNN'] / v['cleanTruthAMVF']:.1f}",
+        "hsSelDiff": f"{v['hsSelGNN'] - v['hsSelAMVF']:.1f}",
         "sigRatioHL": f"{v['sigAMVF'] / v['sigPVF']:.2f}",
         "pvfOverTgtHL": f"{v['sigPVF'] / v['tgtSigHL']:.1f}",
         "pvfOverTgtRunTwo": f"{v['sigMC'] / v['tgtSigRunTwo']:.1f}",

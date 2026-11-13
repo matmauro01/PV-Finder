@@ -78,12 +78,30 @@ Twelve $40$ mm intervals: $12{,}000$ bins of $0.04$ mm over $|z|<240$ mm.
 
 %----------------------------------------------------------------------
 %----------------------------------------------------------------------
+\begin{frame}{Forty-Millimetre Intervals}
+\relax
+{\centering\includegraphics[width=.9\linewidth,height=.4\textheight,keepaspectratio]{images/boundary_efficiency.png}\\[.1em]
+\footnotesize Efficiency (left) and fake fraction (right) versus distance to the nearest interval edge, PU200\par}
+\par\vspace{.5em}
+\begin{columns}[t]
+\begin{column}{.31\linewidth}\small\textbf{Why split}\\[.3em]\footnotesize
+Fixed $1{,}000$-bin ($40$ mm) network output. A whole $480$ mm event would need a $12{,}000$-bin output per track: $12\times$ the memory. The U-Net needs only local context.
+\end{column}
+\begin{column}{.31\linewidth}\small\textbf{Boundaries}\\[.3em]\footnotesize
+No overlap. Each track goes to the interval of its $z_0$ and carries the interval bounds as inputs. Peaks are found on the stitched $12{,}000$-bin histogram. The GNN sees the whole event.
+\end{column}
+\begin{column}{.32\linewidth}\small\textbf{Check}\\[.3em]\footnotesize
+Efficiency is flat to within $0.1$ mm of an edge ($82$--$85\%$ against $83.1\%$). Extra fakes at the edges: $0.2$ per event, $1\%$ of the fakes. AMVF, with no intervals, is the control.
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
 \begin{frame}{Peak Finding and the Working Point}
 \begin{columns}[c]\begin{column}{.42\linewidth}\centering
-\img{.5}{method_example_e2e.png}
+\img{.42}{method_example_e2e.png}
 \end{column}\begin{column}{.55\linewidth}
 \centering\small
-\begin{tabular}{lcc}\toprule
+\renewcommand{\arraystretch}{.95}\begin{tabular}{lcc}\toprule
  & HL-LHC & Low pile-up\\\midrule
 Density network & s8 & e400\\
 Amplitude threshold & $\ampThr$ & $\ampThrLow$\\
@@ -97,8 +115,7 @@ Hard-scatter window & \multicolumn{2}{c}{$\hsWindowMM$ mm}\\
 Vertex after the GNN & \multicolumn{2}{c}{$\geq2$ tracks}\\\bottomrule
 \end{tabular}
 \par\vspace{.6em}\raggedright\footnotesize
-Peaks split at local minima; position from the centroid around the maximum.
-%WPJUSTIFY
+Two networks, two sets of cuts: integral and height are in units of each network's output, each set chosen at a matched fake rate. HL-LHC cuts at low pile-up: $+1.8$ points efficiency, but $4.0$ fakes per event instead of $2.4$ (AMVF $2.5$).
 \end{column}\end{columns}
 \end{frame}
 
@@ -111,7 +128,7 @@ Peaks split at local minima; position from the centroid around the maximum.
 \textbf{Edges:} each track to its $k=20$ nearest vertices, with
 \[\frac{z_0-z_{\rm PV}}{\sqrt{\sigma_{z_0}^2+\sigma_{\rm PV}^2}},\quad \frac{d_0}{\sigma_{d_0}},\quad |z_0-z_{\rm PV}|.\]
 \textbf{Output:} a score per edge. A track goes to its best vertex if the score passes $t=\gnnT$.\\[.6em]
-Graph attention network, $\gnnParams$ parameters.
+Graph attention network, $\gnnParams$ parameters. Size not scanned yet: training and validation loss are equal and flat, and more training data helped, so a wider network is the next test.
 \end{column}\begin{column}{.45\linewidth}\centering\resizebox{.85\linewidth}{!}{\begin{tikzpicture}[x=0.85cm, y=0.85cm]
   \foreach \y/\n in {3.6/1, 2.4/2, 1.2/3, 0.0/4} {
     \filldraw[fill=mydarkblue!14, draw=mydarkblue!70, thick] (0,\y) circle (8pt) node[font=\scriptsize] {\(t_\n\)};}
@@ -130,11 +147,14 @@ Graph attention network, $\gnnParams$ parameters.
 %----------------------------------------------------------------------
 \begin{frame}{HL-LHC Samples}
 \textbf{$\sqrt{s}=14$ TeV $t\bar t$, ITk, $|\eta|<4$}
-\par\vspace{1em}
+\par\vspace{.6em}
 \begin{columns}[t]
 \begin{column}{.31\linewidth}\textbf{Density network}\\[.5em]\small
 $\nTrainEvt$M training events at PU200.
-%SAMPLESWHY
+\par\vspace{.4em}
+It sees one $40$ mm interval at a time, and PU200 events already contain low-density intervals ($|z|>100$ mm).
+\par\vspace{.4em}
+It works at all $\mu$: the efficiency gain over AMVF is largest at $\mu<10$ ($+4.6$ points). Position at $\mu<20$: $1$--$1.6~\mu$m worse than AMVF.
 \end{column}
 \begin{column}{.31\linewidth}\textbf{GNN}\\[.5em]\small
 $\gnnTrainEvt$ training events at all $\mu$, $0$ to $200$.
@@ -144,7 +164,7 @@ Held-out events at all $\mu$, $0$ to $200$, never used in training.
 \par\vspace{.5em}
 PU200: $\nEvtPU$ events at $185\leq\mu\leq215$, $\langle\mu\rangle=\meanMu$, $\truthPerEvt$ truth vertices per event with $\geq2$ tracks.
 \end{column}\end{columns}
-\par\vspace{1.5em}
+\par\vspace{.6em}
 \context{Tracks: $p_T\geq0.9$ GeV, $|d_0|\leq1$ mm, $\sigma(d_0)\leq0.35$ mm, $|z_0|\leq200$ mm.}
 \end{frame}
 
@@ -242,7 +262,22 @@ Every vertex with $\geq2$ tracks, both algorithms. Tracks are counted, not weigh
 \item \textbf{One to one (finder cap):} vertices paired with truth vertices within $\windowMM$ mm, closest pairs first, each used once; divided by truth vertices with $\geq2$ tracks.
 \item \textbf{Truth-guided (simulation only):} each track to the vertex nearest its own truth vertex, if within $\windowMM$ mm. The best any assignment can do with these vertices.
 \end{itemize}
-%AMVFZ0
+\end{column}\end{columns}
+\end{frame}
+
+%----------------------------------------------------------------------
+\begin{frame}{Why AMVF Is Close to Nearest $z_0$}
+\begin{columns}[c]\begin{column}{.5\linewidth}\centering
+\img{.55}{amvf_variants_pu200.png}
+\end{column}\begin{column}{.48\linewidth}
+\footnotesize
+\begin{itemize}\setlength\itemsep{.25em}
+\item AMVF and nearest $z_0$ agree within $0.4$ points of Clean / truth in every $\mu$ bin.
+\item Both attach about $100\%$ of the tracks, $31\%$ wrongly at PU200, so most vertices fail the $70\%$ rule (Merged $43\%$, Split $22\%$).
+\item The headline uses AMVF's TTVA links, which analyses use. With AMVF's own fit tracks and fit weights: $46.3$ Clean vertices per event, $41.6\%$ Clean / truth (TTVA links: $\cleanTruthAMVF\%$).
+\item Run 2, $\mu=60$: our AMVF classification matches ATLAS ($23.8$ against $\approx23.5$ matched vertices per event). ITk publishes no categories at $\mu=200$.
+\item GNN: $+8.5$ points from learned assignment, $+11$ from leaving ambiguous tracks unassigned.
+\end{itemize}
 \end{column}\end{columns}
 \end{frame}
 
@@ -273,7 +308,10 @@ Vertices with $\geq2$ tracks for every arm.
 \small Clean vertices / truth vertices versus $\mu$, vertices with $\geq2$ tracks for every arm.
 \par\vspace{.6em}\footnotesize
 Error bars: event bootstrap (200 replicas), smaller than the markers.
-%LOWMU
+\par\vspace{.6em}
+\textbf{$\mu<10$:} $2.5\pm0.6$ points below AMVF. The single PU200-tuned cut $t$ removes $11\%$ of correctly assigned tracks where there is almost nothing to purify; small vertices drop below $2$ tracks. Without the cut the GNN is $3$ points above AMVF.
+\par\vspace{.5em}
+From $\mu=10$ the lead grows: $+4$ points at $10$--$20$, $+20$ at PU200. A $\mu$-dependent $t$ would recover low $\mu$.
 \end{column}\end{columns}
 \end{frame}
 
@@ -313,17 +351,16 @@ PU200 & GNN & AMVF\\\midrule
 Clean HS vertex & $\cleanHSGNN\%$ & $\cleanHSAMVF\%$\\
 HS tracks on HS vertex & $\hsTrkGNN\%$ & $\hsTrkAMVF\%$\\
 HS vertex purity & $\hsPurGNN\%$ & $\hsPurAMVF\%$\\
-HS selected, Athena 24.0 rule & $\hsSelGNN\%$ & $\hsSelAMVFrule\%$\\
-HS selected, AMVF stored primary & & $\hsSelAMVF\%$\\\bottomrule
+HS selected & $\hsSelGNN\%$ & $\hsSelAMVF\%$\\\bottomrule
 \end{tabular}
 \par\vspace{.5em}\raggedright\scriptsize
 \textbf{HS vertex:} the vertex with the most hard-scatter tracks (ATLAS truth match).\\
 \textbf{Clean HS:} the vertex dominated by HS tracks is Clean ($\geq70\%$ HS tracks).\\
 \textbf{HS tracks on HS vertex:} HS tracks on it / all selected HS tracks.\\
 \textbf{HS purity:} HS tracks on it / all tracks on it.\\
-\textbf{HS selected:} the vertex with the largest $\sum p_T^2$ of its tracks is the HS vertex and lies within $\hsWindowMM$ mm of the true HS. Athena 24.0 rule: the same code for both, on GNN tracks or AMVF tracks. AMVF stored primary: the vertex AMVF itself ranks first.
+\textbf{HS selected (ITk definition):} the vertex with the largest $\sum p_T^2$ is the HS vertex and lies within $\hsWindowMM$ mm of the true HS. GNN: Athena 24.0 rule on its tracks. AMVF: its stored primary, which is the $\sum p_T^2$ leader of its fit tracks in $\amvfFitAgreeN$ of $\amvfFitAgreeN$ events.
 \par\vspace{.4em}\footnotesize
-The GNN puts more HS tracks on the HS vertex, and more pile-up tracks too: Clean HS and HS purity are below AMVF. HS selection is higher.
+The GNN puts more HS tracks on the HS vertex, and more pile-up tracks too: Clean HS and HS purity are below AMVF. HS selection is higher by $\hsSelDiff\pm\hsSelDiffErr$ points.
 \end{column}\begin{column}{.45\linewidth}\centering
 \img{.62}{hs_selection_eff_vs_mu.png}
 \end{column}\end{columns}
@@ -447,12 +484,11 @@ Packed inference alone: $\spdVsixPack\times$ for v6 at no cost. s5: 9 Nov measur
 
 %----------------------------------------------------------------------
 \begin{frame}{Summary}
-\begin{itemize}\setlength\itemsep{.65em}
+\begin{itemize}\setlength\itemsep{.45em}
 \item At PU200, before track association, PV-Finder finds $\effPVF\%$ of truth vertices against $\effAMVF\%$ for AMVF ($+\effDiff$ points), with fewer fakes.
 \item Vertex--vertex resolution $\sigPVF$ mm against $\sigAMVF$ mm for AMVF.
 \item With GNN track association: $\cleanTruthGNN\%$ clean vertices per truth vertex, against $\cleanTruthAMVF\%$ for AMVF (vertices with $\geq2$ tracks).
-%HSSUMMARY
-\item Hard scatter: selected in $\hsSelGNN\%$ of events with the Athena 24.0 rule, against $\hsSelAMVFrule\%$ for AMVF with the same rule ($\hsSelAMVF\%$ with its stored primary). Position resolution $\hsResGNN~\mu$m against $\hsResAMVF~\mu$m. Clean HS vertex and HS purity are below AMVF.
+\item Hard scatter reconstructed within $\hsWindowMM$ mm and selected as the highest-$\sum p_T^2$ vertex: $\hsSelGNN\pm\hsSelGNNErr\%$ against $\hsSelAMVF\pm\hsSelAMVFErr\%$ for AMVF (ITk definition; AMVF's own primary, consistent with the ITk paper's $\approx92\%$). Position resolution $\hsResGNN~\mu$m against $\hsResAMVF~\mu$m. Clean HS vertex and HS purity are below AMVF.
 \item Low pile-up: $\effMC\%$ against $\effMCAMVF\%$ efficiency in Run 2 simulation; $\svtx$ about half of AMVF's in simulation, Run 2 and Run 3 data.
 \item Running in Athena on CPU and GPU.
 \end{itemize}
@@ -497,14 +533,17 @@ PV-Finder / target & $\pvfOverTgtRunTwo$ & $\pvfOverTgtHL$\\\bottomrule
 
 
 \begin{frame}{Backup: AMVF Hard-Scatter Selection}
-\begin{columns}[c]\begin{column}{.55\linewidth}\centering
-\img{.62}{amvf_hs_selection_vs_mu.png}
-\end{column}\begin{column}{.42\linewidth}
 \small
-\textbf{AMVF stored primary vertex:} $\hsSelAMVF\%$ at PU200, as in the ITk performance paper.
-\par\vspace{.6em}
-Re-ranking the stored track lists by $\sum p_T^2$ gives $\hsSelAMVFrerank\%$: a few very high-$p_T$ tracks change the leading vertex.
-\end{column}\end{columns}
+\textbf{Which AMVF number is fair.} Largest-$\sum p_T^2$ vertex from different AMVF track lists, compared with the AMVF stored primary, PU200:
+\par\vspace{.7em}\centering
+\begin{tabular}{lr}\toprule
+Track list & Agrees with stored primary\\\midrule
+Fit tracks (what Athena's sorting ranks) & $\amvfFitAgreePU\%$ ($\amvfFitAgreeN$ / $\amvfFitAgreeN$ events, all $\mu$)\\
+Fit tracks with weight $>0.5$ & $\amvfFitWAgreePU\%$\\
+TTVA links & $\amvfAssocAgreePU\%$\\\bottomrule
+\end{tabular}
+\par\vspace{.8em}\raggedright
+The stored primary is the Athena $\sum p_T^2$ rule on AMVF's own inputs: $\hsSelAMVF\%$ HS reconstructed and selected at PU200, as in the ITk paper ($\approx92\%$). The same rule on the TTVA links, which Athena never ranks, gives $\hsSelAMVFrule\%$.
 \end{frame}
 
 \begin{frame}{Backup: Hard-Scatter Tracks and Clean HS versus Pile-up}
