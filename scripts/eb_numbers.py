@@ -43,16 +43,16 @@ SOURCES: dict[str, dict] = {
     },
     "gnn": {
         "checkpoint": "GNN v2 epoch 527 (ttva_gat_alleta_k20_fullmu_v2_150k), FROZEN",
-        "t": "0.97; vertices with >= 2 tracks for both algorithms",
+        "t": "regime value (gnnT below); vertices with >= 2 tracks for both algorithms",
         "chain": FIN / "chain/chain_headline.json",
         "extras": FIN / "chain_extras/chain_extras_summary.json",
         "recon": OUT
         / "11_09_2026_output/hs_selection_reconciliation/reconciliation.json",
     },
     "lowpu": {
-        "checkpoint": "Run 2 reproduction model (reproduction_ep300), integral 0.50",
-        "datamc": OUT / "11_09_2026_output/data_mc_validation/results.json",
-        "r2r4": OUT / "11_09_2026_output/run2_vs_run4_resolution/results.json",
+        "checkpoint": "PVF-e400 (lowpu regime), integral 0.50, no height cut, FROZEN 12 Nov 2026",
+        "window": "0.17 mm (HS 0.1 mm), regime lowpu",
+        "vf": OUT / "11_12_2026_output/lowpu_final/summary/vf_results.json",
         "target": OUT / "11_11_2026_output/target_readout/results.json",
     },
 }
@@ -86,7 +86,6 @@ def numbers() -> list[Num]:
     s8, am = "arms/s8@common", "arms/AMVF"
     ms = "MEASURED/density_onnx/ms_per_event"
     z0 = "bins/PU200 (185-215)/arms/min2/clean_per_truth/value"
-    mt = "matching/fitted_sample"
     # fmt: off
     return [
         # HL-LHC vertex finding (density model s8, before the GNN)
@@ -172,18 +171,32 @@ def numbers() -> list[Num]:
         Num("trkFOneAMVF", "gnn", "chain", f"{p}/trk_f1/amvf", 100, "{:.1f}"),
         Num("nOneTrkDropped", "gnn", "chain", f"{p}/table4/one_track_candidates_dropped", 1 / 1920, "{:.1f}",
             "PV-Finder candidates with exactly one GNN track, per PU200 event"),
-        # low pile-up (Run 2 reproduction model)
-        Num("sigMC", "lowpu", "datamc", "sigma/mc/fit", 1, "{:.3f}"),
-        Num("sigRunTwo", "lowpu", "datamc", "sigma/run2/fit", 1, "{:.3f}"),
-        Num("sigRunThree", "lowpu", "datamc", "sigma/run3/fit", 1, "{:.3f}"),
-        Num("effMC", "lowpu", "datamc", f"{mt}/mc_truth_ref/recovery", 100),
-        Num("noRefMCtruth", "lowpu", "datamc", f"{mt}/mc_truth_ref/no_ref_per_evt", 1, "{:.2f}"),
-        Num("noRefMCamvf", "lowpu", "datamc", f"{mt}/mc_amvf_ref/no_ref_per_evt", 1, "{:.2f}"),
-        Num("noRefRunTwo", "lowpu", "datamc", f"{mt}/run2_data_amvf_ref/no_ref_per_evt", 1, "{:.2f}"),
-        Num("noRefRunThree", "lowpu", "datamc", f"{mt}/run3_data_amvf_ref/no_ref_per_evt", 1, "{:.2f}"),
-        Num("sigMCAMVF", "lowpu", "r2r4", "sigma/run2/amvf/sigma_mm", 1, "{:.3f}"),
-        Num("sigMCPVFr", "lowpu", "r2r4", "sigma/run2/pvf_int050_h000_full/sigma_mm", 1, "{:.3f}"),
-        Num("ratioRunTwo", "lowpu", "r2r4", "sigma/run2/ratio_amvf_over_pvf/ratio", 1, "{:.2f}"),
+        # low pile-up (PVF-e400, lowpu_final): Run 2 MC, Run 2 and Run 3 data, same events for AMVF
+        Num("effMC", "lowpu", "vf", "mc/pvf/recovery", 100),
+        Num("effMCAMVF", "lowpu", "vf", "mc/amvf/recovery", 100),
+        Num("effMCDiff", "lowpu", "vf", "mc/delta_pvf_minus_amvf/recovery/delta", 100),
+        Num("effMCDiffErr", "lowpu", "vf", "mc/delta_pvf_minus_amvf/recovery/delta_err", 100, "{:.1f}"),
+        Num("fakeMCPVF", "lowpu", "vf", "mc/pvf/no_ref_per_evt", 1, "{:.2f}"),
+        Num("fakeMCAMVF", "lowpu", "vf", "mc/amvf/no_ref_per_evt", 1, "{:.2f}"),
+        Num("sigMC", "lowpu", "vf", "mc/pvf/sigma_vtx_vtx_mm/value", 1, "{:.3f}"),
+        Num("sigMCErr", "lowpu", "vf", "mc/pvf/sigma_vtx_vtx_mm/err", 1, "{:.3f}"),
+        Num("sigMCAMVF", "lowpu", "vf", "mc/amvf/sigma_vtx_vtx_mm/value", 1, "{:.3f}"),
+        Num("sigMCAMVFErr", "lowpu", "vf", "mc/amvf/sigma_vtx_vtx_mm/err", 1, "{:.3f}"),
+        Num("meanMuMC", "lowpu", "vf", "mc/mean_mu"),
+        Num("nEvtMC", "lowpu", "vf", "mc/n_events", 1, "{:,.0f}"),
+        Num("sigRunTwo", "lowpu", "vf", "run2/pvf/sigma_vtx_vtx_mm/value", 1, "{:.3f}"),
+        Num("sigRunTwoAMVF", "lowpu", "vf", "run2/amvf_ref/sigma_vtx_vtx_mm/value", 1, "{:.3f}"),
+        Num("sigRunThree", "lowpu", "vf", "run3/pvf/sigma_vtx_vtx_mm/value", 1, "{:.3f}"),
+        Num("sigRunThreeAMVF", "lowpu", "vf", "run3/amvf_ref/sigma_vtx_vtx_mm/value", 1, "{:.3f}"),
+        Num("recMCamvf", "lowpu", "vf", "mc/pvf_vs_amvf_reference/recovery", 100),
+        Num("recRunTwo", "lowpu", "vf", "run2/pvf/recovery", 100),
+        Num("recRunThree", "lowpu", "vf", "run3/pvf/recovery", 100),
+        Num("meanMuRunTwo", "lowpu", "vf", "run2/mean_mu"),
+        Num("meanMuRunThree", "lowpu", "vf", "run3/mean_mu"),
+        Num("noRefMCtruth", "lowpu", "vf", "mc/pvf/no_ref_per_evt", 1, "{:.2f}"),
+        Num("noRefMCamvf", "lowpu", "vf", "mc/pvf_vs_amvf_reference/no_ref_per_evt", 1, "{:.2f}"),
+        Num("noRefRunTwo", "lowpu", "vf", "run2/pvf/no_ref_per_evt", 1, "{:.2f}"),
+        Num("noRefRunThree", "lowpu", "vf", "run3/pvf/no_ref_per_evt", 1, "{:.2f}"),
         Num("tgtSigRunTwo", "lowpu", "target", "run2/target_run2cfg/sigma/sigma_mm", 1, "{:.3f}"),
         Num("tgtSigHL", "lowpu", "target", "hl_pu200/target_notecfg/sigma/sigma_mm", 1, "{:.3f}"),
         Num("tgtSigHLwone", "lowpu", "target", "hl_pu200/target_notecfg_w1/sigma/sigma_mm", 1, "{:.3f}"),
@@ -274,7 +287,16 @@ def _regime_macros() -> dict[str, str]:
 
     r = get_regime("hllhc")
     r.require_frozen()
+    lo = get_regime("lowpu")
+    lo.require_frozen()
     return {
+        "intThrLow": f"{lo.peaks.integral:g}",
+        "heightThrLow": f"{lo.peaks.min_height:g}",
+        "ampThrLow": f"{lo.peaks.amplitude:g}",
+        "minWidthLow": f"{lo.peaks.min_width:d}",
+        "centroidHWLow": f"{lo.peaks.centroid_halfwidth:d}",
+        "gnnTLow": f"{lo.gnn.t:g}",
+        "windowMMLow": f"{lo.match_window_mm:g}",
         "windowMM": f"{r.match_window_mm:g}",
         "hsWindowMM": f"{r.hs_match_window_mm:g}",
         "gnnT": f"{r.gnn.t:g}",
@@ -293,7 +315,8 @@ def _derived(v: dict[str, float]) -> dict[str, str]:
         "cleanRatio": f"{v['cleanTruthGNN'] / v['cleanTruthAMVF']:.1f}",
         "sigRatioHL": f"{v['sigAMVF'] / v['sigPVF']:.2f}",
         "pvfOverTgtHL": f"{v['sigPVF'] / v['tgtSigHL']:.1f}",
-        "pvfOverTgtRunTwo": f"{v['sigMCPVFr'] / v['tgtSigRunTwo']:.1f}",
+        "pvfOverTgtRunTwo": f"{v['sigMC'] / v['tgtSigRunTwo']:.1f}",
+        "ratioRunTwo": f"{v['sigMCAMVF'] / v['sigMC']:.2f}",
     }
 
 
@@ -322,7 +345,8 @@ def build() -> str:
         out.append(f"% derived from the macros above ({macro})")
         out.append(f"\\newcommand{{\\{macro}}}{{{val}}}")
     for macro, val in _regime_macros().items():
-        out.append(f"% REGIME hllhc (pv_finder.utils.working_points): {macro}")
+        rg = "lowpu" if macro.endswith("Low") else "hllhc"
+        out.append(f"% REGIME {rg} (pv_finder.utils.working_points): {macro}")
         out.append(f"\\newcommand{{\\{macro}}}{{{val}}}")
     for macro, val, src, grp in MANUAL:
         out.append(f"% MANUAL [{grp}]: {src}")

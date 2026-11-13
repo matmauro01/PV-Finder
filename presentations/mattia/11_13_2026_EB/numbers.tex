@@ -4,8 +4,9 @@
 %     window: 0.17 mm (HS 0.1 mm), regime hllhc
 %     peaks: amplitude 0.01, width >= 3 bins, integral 0.184, height 0.0184, centroid +-3
 % [gnn] checkpoint: GNN v2 epoch 527 (ttva_gat_alleta_k20_fullmu_v2_150k), FROZEN
-%     t: 0.97; vertices with >= 2 tracks for both algorithms
-% [lowpu] checkpoint: Run 2 reproduction model (reproduction_ep300), integral 0.50
+%     t: regime value (gnnT below); vertices with >= 2 tracks for both algorithms
+% [lowpu] checkpoint: PVF-e400 (lowpu regime), integral 0.50, no height cut, FROZEN 12 Nov 2026
+%     window: 0.17 mm (HS 0.1 mm), regime lowpu
 %
 % density: outputs/11_12_2026_output/hllhc_final/h1_vertex_finding/split_inclusive/results.json :: windows/r16443@0.17/pvf/eff
 \newcommand{\effPVF}{83.1}
@@ -137,28 +138,56 @@
 \newcommand{\trkFOneAMVF}{68.5}
 % gnn: outputs/11_12_2026_output/hllhc_final/chain/chain_headline.json :: headline/PU200 (185-215)/table4/one_track_candidates_dropped (PV-Finder candidates with exactly one GNN track, per PU200 event)
 \newcommand{\nOneTrkDropped}{17.8}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: sigma/mc/fit
-\newcommand{\sigMC}{0.416}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: sigma/run2/fit
-\newcommand{\sigRunTwo}{0.368}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: sigma/run3/fit
-\newcommand{\sigRunThree}{0.348}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: matching/fitted_sample/mc_truth_ref/recovery
-\newcommand{\effMC}{91.6}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: matching/fitted_sample/mc_truth_ref/no_ref_per_evt
-\newcommand{\noRefMCtruth}{0.42}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: matching/fitted_sample/mc_amvf_ref/no_ref_per_evt
-\newcommand{\noRefMCamvf}{1.72}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: matching/fitted_sample/run2_data_amvf_ref/no_ref_per_evt
-\newcommand{\noRefRunTwo}{1.82}
-% lowpu: outputs/11_09_2026_output/data_mc_validation/results.json :: matching/fitted_sample/run3_data_amvf_ref/no_ref_per_evt
-\newcommand{\noRefRunThree}{1.96}
-% lowpu: outputs/11_09_2026_output/run2_vs_run4_resolution/results.json :: sigma/run2/amvf/sigma_mm
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/pvf/recovery
+\newcommand{\effMC}{81.5}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/amvf/recovery
+\newcommand{\effMCAMVF}{75.7}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/delta_pvf_minus_amvf/recovery/delta
+\newcommand{\effMCDiff}{5.8}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/delta_pvf_minus_amvf/recovery/delta_err
+\newcommand{\effMCDiffErr}{0.1}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/pvf/no_ref_per_evt
+\newcommand{\fakeMCPVF}{2.36}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/amvf/no_ref_per_evt
+\newcommand{\fakeMCAMVF}{2.49}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/pvf/sigma_vtx_vtx_mm/value
+\newcommand{\sigMC}{0.392}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/pvf/sigma_vtx_vtx_mm/err
+\newcommand{\sigMCErr}{0.009}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/amvf/sigma_vtx_vtx_mm/value
 \newcommand{\sigMCAMVF}{0.789}
-% lowpu: outputs/11_09_2026_output/run2_vs_run4_resolution/results.json :: sigma/run2/pvf_int050_h000_full/sigma_mm
-\newcommand{\sigMCPVFr}{0.410}
-% lowpu: outputs/11_09_2026_output/run2_vs_run4_resolution/results.json :: sigma/run2/ratio_amvf_over_pvf/ratio
-\newcommand{\ratioRunTwo}{1.92}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/amvf/sigma_vtx_vtx_mm/err
+\newcommand{\sigMCAMVFErr}{0.015}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/mean_mu
+\newcommand{\meanMuMC}{38.9}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/n_events
+\newcommand{\nEvtMC}{2{,}550}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run2/pvf/sigma_vtx_vtx_mm/value
+\newcommand{\sigRunTwo}{0.356}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run2/amvf_ref/sigma_vtx_vtx_mm/value
+\newcommand{\sigRunTwoAMVF}{0.807}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run3/pvf/sigma_vtx_vtx_mm/value
+\newcommand{\sigRunThree}{0.333}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run3/amvf_ref/sigma_vtx_vtx_mm/value
+\newcommand{\sigRunThreeAMVF}{0.813}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/pvf_vs_amvf_reference/recovery
+\newcommand{\recMCamvf}{93.1}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run2/pvf/recovery
+\newcommand{\recRunTwo}{94.4}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run3/pvf/recovery
+\newcommand{\recRunThree}{94.0}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run2/mean_mu
+\newcommand{\meanMuRunTwo}{42.5}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run3/mean_mu
+\newcommand{\meanMuRunThree}{50.0}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/pvf/no_ref_per_evt
+\newcommand{\noRefMCtruth}{2.36}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: mc/pvf_vs_amvf_reference/no_ref_per_evt
+\newcommand{\noRefMCamvf}{3.00}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run2/pvf/no_ref_per_evt
+\newcommand{\noRefRunTwo}{3.01}
+% lowpu: outputs/11_12_2026_output/lowpu_final/summary/vf_results.json :: run3/pvf/no_ref_per_evt
+\newcommand{\noRefRunThree}{3.19}
 % lowpu: outputs/11_11_2026_output/target_readout/results.json :: run2/target_run2cfg/sigma/sigma_mm
 \newcommand{\tgtSigRunTwo}{0.203}
 % lowpu: outputs/11_11_2026_output/target_readout/results.json :: hl_pu200/target_notecfg/sigma/sigma_mm
@@ -180,7 +209,23 @@
 % derived from the macros above (pvfOverTgtHL)
 \newcommand{\pvfOverTgtHL}{1.5}
 % derived from the macros above (pvfOverTgtRunTwo)
-\newcommand{\pvfOverTgtRunTwo}{2.0}
+\newcommand{\pvfOverTgtRunTwo}{1.9}
+% derived from the macros above (ratioRunTwo)
+\newcommand{\ratioRunTwo}{2.01}
+% REGIME lowpu (pv_finder.utils.working_points): intThrLow
+\newcommand{\intThrLow}{0.5}
+% REGIME lowpu (pv_finder.utils.working_points): heightThrLow
+\newcommand{\heightThrLow}{0}
+% REGIME lowpu (pv_finder.utils.working_points): ampThrLow
+\newcommand{\ampThrLow}{0.01}
+% REGIME lowpu (pv_finder.utils.working_points): minWidthLow
+\newcommand{\minWidthLow}{3}
+% REGIME lowpu (pv_finder.utils.working_points): centroidHWLow
+\newcommand{\centroidHWLow}{3}
+% REGIME lowpu (pv_finder.utils.working_points): gnnTLow
+\newcommand{\gnnTLow}{0.94}
+% REGIME lowpu (pv_finder.utils.working_points): windowMMLow
+\newcommand{\windowMMLow}{0.17}
 % REGIME hllhc (pv_finder.utils.working_points): windowMM
 \newcommand{\windowMM}{0.17}
 % REGIME hllhc (pv_finder.utils.working_points): hsWindowMM
