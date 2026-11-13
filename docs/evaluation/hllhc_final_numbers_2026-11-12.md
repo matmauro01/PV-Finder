@@ -179,7 +179,8 @@ the same events. **M** = paper main, **B** = backup. `{tag}` = r16443 / r16638.
    at t = 0.97 it was 67.7 vs 68.5%. At mu 0-10 it is 91.3 vs 96.6%: the cut
    removes correct tracks of all vertex sizes there (19.5% of them at
    t = 0.97); without a cut the low-mu F1 equals AMVF (96.5 vs 96.6%). One
-   PU200-tuned t costs the low-mu track F1.
+   PU200-tuned t costs the low-mu track F1. By mu bin (cross-check), the GNN
+   F1 is above AMVF from mu = 40 upward and below it under mu = 40.
 4. **AMVF sigma_vtx-vtx sits on a fit boundary.** The production fit (unweighted,
    c >= 0) returns c = 4e-14 for AMVF: 0.305 mm. A sqrt(N)-weighted fit gives
    0.298 mm, an unbounded unweighted one 0.282 mm (cross-check). PV-Finder is
