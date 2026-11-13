@@ -49,8 +49,8 @@ status table as items finish, and commit + push this file each time.
 ## Status
 | item | status |
 |---|---|
-| EB rebuild at t = 0.94 | in progress (HL-LHC agent) |
-| investigations 1,2,3,4,10,11,15 | todo |
+| EB rebuild at t = 0.94 | in progress (HL-LHC agent resumed 00:51 13 Nov after usage reset) |
+| investigations 1,2,3,4,10,11,15 | in progress -> docs/additional_studies/eb_deck_answers_2026-11-13.md |
 | deck edits 1-15 | todo |
 | paper deck fill | todo |
 | note edits + MR | todo |
