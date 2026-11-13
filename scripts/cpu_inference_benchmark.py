@@ -5,7 +5,9 @@ quantises it to INT8 with ONNX Runtime, and times one event (a batch of 12
 sub-events of 695 padded tracks) on CPU at a fixed number of intra-op threads.
 
 Absolute times depend on the machine and its load; compare models measured in
-the same invocation.
+the same invocation. With ``--interleave`` all models are timed round-robin,
+event by event, so load drift during the run affects them alike (the default
+times one model after the other).
 
 Example:
     python -u scripts/cpu_inference_benchmark.py --out-dir outputs/11_09_2026_output/cpu_bench \
@@ -144,13 +146,26 @@ class _Calib(CalibrationDataReader):
         return next(self._it, None)
 
 
-def time_session(path: Path, threads: int, feeds: list[dict], n_rep: int) -> dict:
-    """Median and p90 wall time per event (ms)."""
+def make_session(path: Path, threads: int) -> ort.InferenceSession:
+    """CPU session at a fixed number of intra-op threads."""
     so = ort.SessionOptions()
     so.intra_op_num_threads = threads
     so.inter_op_num_threads = 1
     so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess = ort.InferenceSession(str(path), so, providers=["CPUExecutionProvider"])
+    return ort.InferenceSession(str(path), so, providers=["CPUExecutionProvider"])
+
+
+def _summary(times: list[float]) -> dict:
+    """Median and p90 of per-event times (ms)."""
+    return {
+        "median_ms": float(np.median(times)),
+        "p90_ms": float(np.percentile(times, 90)),
+    }
+
+
+def time_session(path: Path, threads: int, feeds: list[dict], n_rep: int) -> dict:
+    """Median and p90 wall time per event (ms)."""
+    sess = make_session(path, threads)
     for fd in feeds[:2]:
         sess.run(None, fd)  # warm-up
     times = []
@@ -159,10 +174,32 @@ def time_session(path: Path, threads: int, feeds: list[dict], n_rep: int) -> dic
         t0 = time.perf_counter()
         sess.run(None, fd)
         times.append((time.perf_counter() - t0) * 1e3)
-    return {
-        "median_ms": float(np.median(times)),
-        "p90_ms": float(np.percentile(times, 90)),
-    }
+    return _summary(times)
+
+
+def time_interleaved(
+    jobs: list[tuple[Path, int, list[dict]]], n_rep: int
+) -> list[dict]:
+    """Time all sessions round-robin on each event, so load drift hits all alike.
+
+    Each job is (onnx path, threads, feeds); event i is run on every session
+    before event i + 1. Returns one summary per job, in job order.
+    """
+    sessions = [make_session(p, th) for p, th, _ in jobs]
+    for sess, (_, _, feeds) in zip(sessions, jobs):
+        for fd in feeds[:2]:
+            sess.run(None, fd)  # warm-up
+    times: list[list[float]] = [[] for _ in jobs]
+    for i in range(n_rep):
+        for k, (sess, (_, _, feeds)) in enumerate(zip(sessions, jobs)):
+            fd = feeds[i % len(feeds)]
+            t0 = time.perf_counter()
+            sess.run(None, fd)
+            times[k].append((time.perf_counter() - t0) * 1e3)
+    out = [_summary(t) for t in times]
+    for o, t in zip(out, times):
+        o["times_ms"] = [round(x, 3) for x in t]
+    return out
 
 
 def main() -> None:
@@ -177,6 +214,11 @@ def main() -> None:
     )
     p.add_argument("--n-rep", type=int, default=20)
     p.add_argument("--quant", action="store_true", help="also time INT8 variants")
+    p.add_argument(
+        "--interleave",
+        action="store_true",
+        help="time all models round-robin event by event (load-robust ratios)",
+    )
     args = p.parse_args()
 
     out = Path(args.out_dir)
@@ -190,6 +232,7 @@ def main() -> None:
     pad_feeds = [{"tracks": e} for e in events]
     pk_feeds = packed_feeds(events)
     results = []
+    jobs: list[tuple[Path, int, list[dict]]] = []  # used with --interleave
     for spec in args.widths:
         parts = [int(v) for v in spec.split(":")]
         width, latent = parts[0], parts[1]
@@ -222,16 +265,17 @@ def main() -> None:
         for vname, vpath in variants.items():
             for th in args.threads:
                 feeds = pk_feeds if "packed" in vname else pad_feeds
-                r = time_session(vpath, th, feeds, args.n_rep)
-                row = {
-                    "spec": spec,
-                    "params": n_par,
-                    "variant": vname,
-                    "threads": th,
-                    **r,
-                }
-                print(json.dumps(row), flush=True)
+                row = {"spec": spec, "params": n_par, "variant": vname, "threads": th}
+                if args.interleave:
+                    jobs.append((vpath, th, feeds))
+                else:
+                    row.update(time_session(vpath, th, feeds, args.n_rep))
+                    print(json.dumps(row), flush=True)
                 results.append(row)
+    if args.interleave:
+        for row, r in zip(results, time_interleaved(jobs, args.n_rep)):
+            row.update(r, interleaved=True)
+            print(json.dumps({k: v for k, v in row.items() if k != "times_ms"}))
     ntrk = [e.shape[2] for e in events]
     print(f"track-axis width per event: median {np.median(ntrk):.0f}, max {max(ntrk)}")
     (out / "cpu_bench.json").write_text(json.dumps(results, indent=1))
