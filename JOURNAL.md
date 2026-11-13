@@ -5305,3 +5305,25 @@ sigma paragraph in the CPU-model page is marked superseded.
   t = 0.98, -0.24 ± 0.07 in HS selection, and equal in HS resolution.
 - Doc: `docs/evaluation/gnn_v2_freeze_2026-11-12.md`. Outputs:
   `outputs/11_12_2026_output/gnn_v2_freeze/`.
+
+## 2026-11-13: Paper deck for the paper draft (structure and placeholders)
+
+- **Deck:** `presentations/mattia/11_13_2026_paper/` (104 pages, EB-deck
+  theme). Frozen configuration per regime, datasets, metric definitions with
+  code, the 29 draft questions with page and line, Mattia's questions (window,
+  HS 0.1 mm, s8 freeze, GNN t and low-mu behaviour, CPU timing, binning, HS
+  selection rule, HS resolution, resolution vs mu), every paper figure
+  (main / backup) and placeholders for the note edits.
+- **Numbers:** all in `numbers.tex`. 138 macros are red TBD until the HL-LHC
+  and low pile-up recompute docs are final; each names its doc and JSON key and
+  the value seen on 12 Nov for checking.
+- **Figures:** `images.txt` + `build.sh` copy existing figures and draw framed
+  placeholders for the 14 not yet produced (mostly
+  `hllhc_final/h1_vertex_finding/` and `hllhc_final/resolution_vs_mu/`).
+- **New script:** `scripts/lowpu_mu_distributions.py` (pile-up of Run 2 MC
+  test, Run 2 data and Run 3 data from the eval pickles; read-only).
+- **Answers updated to the frozen configuration:** Fig. 3 latent is 1 x 1000
+  for s8 (not 4 x 1000); Table B.1 and the 3.55 M parameters describe v6
+  (s8: 80 channels, 439,593); s8 checkpoint is Phase-2 step 450,000 of 465,624
+  (host-memory stop before the epoch checkpoint, learning rate at the floor);
+  one t = 0.97 everywhere; low pile-up on PVF-e400 at integral 0.50.

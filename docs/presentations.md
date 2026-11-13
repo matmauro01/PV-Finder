@@ -1,5 +1,26 @@
 # Presentations
 
+The November 13, 2026 **paper deck** for the colleague finishing the PV-Finder
+paper draft is
+[`presentations/mattia/11_13_2026_paper`](../presentations/mattia/11_13_2026_paper/slides.tex)
+(Philadelphia theme, preamble copied from the EB deck). It has seven parts:
+the frozen configuration of both regimes, the datasets, the metric
+definitions with their code, answers to the 29 questions of the 11 November
+draft (page and line), answers to Mattia's own questions, every paper figure
+and number (main and backup marked), and placeholders for the internal-note
+edits (`noteedits.tex`).
+- Every number is a macro in `numbers.tex`. Numbers from the final recompute
+  that are not in yet are `\TBD` (red), each with its source doc and JSON key
+  in a comment, so the fill is mechanical.
+- Figures are listed in `images.txt` (name, expected source path, fallbacks).
+  `build.sh` copies each existing source into `images/` and writes
+  `images_manifest.tex`; a missing figure is drawn as a framed placeholder
+  naming its expected path. Re-running `bash build.sh` after the recompute picks
+  up the final figures. The build fails on any overfull box.
+- The low pile-up pile-up distributions come from
+  `scripts/lowpu_mu_distributions.py` (outputs in
+  `outputs/11_12_2026_output/paper_deck/lowpu_mu/`).
+
 The November 11, 2026 deck on the reviewer-requested additional studies is
 [`presentations/mattia/11_11_2026`](../presentations/mattia/11_11_2026/slides.tex)
 (16 pages: overview, one slide per study, next steps). Build with
