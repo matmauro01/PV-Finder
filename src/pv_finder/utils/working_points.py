@@ -182,12 +182,15 @@ HLLHC = Regime(
             "model_weights/ttva_gnn_hllhc_fullmu_v2_20261111/"
             "ttva_gat_alleta_k20_fullmu_v2_150k_epoch_527.pyt"
         ),
-        # t = 0.97 chosen by Mattia, 12 Nov 2026: Clean/truth within 0.6 pt of
-        # the maximum (0.98), most even across mu, better track F1 and HS
-        # resolution. docs/evaluation/gnn_v2_freeze_2026-11-12.md
-        t=0.97,
+        # t = 0.94, 12 Nov 2026 (rescan under the >= 2-track vertex rule, both
+        # algorithms; replaces 0.97, chosen under the >= 1-track convention).
+        # Best all-round: beats AMVF in Clean/truth in every mu range (0.97
+        # falls below AMVF at mu < 20), track F1 above AMVF at PU200 and
+        # inclusive, highest HS selection.
+        # outputs/11_12_2026_output/hllhc_final/t_rescan_min2/t_rescan_min2.md
+        t=0.94,
         frozen=True,
-        note="full-mu v2 e527, t = 0.97; FROZEN 12 Nov 2026",
+        note="full-mu v2 e527, t = 0.94; FROZEN 12 Nov 2026",
     ),
     pending=(),
 )
@@ -203,13 +206,13 @@ LOWPU = Regime(
         # number (JOURNAL 2026-07-14): v2 retrain with fixed heights and
         # augmentation, trained on the 48,450 non-test Run 2 MC events.
         checkpoint="model_weights/ttva_gnn_mu60_v2/ttva_gat_mu60_v2_aug_epoch_115.pyt",
-        # Same t as HL-LHC (Mattia, 12 Nov 2026), kept because the Run 2 MC scan
-        # on e400 peaks at integral 0.50 shows it is not worse all-round: no
-        # other t beats it in Clean/truth, HS identification and track F1
-        # together. docs/evaluation/lowpu_final_numbers_2026-11-12.md
-        t=0.97,
+        # Same t as HL-LHC (one parameter, Mattia 12 Nov 2026). At 0.94 the
+        # Run 2 MC scan (>= 2 tracks) gives the best track F1 and HS
+        # identification, Clean/truth 0.9 pt below its maximum.
+        # outputs/11_12_2026_output/lowpu_final/gnn_mc_ntrk2/t_options.md
+        t=0.94,
         frozen=True,
-        note="mu60 v2 e115, t = 0.97 (= HL-LHC); FROZEN 12 Nov 2026",
+        note="mu60 v2 e115, t = 0.94 (= HL-LHC); FROZEN 12 Nov 2026",
     ),
     pending=(),
 )

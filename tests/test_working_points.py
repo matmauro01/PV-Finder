@@ -68,10 +68,10 @@ def test_unfrozen_regime_raises() -> None:
 
 
 def test_lowpu_frozen_12nov2026() -> None:
-    """Low pile-up freeze, 12 Nov 2026: e400 density, mu60 v2 e115, t = 0.97."""
+    """Low pile-up freeze, 12 Nov 2026: e400 density, mu60 v2 e115, t = 0.94."""
     wp.LOWPU.require_frozen()
     assert wp.LOWPU.density.name == "e400" and wp.LOWPU.density.frozen
-    assert wp.LOWPU.gnn.frozen and wp.LOWPU.gnn.t == wp.HLLHC.gnn.t == 0.97
+    assert wp.LOWPU.gnn.frozen and wp.LOWPU.gnn.t == wp.HLLHC.gnn.t == 0.94
     assert wp.LOWPU.gnn.checkpoint.endswith("ttva_gat_mu60_v2_aug_epoch_115.pyt")
 
 
@@ -210,9 +210,9 @@ def test_allowlist_is_current() -> None:
 
 
 def test_hllhc_frozen_12nov2026() -> None:
-    """Freeze decided by Mattia on 12 Nov 2026: s8 density, GNN v2 e527, t = 0.97."""
+    """Freeze decided by Mattia on 12 Nov 2026: s8 density, GNN v2 e527, t = 0.94."""
     wp.HLLHC.require_frozen()
     assert wp.HLLHC.density.name == "s8" and wp.HLLHC.density.frozen
     assert wp.HLLHC.peaks.integral == 0.184 and wp.HLLHC.peaks.min_height == 0.0184
-    assert wp.HLLHC.gnn.t == 0.97 and wp.HLLHC.gnn.frozen
+    assert wp.HLLHC.gnn.t == 0.94 and wp.HLLHC.gnn.frozen
     assert wp.HLLHC.gnn.checkpoint.endswith("_epoch_527.pyt")
