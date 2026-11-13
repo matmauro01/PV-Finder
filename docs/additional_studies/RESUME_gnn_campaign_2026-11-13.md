@@ -34,4 +34,4 @@ first item not marked done. Commit + push this file whenever the table changes.
 | D. Working-point options for Mattia | me | after C |
 | E. Plot/slide fixes + EB deck refresh | me / agent | after D (numbers change) |
 | F. Paper deck fill | agent | after D |
-| G. Note edits + MR | agent noteedits | STARTED 13 Nov evening (Mattia asked to read them): branch mm-edits-2026-11-13 + Draft MR, summary docs/additional_studies/note_edits_2026-11-13.md; GNN-dependent numbers flagged pending |
+| G. Note edits + MR | agent noteedits | DONE 13 Nov: Draft MR !1 (branch mm-edits-2026-11-13, be5bf7d), PDF presentations/mattia/11_13_2026_paper/note_with_MM_edits_2026-11-13.pdf, summary docs/additional_studies/note_edits_2026-11-13.md. GNN v2 numbers as final; update after GNN v3 |
