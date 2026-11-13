@@ -8,7 +8,8 @@ H8 = everything with s8). PV-Finder vs AMVF on identical events.
 s8 (`hllhc_alleta_v6_s8_1p1ep_phase2_step_450000_fullstate.pth`, sha256
 `29e11c4b…3f431`), peaks amplitude 0.01 / width 3 / integral 0.184 / height
 0.0184 / local centroid ±3, window 0.17 mm (HS 0.1 mm), GNN v2 epoch 527
-(sha256 `aabccb41…f170e`), t = 0.97, sigma_vtx-vtx on the counted peaks.
+(sha256 `aabccb41…f170e`), **t = 0.94** (decided 13 Nov after the >= 2-track
+rescan below, commit a7cb5fa; was 0.97), sigma_vtx-vtx on the counted peaks.
 
 **Vertex rule after the GNN (decided 12 Nov, coordinator for Mattia):** a
 reconstructed vertex counts only with >= 2 tracks, for both algorithms
@@ -39,39 +40,56 @@ efficiencies: 68% Clopper-Pearson or bootstrap.
 | 3 x 68% [mm] (window derivation) | 0.1667 | 0.1694 | | same (rounds to 0.17) |
 | HS reconstruction, 0.1 mm [%] | 99.90 (1,918) | 99.79 (1,916) | +0.10 ± 0.10 | same |
 | s8 minus v6, Eq. (1) [pt] (r16443 / r16638) | -0.15 ± 0.04 / -0.08 ± 0.04 | | | `F/s8_vs_v6/compare_*.json` |
-| **After the GNN (t = 0.97, >= 2 tracks)** | | | | |
-| Vertices | 143,528 | 187,908 | | `F/chain/chain_headline.json` |
-| Clean / Merged / Split / Fake | 115,192 / 24,491 / 3,791 / 54 | 66,096 / 80,104 / 41,573 / 135 | | same |
-| Clean / truth (matched-vertex yield) [%] | 53.89 ± 0.11 | 30.92 ± 0.11 | +22.97 ± 0.10 | same |
-| Clean / reco [%] | 80.26 | 35.17 | +45.08 ± 0.12 | same |
-| Merged / reco [%] | 17.06 | 42.63 | -25.57 ± 0.13 | same |
-| Split / reco [%] | 2.64 | 22.12 | -19.48 ± 0.10 | same |
-| Fake / reco [%] | 0.04 | 0.07 | -0.03 ± 0.01 | same |
-| Positional taxonomy (labelled): truth found within 0.17 mm [%] | 73.45 ± 0.09 | 79.85 ± 0.09 | -6.41 ± 0.07 | same |
-| Positional taxonomy: fake / reco [%] | 4.78 ± 0.06 | 20.08 ± 0.10 | -15.31 ± 0.09 | same |
-| Vertices per event, Clean / Merged / Split / Fake | 60.00 / 12.76 / 1.97 / 0.03 | 34.42 / 41.72 / 21.65 / 0.07 | | `F/supplementary/classes.json` |
+| **After the GNN (t = 0.94, >= 2 tracks)** | | | | |
+| Vertices | 152,795 | 187,908 | | `F/chain/chain_headline.json` |
+| Clean / Merged / Split / Fake | 108,086 / 37,636 / 7,004 / 69 | 66,096 / 80,104 / 41,573 / 135 | | same |
+| Clean / truth (matched-vertex yield) [%] | 50.57 ± 0.12 | 30.92 ± 0.11 | +19.65 ± 0.10 | same |
+| Clean / reco [%] | 70.74 | 35.17 | +35.56 ± 0.12 | same |
+| Merged / reco [%] | 24.63 | 42.63 | -18.00 ± 0.12 | same |
+| Split / reco [%] | 4.58 | 22.12 | -17.54 ± 0.10 | same |
+| Fake / reco [%] | 0.05 | 0.07 | -0.03 ± 0.01 | same |
+| Positional taxonomy (labelled): truth found within 0.17 mm [%] | 76.00 ± 0.09 | 79.85 ± 0.09 | -3.86 ± 0.07 | same |
+| Positional taxonomy: fake / reco [%] | 7.04 ± 0.06 | 20.08 ± 0.10 | -13.04 ± 0.09 | same |
+| Vertices per event, Clean / Merged / Split / Fake | 56.29 / 19.60 / 3.65 / 0.04 | 34.42 / 41.72 / 21.65 / 0.07 | | `F/supplementary/classes.json` |
+| 1-track PV-Finder candidates dropped / event | 17.8 (34,116) | 0.03 (52) | | `F/chain/chain_headline.json` |
 | Finder cap (one-to-one, all peaks) [%] | 73.36 | 70.10 | +3.26 | `F/chain_extras/chain_extras_summary.json` |
 | Truth-guided = oracle Clean/truth [%] | 68.55 | | | same |
 | Eq. (4) baseline, s_max = 3 (best s_max = 2) [%] | 32.26 (32.67) | | | same |
 | z0 nearest / z0 within 3 sigma [%] | 31.31 / 32.34 | | | same |
-| Track efficiency / purity [%] | 55.98 / 85.55 | 68.32 / 68.65 | -12.34 ± 0.04 / +16.90 ± 0.04 | `F/chain/chain_headline.json` |
-| Track F1 [%] | 67.68 | 68.48 | **-0.80 ± 0.03** | same; xcheck |
-| Wrong-assignment rate [%] | 14.4 | 31.4 | | `F/chain_extras/...summary.json` |
-| Unassigned truth-matched tracks [%] | 34.6 | 0.5 | | same |
-| Clean HS vertex [%] | 94.58 ± 0.52 | 92.50 ± 0.61 | +2.08 ± 0.49 | `F/chain/chain_headline.json` |
-| HS tracks on the HS-matched vertex [%] | 80.88 ± 0.32 | 74.11 ± 0.33 | +6.77 ± 0.28 | same |
-| HS selection, identical Athena 24.0 rule [%] | 95.00 ± 0.52 (1,824) | 89.11 ± 0.69 (1,711) | | same |
-| HS selection, AMVF stored primary [%] | | 92.92 ± 0.56 (1,784) | GNN +2.08 ± 0.56 | same |
-| HS longitudinal resolution, 3D adaptive fit [um] | 9.48 ± 0.28 | 10.24 ± 0.27 | -0.77 ± 0.24 | same (1,915 common events) |
+| Track efficiency / purity [%] | 62.91 / 79.46 | 68.32 / 68.65 | -5.40 ± 0.03 / +10.81 ± 0.03 | `F/chain/chain_headline.json` |
+| Track F1 [%] | 70.22 | 68.48 | +1.74 | same |
+| Wrong-assignment rate [%] | 20.5 | 31.4 | | `F/chain_extras/...summary.json` |
+| Unassigned truth-matched tracks [%] | 20.8 | 0.5 | | same |
+| Clean HS vertex [%] | 88.33 ± 0.76 | 92.50 ± 0.61 | **-4.17 ± 0.61** | `F/chain/chain_headline.json` |
+| HS tracks on the HS-matched vertex [%] | 87.90 ± 0.23 | 74.11 ± 0.33 | +13.79 ± 0.27 | same |
+| HS vertex purity (HS tracks / tracks on it) [%] | 82.31 | 88.37 | **-6.06** | same |
+| HS selection, identical Athena 24.0 rule [%] | 95.05 ± 0.53 (1,825) | 89.11 ± 0.69 (1,711) | | same |
+| HS selection, AMVF stored primary [%] | | 92.92 ± 0.56 (1,784) | GNN +2.14 ± 0.54 | same |
+| HS longitudinal resolution, 3D adaptive fit [um] | 9.52 ± 0.26 | 10.24 ± 0.27 | -0.72 ± 0.22 | same (1,915 common events) |
 | **CPU at mu = 200** | | | | |
 | s8 packed, ONNX, 1 thread, sneezy (measured) [ms] | 174 (v6 padded 1,892; 10.9x) | | | `F/cpu_timing/cpu_timing.json` |
 | GNN v2 forward, torch, 1 thread (measured) [ms] | 98 | | | same |
 | Full chain on sneezy (measured, no Athena) [ms] | 277 | not measurable here | | same |
 | Athena-equivalent chain (projected) [ms] | 413 (range 336-456) | ~650 (600-750, read off note) | 1.57x faster | same |
 
-Inclusive (25,000 events, mu 0-200): Eq. (1) 83.36 vs 80.10%; Clean/truth
-60.12 vs 40.48%; HS selection 96.96 vs 95.14% (stored) / 93.36% (rule);
-HS resolution 9.56 vs 9.93 um; track F1 73.27 vs 74.43%.
+Inclusive (25,000 events, mu 0-200), t = 0.94: Eq. (1) 83.36 vs 80.10%;
+Clean/truth 57.74 vs 40.48%; HS selection 97.11 vs 95.14% (stored) / 93.36%
+(rule); HS resolution 9.48 vs 9.93 um; track F1 75.65 vs 74.43%; clean HS
+94.01 vs 96.59%. Low mu (0-10): track F1 91.3 vs 96.6% (t = 0: 96.5%).
+
+**t = 0.97 reference (>= 2 tracks, same events; superseded, labelled):**
+Clean/truth 53.89%, Clean/reco 80.26%, Split/reco 2.64%, positional
+efficiency 73.45%, track efficiency / purity / F1 55.98 / 85.55 / 67.68%,
+clean HS 94.58%, HS-track fraction 80.88%, HS purity 88.18%, HS selection
+95.00%, HS resolution 9.48 um (`F/chain/chain_headline.json` of the 0.97 run,
+reproduced from `chain_t_metrics` at t = 0.97).
+
+**Clean HS and HS purity trade against t.** A lower cut puts more tracks on
+the HS vertex: the HS-track fraction rises (80.9 -> 87.9%) but so do the
+pile-up tracks it collects, so the HS vertex purity falls (88.2 -> 82.3%) and
+the HS vertex drops below the 70% Clean line more often (94.6 -> 88.3%,
+now 4.2 pt below AMVF). HS selection and resolution are unchanged within
+errors.
 
 ## Changes against the previous (v6, GNN v4 / t = 0.98) numbers
 
@@ -80,10 +98,11 @@ HS resolution 9.56 vs 9.93 um; track F1 73.27 vs 74.43%.
 | Eq. (1) at 0.17 (0.1694) mm | 83.2% (+3.36 pt) | 83.06% (+3.20 pt) |
 | sigma_vtx-vtx | 0.229 mm (hidden 0.50 threshold), 0.218 at 0.30 | 0.217 mm |
 | 68% residual | 55.05 um | 55.58 um (window still 0.17 mm) |
-| Clean/truth | 68.4% (v4, t = 0.98, >= 1 track) | 53.9% (>= 2 tracks); 66.7% with >= 1 track |
-| Clean HS / HS tracks / HS purity | 96.4 / 74.9 / 91.3% | 94.6 / 80.9 / 88.2% |
-| HS selection | 96.3% (plain sum pT^2, v4) | 95.0% (Athena rule) |
-| HS resolution | 9.7 um (v4, t = 0.98) | 9.5 um |
+| Clean/truth | 68.4% (v4, t = 0.98, >= 1 track) | 50.6% (t = 0.94, >= 2 tracks); 53.9% at t = 0.97; 61.4% at t = 0.94 with >= 1 track |
+| Clean HS / HS tracks / HS purity | 96.4 / 74.9 / 91.3% | 88.3 / 87.9 / 82.3% (t = 0.94) |
+| HS selection | 96.3% (plain sum pT^2, v4) | 95.05% (Athena rule) |
+| HS resolution | 9.7 um (v4, t = 0.98) | 9.52 um |
+| Track F1 | | 70.2 vs AMVF 68.5% (t = 0.94; was -0.8 pt at 0.97) |
 | CPU projection s8 + GNN | 455 ms (9.0x) | 413 ms (10.9x, interleaved) |
 
 ## Plots
@@ -144,21 +163,22 @@ the same events. **M** = paper main, **B** = backup. `{tag}` = r16443 / r16638.
 ## Things that look odd (not smoothed over)
 
 1. **After the GNN, PV-Finder's positional efficiency falls below AMVF.** With
-   >= 2 tracks, 26 candidates per event have fewer than 2 GNN tracks at
-   t = 0.97 (19.2 have exactly one). The surviving list finds 73.45% of truth
-   within 0.17 mm against AMVF 79.85% (pre-GNN: 83.06%). The Clean/truth lead
-   (+23 pt) is unaffected, but "PV-Finder finds more vertices" holds before the
-   GNN only.
-2. **Clean/truth depends strongly on the vertex rule:** 66.7% (>= 1 track), 63.0%
-   (dominant with n_trk >= 2), 53.9% (>= 2 tracks). 7,886 Clean 1-track GNN
-   vertices are dominated by n_trk = 1 truth vertices outside the denominator.
-   AMVF is 30.9% in all three.
-3. **Track F1 is not a GNN win.** 67.7 vs 68.5% at PU200 (>= 2 tracks); 68.8
-   vs 68.5% with >= 1 track; at mu 0-10 0.868 vs 0.966. The GNN has higher
-   purity (0.856 vs 0.687) and lower efficiency (0.560 vs 0.683). At mu < 10
-   the cut t = 0.97 removes 19.5% of tracks the GNN assigns correctly at t = 0
-   (all vertex sizes, 40-48% for n_trk 3-7). Without a cut the low-mu F1 equals
-   AMVF (0.965 vs 0.966). One PU200-tuned t costs the low-mu track F1.
+   >= 2 tracks at t = 0.94, 21.3 candidates per event have fewer than 2 GNN
+   tracks (17.8 have exactly one). The surviving list finds 76.00% of truth
+   within 0.17 mm against AMVF 79.85% (pre-GNN: 83.06%; 73.45% at t = 0.97;
+   no t reaches AMVF, see the rescan). The Clean/truth lead (+19.7 pt) is
+   unaffected, but "PV-Finder finds more vertices" holds before the GNN only.
+2. **Clean/truth depends strongly on the vertex rule:** at t = 0.94, 61.4%
+   (>= 1 track) against 50.6% (>= 2 tracks); at t = 0.97, 66.7 / 63.0
+   (dominant with n_trk >= 2) / 53.9%. Clean 1-track GNN vertices are often
+   dominated by n_trk = 1 truth vertices outside the denominator. AMVF is
+   30.9% in every convention.
+3. **Track F1 at PU200 is a small GNN win at t = 0.94, a loss at low mu.**
+   70.2 vs 68.5% at PU200 (efficiency 62.9 vs 68.3%, purity 79.5 vs 68.7%);
+   at t = 0.97 it was 67.7 vs 68.5%. At mu 0-10 it is 91.3 vs 96.6%: the cut
+   removes correct tracks of all vertex sizes there (19.5% of them at
+   t = 0.97); without a cut the low-mu F1 equals AMVF (96.5 vs 96.6%). One
+   PU200-tuned t costs the low-mu track F1.
 4. **AMVF sigma_vtx-vtx sits on a fit boundary.** The production fit (unweighted,
    c >= 0) returns c = 4e-14 for AMVF: 0.305 mm. A sqrt(N)-weighted fit gives
    0.298 mm, an unbounded unweighted one 0.282 mm (cross-check). PV-Finder is
@@ -184,12 +204,14 @@ the same events. **M** = paper main, **B** = backup. `{tag}` = r16443 / r16638.
     and the GNN table lacks v2 (149,820 events = 60,000 r16443 entries >= 25,000
     + 89,820 r16638).
 
-## t rescan under the >= 2-track rule (validation, pending decision)
+## t rescan under the >= 2-track rule (validation): basis of t = 0.94
 
 t = 0.97 was chosen with >= 1-track vertices. Rescan on the 7,500 GNN
 validation entries (disjoint from the test set), s8 peaks, both algorithms
 with >= 2-track vertices (`F/t_rescan_min2/t_rescan_min2.md`, script
-`scripts/hllhc_t_rescan_min2.py`). **t is unchanged until decided.**
+`scripts/hllhc_t_rescan_min2.py`). **Decision (13 Nov): t = 0.94 for both
+regimes**, near the track-F1 and HS-selection maximum at -2.4 pt Clean/truth
+from the maximum (inclusive).
 
 | t | Clean/truth incl. / PU200 / mu<20 | pos. eff incl. / PU200 | Clean/reco incl. | Split/reco incl. | trk F1 incl. / PU200 / mu<20 | HS sel incl. | HS res incl. [um] |
 |---:|---|---|---:|---:|---|---:|---:|
