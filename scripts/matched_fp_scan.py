@@ -59,6 +59,8 @@ def load(path: Path) -> dict:
         raise ValueError(f"{path}: not the production methodology")
     if d["nms_min_sep"] != 0.0 or d["centroid_halfwidth"] != CENTROID_HW:
         raise ValueError(f"{path}: not the production methodology")
+    if d.get("peak_threshold", PEAK_THRESHOLD) != PEAK_THRESHOLD:
+        raise ValueError(f"{path}: peak amplitude is not {PEAK_THRESHOLD}")
     win = np.asarray(d["in_mu_window"], dtype=bool)
     # per_event skips events without truth; align it with the event list.
     with_truth = [i for i, t in enumerate(d["truth_pvs_mm"]) if len(t) > 0]
@@ -76,6 +78,11 @@ def load(path: Path) -> dict:
         "saved": [rec[i] for i in sel],
         "sigma": float(d["sigma_vtx_vtx_mm"]),
         "sigma_err": float(d["sigma_vtx_vtx_err_mm"]),
+        # Cuts the saved peaks were found with. Evaluations before the s8
+        # freeze (12 Nov 2026) all ran at PROD_INTEGRAL / PROD_HEIGHT.
+        "integral": float(d.get("integral_threshold", PROD_INTEGRAL)),
+        "min_height": float(d.get("min_height", PROD_HEIGHT)),
+        "checkpoint": d.get("e2e_checkpoint") or d.get("k2h_checkpoint"),
     }
 
 
@@ -86,7 +93,7 @@ def peaks(run: dict, k: int, integral: float, height: float) -> np.ndarray:
             run["hist"][k], PEAK_THRESHOLD, integral, MIN_WIDTH, height, CENTROID_HW
         )
         return np.asarray(p)
-    if integral != PROD_INTEGRAL or height < PROD_HEIGHT:
+    if integral != run["integral"] or height < run["min_height"]:
         raise ValueError("without histograms only a higher height floor works")
     return filter_by_height(run["pvs"][k], run["hts"][k], height)
 
@@ -114,7 +121,7 @@ def counts(run: dict, integral: float, height: float) -> dict:
 
 def check_replay(name: str, run: dict) -> dict:
     """Replay the saved settings and require exact agreement per event."""
-    c = counts(run, PROD_INTEGRAL, PROD_HEIGHT)
+    c = counts(run, run["integral"], run["min_height"])
     saved = run["saved"]
     for key, sk in (("fake", "fake"), ("split", "split")):
         ref = np.array([e[sk] for e in saved], dtype=float)

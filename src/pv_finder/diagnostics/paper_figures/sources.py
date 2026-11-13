@@ -130,26 +130,41 @@ def _load_pkl(path: Path) -> dict[str, Any]:
         return pickle.load(handle)
 
 
+def _rel(path: Path) -> str:
+    """Repository-relative path when possible (for the summary metadata)."""
+    try:
+        return str(path.relative_to(REPO))
+    except ValueError:
+        return str(path)
+
+
 def _unflatten(values: np.ndarray, offsets: np.ndarray) -> list[np.ndarray]:
     return [values[offsets[i] : offsets[i + 1]] for i in range(len(offsets) - 1)]
 
 
-def load_hllhc(with_amvf_fit: bool = True) -> tuple[Sample, Sample]:
+def load_hllhc(
+    with_amvf_fit: bool = True,
+    pkl_path: Path = HLLHC_PKL,
+    cache_path: Path = HLLHC_CACHE,
+) -> tuple[Sample, Sample]:
     """HL-LHC r16443: (all 25 000 events, PVF only) and (1 920 PU200 events).
 
     The first sample feeds the yield-vs-mu panel; the second carries AMVF and
-    both resolution fits. PVF peaks use the production 0.30 integral cut; the
-    PVF resolution uses the 0.50 cut, as in the note (Section 4.2).
+    both resolution fits. The default inputs are the pre-freeze v6 evaluation
+    (integral 0.30 for the peaks, 0.50 for the stored resolution fit, as in
+    the note); ``pkl_path`` / ``cache_path`` select another evaluation and its
+    fair-comparison cache, e.g. the frozen s8 recompute.
     """
-    res = _load_pkl(HLLHC_PKL)
+    pkl_path, cache_path = Path(pkl_path).resolve(), Path(cache_path).resolve()
+    res = _load_pkl(pkl_path)
     events = res["per_event"]
     mu = np.array([e["mu"] for e in events], dtype=np.float64)
     pvf = [np.asarray(z) for z in res["pred_pvs_mm"]]
     truth = [np.asarray(z) for z in res["truth_pvs_mm"]]
     full = Sample("hllhc_all", mu, pvf, truth, None, HLLHC_WINDOW_MM, False,
-                  meta={"source": str(HLLHC_PKL.relative_to(REPO))})  # fmt: skip
+                  meta={"source": _rel(pkl_path)})  # fmt: skip
 
-    cache = np.load(HLLHC_CACHE)
+    cache = np.load(cache_path)
     idx = cache["event_idx"]
     lo, hi = HLLHC_MU_RANGE
     in_window = np.array([lo <= round(m) <= hi for m in mu])
@@ -170,16 +185,16 @@ def load_hllhc(with_amvf_fit: bool = True) -> tuple[Sample, Sample]:
     amvf = _unflatten(cache["amvf_z"], cache["amvf_off"])
     win = Sample(
         "hllhc_pu200", mu[idx], c_pvf, c_truth, amvf, HLLHC_WINDOW_MM, False,
-        meta={"source": str(HLLHC_PKL.relative_to(REPO)),
-              "amvf_source": str(HLLHC_CACHE.relative_to(REPO))},
+        meta={"source": _rel(pkl_path), "amvf_source": _rel(cache_path)},
     )  # fmt: skip
+    i_res = res.get("integral_threshold_res", res.get("integral_threshold"))
     win.resolution["pvf"] = Resolution(
         dz_mm=np.asarray(res["pairwise_dz_mm"]),
         n_bins=300,
         params=np.asarray(res["fit_params"]),
         sigma_mm=float(res["sigma_vtx_vtx_mm"]),
         sigma_err_mm=float(res["sigma_vtx_vtx_err_mm"]),
-        note="stored fit, integral threshold 0.50, 0.04 mm bins",
+        note=f"stored fit, integral threshold {i_res}, 0.04 mm bins",
     )
     if with_amvf_fit:
         # Same procedure as amvf_fair_comparison.scan.fit_sigma_vtx_vtx

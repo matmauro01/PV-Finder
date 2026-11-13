@@ -38,6 +38,7 @@ NOTE_TIMING_PNG = (
 HLLHC_LINE = "$\\sqrt{s}$ = 14 TeV, $t\\bar{t}$, ITk layout"
 LOWPU_LINE = "$\\sqrt{s}$ = 13 TeV, $t\\bar{t}$, ID"
 RUN3_LINE = "Data, $\\sqrt{s}$ = 13.6 TeV"
+SECTIONS = ("hllhc", "lowpu", "run3", "timing")
 
 
 def _fits(sample: sources.Sample) -> dict[str, Any]:
@@ -47,9 +48,14 @@ def _fits(sample: sources.Sample) -> dict[str, Any]:
             for arm, r in sample.resolution.items()}  # fmt: skip
 
 
-def hllhc(out: Path, summary: dict[str, Any]) -> None:
+def hllhc(
+    out: Path,
+    summary: dict[str, Any],
+    pkl: Path = sources.HLLHC_PKL,
+    cache: Path = sources.HLLHC_CACHE,
+) -> None:
     """Figures 3 and 4 (HL-LHC ITk simulation)."""
-    full, win = sources.load_hllhc()
+    full, win = sources.load_hllhc(pkl_path=pkl, cache_path=cache)
     w = win.window_mm
     every = np.ones(len(win.mu), dtype=bool)
     pvf = cat.summarize(cat.per_event_counts(win.truth_z, win.pvf_z, w), every)
@@ -124,22 +130,32 @@ def main(args: argparse.Namespace) -> None:
     if not args.skip_diagrams:
         diagrams.make_diagrams(out)
         print("  diagrams done")
-    hllhc(out, summary)
-    print("  HL-LHC done")
-    lowpu_mc(out, summary)
-    print("  low-pile-up MC done")
-    run3_data(out, summary)
-    print("  Run 3 data done")
-    if args.timing_csv:
-        series = timing.read_timing_csv(Path(args.timing_csv))
+    sections = set(args.sections)
+    if "hllhc" in sections:
+        hllhc(out, summary, Path(args.hllhc_pkl), Path(args.hllhc_cache))
+        print("  HL-LHC done")
+    if "lowpu" in sections:
+        lowpu_mc(out, summary)
+        print("  low-pile-up MC done")
+    if "run3" in sections:
+        run3_data(out, summary)
+        print("  Run 3 data done")
+    if "timing" in sections:
+        _timing(out, args.timing_csv)
+    (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    print(f"  wrote {out}")
+
+
+def _timing(out: Path, timing_csv: str | None) -> None:
+    """Figure 7: per-event timing if given, else a copy of the note's PNG."""
+    if timing_csv:
+        series = timing.read_timing_csv(Path(timing_csv))
         timing.plot_timing(series, np.arange(0, 211, 10), ["Athena, ttbar and data"],
                            out, "fig7_timing")  # fmt: skip
     elif NOTE_TIMING_PNG.exists():
         # Only the colleague's rendered figure exists; keep it for reference.
         shutil.copyfile(NOTE_TIMING_PNG, out / "fig7_timing_existing_note_figure.png")
         print("  Figure 7: no per-event timing; copied the existing note PNG")
-    (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    print(f"  wrote {out}")
 
 
 def _cli() -> argparse.Namespace:
@@ -153,6 +169,12 @@ def _cli() -> argparse.Namespace:
         help="per-event timing table (see timing.py for the columns)",
     )
     p.add_argument("--skip-diagrams", action="store_true")
+    p.add_argument("--sections", nargs="+", default=list(SECTIONS),
+                   choices=SECTIONS, help="figure groups to make")  # fmt: skip
+    p.add_argument("--hllhc-pkl", default=str(sources.HLLHC_PKL),
+                   help="HL-LHC eval_results.pkl (default: pre-freeze v6)")  # fmt: skip
+    p.add_argument("--hllhc-cache", default=str(sources.HLLHC_CACHE),
+                   help="fair-comparison cache built from --hllhc-pkl")  # fmt: skip
     return p.parse_args()
 
 

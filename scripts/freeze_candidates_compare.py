@@ -26,6 +26,12 @@ Example (from the repo root):
         --model s8=outputs/11_12_2026_output/freeze_candidates/s8/r16443 \
         --matched outputs/11_12_2026_output/freeze_candidates/matched_r16443.json \
         --out outputs/11_12_2026_output/freeze_candidates/compare_r16443
+
+One model works too (``--ref s8 --model s8=<dir>``): its differences to
+itself are zero and the AMVF row carries AMVF minus s8. The "@common" cuts
+are the ones recorded in each pkl (integral_threshold, min_height), and the
+replay check uses them. compare.json records git hash, density-checkpoint
+sha256 and the hllhc regime under "provenance".
 """
 
 from __future__ import annotations
@@ -44,13 +50,7 @@ VF = ROOT / "src" / "pv_finder" / "evaluation" / "vertex_finding"
 for p in (VF, ROOT / "src", ROOT / "scripts"):
     sys.path.insert(0, str(p))
 from efficiency_res_optimized_atlas import compare_res_reco  # noqa: E402
-from matched_fp_scan import (  # noqa: E402
-    PROD_HEIGHT,
-    PROD_INTEGRAL,
-    check_replay,
-    load,
-    peaks,
-)
+from matched_fp_scan import check_replay, load, peaks  # noqa: E402
 
 from pv_finder.diagnostics.amvf_fair_comparison.scan import (  # noqa: E402
     fit_sigma_vtx_vtx,
@@ -71,6 +71,7 @@ from pv_finder.utils.constants import (  # noqa: E402
     HS_MATCH_WINDOW_MM,
     MATCH_WINDOW_MM,
 )
+from pv_finder.utils.result_provenance import result_provenance  # noqa: E402
 
 Z_MIN, BIN_WIDTH = -240.0, 0.04
 N_BOOT, N_BOOT_FIT, SEED = 2000, 200, 20261109
@@ -142,8 +143,13 @@ def p68_of(c: dict, j: np.ndarray) -> float:
     return 1e3 * float(np.percentile(np.concatenate([c["res"][i] for i in j]), 68.0))
 
 
+def ratio_err(num: np.ndarray, den: np.ndarray, boots: np.ndarray) -> float:
+    """Event-bootstrap std of sum(num) / sum(den) (absolute, not paired)."""
+    return float(np.std([num[j].sum() / den[j].sum() for j in boots], ddof=1))
+
+
 def summarise(c: dict, ref: dict, boots: np.ndarray, fboots: np.ndarray) -> dict:
-    """Values and paired differences to the reference arm."""
+    """Values, absolute bootstrap errors and paired differences to the reference."""
     n = len(c["truth"])
     allev, ones = np.arange(n), np.ones(n)
     k_hs = int(c["hs"].sum())
@@ -158,6 +164,13 @@ def summarise(c: dict, ref: dict, boots: np.ndarray, fboots: np.ndarray) -> dict
         "sigma_mm": sigma_of(c, allev),
         "sigma_fit_err_mm": fit_counts(c["edges"], c["H"].sum(0))[1],
         "p68_um": p68_of(c, allev),
+        "eff_err": ratio_err(c["found"], c["truth"], boots),
+        "fp_per_evt_err": ratio_err(c["fake"], ones, boots),
+        "fake_frac_err": ratio_err(c["fake"], c["npred"], boots),
+        "split_per_evt_err": ratio_err(c["split"], ones, boots),
+        "n_truth": int(c["truth"].sum()), "n_found": int(c["found"].sum()),
+        "n_reco": int(c["npred"].sum()), "n_fake": int(c["fake"].sum()),
+        "n_split": int(c["split"].sum()),
     }  # fmt: skip
     s_b = [sigma_of(c, j) for j in fboots]
     p_b = [p68_of(c, j) for j in fboots]
@@ -168,6 +181,7 @@ def summarise(c: dict, ref: dict, boots: np.ndarray, fboots: np.ndarray) -> dict
         "d_fp": (c["fake"], ones, ref["fake"], ones, 1.0),
         "d_fake_frac_pt": (c["fake"], c["npred"], ref["fake"], ref["npred"], 100.0),
         "d_hs_pt": (c["hs"], ones, ref["hs"], ones, 100.0),
+        "d_split": (c["split"], ones, ref["split"], ones, 1.0),
     }
     for key, (na, da, nb, db, scale) in pairs.items():
         d, e = paired_ratio_diff(na, da, nb, db, boots)
@@ -231,9 +245,11 @@ def main() -> None:
     settings: dict[str, dict] = {}
     for name in names:
         arms[f"{name}@common"] = arm(truth, runs[name]["pvs"], hs_z)
+        # The cuts the saved evaluation ran with (recorded in its pkl).
         settings[f"{name}@common"] = {
-            "integral": PROD_INTEGRAL,
-            "min_height": PROD_HEIGHT,
+            "integral": runs[name]["integral"],
+            "min_height": runs[name]["min_height"],
+            "checkpoint": runs[name]["checkpoint"],
         }
         if name in matched:
             m = matched[name]["matched_to_ref_fp"]
@@ -260,7 +276,15 @@ def main() -> None:
         raise AssertionError("AMVF found count differs from the saved evaluation")
     print(f"[{args.tag}] sigma and AMVF counts reproduce the saved evaluation")
 
+    checks = {"replay_saved_counts": True, "bookkeeping": True,
+              "eq1_identity_vs_merged_credit": True,
+              "saved_sigma_reproduced": not args.skip_saved_sigma_check,
+              "amvf_counts_reproduce_saved_eval": True,
+              "note": "each check raises on failure, so True means passed"}  # fmt: skip
     result = {"tag": args.tag, "ref": f"{args.ref}@common", "n_events": n,
+              "checks": checks, "saved_sigma_mm": saved_sigma,
+              "recomputed_sigma_mm": s_chk,
+              "provenance": result_provenance(runs[args.ref]["checkpoint"]),
               "window_mm": MATCH_WINDOW_MM, "hs_window_mm": HS_MATCH_WINDOW_MM,
               "n_boot": N_BOOT, "n_boot_fit": N_BOOT_FIT, "seed": SEED,
               "event_idx_sha1": hashlib.sha1(idx.astype(np.int64).tobytes()).hexdigest(), "arms": {}}  # fmt: skip

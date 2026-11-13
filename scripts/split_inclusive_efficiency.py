@@ -22,6 +22,11 @@ Run from the repository root:
 
     venv/bin/python -u scripts/split_inclusive_efficiency.py \
         --outdir outputs/11_09_2026_output/split_inclusive_efficiency
+
+Other caches (e.g. a frozen-working-point recompute) are selected with
+``--cache TAG=PATH`` (repeatable; replaces the default pair), and the HS
+cross-check file with ``--hs-events`` (``none`` skips it). ``--checkpoint``
+adds a provenance block (git hash, checkpoint sha256, hllhc regime).
 """
 
 from __future__ import annotations
@@ -45,6 +50,7 @@ from pv_finder.utils.constants import (  # noqa: E402
     HS_MATCH_WINDOW_MM,
     MATCH_WINDOW_MM,
 )
+from pv_finder.utils.result_provenance import result_provenance  # noqa: E402
 
 KEYS = (
     "eff",
@@ -78,9 +84,9 @@ def evaluate(cache_path: str, window: float, n_boot: int, seed: int) -> dict:
     return out
 
 
-def hs_check(tag: str, window: float) -> dict:
+def hs_check(tag: str, window: float, template: str = HS_EVENTS) -> dict:
     """HS efficiency (any reco vertex within ``window``) on the PU200 subset."""
-    path = Path(HS_EVENTS.format(tag=tag))
+    path = Path(template.format(tag=tag))
     with path.open() as fh:
         rows = list(csv.DictReader(fh))
     mu = np.array([float(r["mu"]) for r in rows])
@@ -100,7 +106,10 @@ def fmt(row: dict, arm: str, key: str, scale: float) -> str:
 def main(args: argparse.Namespace) -> None:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    results: dict = {"windows": {}, "hs": {}}
+    caches = dict(c.split("=", 1) for c in args.cache) if args.cache else CACHES
+    results: dict = {"windows": {}, "hs": {}, "caches": {}}
+    if args.checkpoint:
+        results["provenance"] = result_provenance(args.checkpoint)
     lines = [
         "# Split-inclusive efficiency, PU200 (merged credit and one-to-one)",
         "",
@@ -108,8 +117,9 @@ def main(args: argparse.Namespace) -> None:
         "also counts as found (once). Errors: paired event bootstrap.",
         "",
     ]
-    for tag, path in CACHES.items():
-        for w in (MATCH_WINDOW_MM, HS_MATCH_WINDOW_MM, 0.5):  # window scan
+    for tag, path in caches.items():
+        results["caches"][tag] = {"path": path, "meta": load_cache(path)["meta"]}
+        for w in args.windows:  # window scan
             print(f"[{tag}] window {w} mm", flush=True)
             row = evaluate(path, w, args.n_boot, args.seed)
             results["windows"][f"{tag}@{w:g}"] = row
@@ -133,7 +143,8 @@ def main(args: argparse.Namespace) -> None:
                     f"{t['primary_incl_split']}, split reco {t['split']}"
                 )
             lines.append("")
-        results["hs"][tag] = hs_check(tag, HS_MATCH_WINDOW_MM)
+        if args.hs_events.lower() != "none":
+            results["hs"][tag] = hs_check(tag, HS_MATCH_WINDOW_MM, args.hs_events)
     (outdir / "results.json").write_text(json.dumps(results, indent=1))
     (outdir / "summary.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
@@ -147,4 +158,12 @@ if __name__ == "__main__":
     )
     p.add_argument("--n-boot", type=int, default=2000)
     p.add_argument("--seed", type=int, default=20260805)
+    p.add_argument("--cache", action="append", default=None, metavar="TAG=PATH",
+                   help="comparison cache(s); default: the 08_05_2026 pair")  # fmt: skip
+    p.add_argument("--windows", type=float, nargs="+",
+                   default=[MATCH_WINDOW_MM, HS_MATCH_WINDOW_MM, 0.5])  # fmt: skip
+    p.add_argument("--hs-events", default=HS_EVENTS,
+                   help="per-event HS csv template with {tag}, or 'none'")  # fmt: skip
+    p.add_argument("--checkpoint", default=None,
+                   help="density checkpoint behind the caches (for provenance)")  # fmt: skip
     main(p.parse_args())
