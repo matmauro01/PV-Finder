@@ -5586,3 +5586,21 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
 - Not done: a two-threshold working point (low t for all tracks, stricter t_HS on the selected HS
   vertex); this needs a chain_t_metrics extension and Mattia's agreement.
 - Doc: `docs/evaluation/gnn_v3_campaign_2026-11-13.md` sections 5-7.
+
+## 2026-11-13: Internal-note edits in red (MM), Draft MR 1 on GitLab
+- Branch `mm-edits-2026-11-13` of ANA-IDTR-2026-01-INT1 (from origin/main 91b6f49), Draft MR
+  https://gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1/-/merge_requests/1.
+  Added text red `[MM: ...]` (`\mmedit`), removed text struck through in red (`\mmdel`).
+- The nine edits of meeting_2026-11-11_plan.md (window 0.17 mm + justification figure, split-inclusive
+  sentence, HS 3D-fit resolution, GPU-only timing + CPU projection, MC on Fig. 6.2 + AMVF-reference
+  bias, z0 baselines in Fig. 7.2, HS selection 92.9%, AMVF fit weights, frozen-configuration table).
+- Audit first: the note was still v6 / 0.1694 mm / GNN v4 t = 0.98 / Run 2 reproduction model; every
+  main-chapter number corrected in red. Appendices A and D left as the earlier model, one note each.
+- GNN numbers written as final at GNN v2 e527, t = 0.94 (one sentence: updated GNN in training).
+  Pre-GNN s8 numbers flagged "to confirm with the final recompute" (cuts 0.184/0.0184 -> 0.186/none).
+- Low pile-up chain at t = 0.94 taken from `lowpu_final/gnn_mc_ntrk2` (option B). Run 3 association at
+  t = 0.94 did not exist: rerun on CPU with the production code, t grid extended
+  (`outputs/11_13_2026_output/note_edits/`); t = 0.97 reproduces the GPU numbers exactly. Result:
+  GNN assigns 95.8%, agreement 94.5% (0.17 mm), leading vertex 91.3%.
+- Doc: `docs/additional_studies/note_edits_2026-11-13.md` (page/line, old/new per edit).
+  PDF: `presentations/mattia/11_13_2026_paper/note_with_MM_edits_2026-11-13.pdf`.
