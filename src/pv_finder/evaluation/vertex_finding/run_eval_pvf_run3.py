@@ -318,7 +318,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901, PLR0912, PLR0915
         print("ERROR: no events loaded after filtering.")
         sys.exit(1)
     has_mu = any(e.mu is not None for e in events)
-    has_truth = events[0].truth_z is not None
+    # Collision-data ntuples carry TruthVertex_* branches that are always empty;
+    # treat the sample as MC only if some event actually has a truth vertex.
+    has_truth = any(e.truth_z is not None and len(e.truth_z) > 0 for e in events)
     if has_truth:
         print("  MC truth detected — TruthVertex as truth, AMVF evaluated separately")
     else:
