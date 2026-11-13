@@ -122,8 +122,16 @@ def hs_selection(
     return [int(match >= 0), int(ok), int(near), int(ok and near)]
 
 
-def process_chunk(path: str, root: str, gnn: str, do_hs: bool) -> dict:
-    """All metrics for one inference chunk."""
+def process_chunk(
+    path: str, root: str, gnn: str, do_hs: bool, hs_min_tracks: int = 1
+) -> dict:
+    """All metrics for one inference chunk.
+
+    ``hs_min_tracks`` is the vertex track-multiplicity rule of the HS
+    quantities (selection, residual), applied identically to both algorithms:
+    only vertices with at least that many assigned (PV-Finder) or associated
+    (AMVF) tracks are candidates. 1 keeps the original drop-empty behaviour.
+    """
     with np.load(path) as f:
         z = {k: f[k] for k in f.files}
     entries = z["entries"]
@@ -170,17 +178,26 @@ def process_chunk(path: str, root: str, gnn: str, do_hs: bool) -> dict:
         k_hs = int(np.argmin(np.abs(peaks - hz))) if len(peaks) else -1
         if k_hs >= 0 and not abs(peaks[k_hs] - hz) < HS_WINDOW:
             k_hs = -1
+        pvf_hs_within = int(k_hs >= 0)  # any peak, before the GNN
+        m_hs = MIN_TRACKS.index(hs_min_tracks)
         for a, t in enumerate(T_GRID):
             all_lists = hm.lists_from_targets(
                 hm.assign_from_scores(tg, sc, t), len(peaks)
             )
+            if hs_min_tracks > 1:
+                # closest peak with enough assigned tracks at this t
+                ok = np.array([len(x) >= hs_min_tracks for x in all_lists], bool)
+                d = np.where(ok, np.abs(peaks - hz), np.inf)
+                k_hs = int(np.argmin(d)) if ok.any() else -1
+                if k_hs >= 0 and not d[k_hs] < HS_WINDOW:
+                    k_hs = -1
             for m, mt in enumerate(MIN_TRACKS):
                 keep = np.flatnonzero([len(x) >= mt for x in all_lists])
                 lists = [all_lists[j] for j in keep]
                 counts[i, a, m] = list_counts(
                     lists, peaks[keep], trk.pt, truth, tz2, h, hz, None
                 )
-                if m == 0 and do_hs:
+                if m == m_hs and do_hs:
                     sel[i, a] = hs_selection(
                         trk, lists, peaks[keep], truth, h, hz, beam, sig
                     )
@@ -208,14 +225,16 @@ def process_chunk(path: str, root: str, gnn: str, do_hs: bool) -> dict:
                 lists, axyz[keep, 2], trk.pt, truth, tz2, h, hz, np.arange(len(lists))
             )
         if do_hs:
-            keep = np.flatnonzero([len(x) > 0 for x in alists])
+            keep = np.flatnonzero([len(x) >= hs_min_tracks for x in alists])
             lists = [alists[j] for j in keep]
             pos = axyz[keep]
             acls = hm.classify_vertices(lists, trk.pt, truth)
             anhs = hm.hs_track_counts(lists, acls, truth, h)
-            nat = int(np.flatnonzero(keep == native[0])[0])
+            # the stored primary can only fail the rule if it has too few tracks
+            in_keep = np.flatnonzero(keep == native[0])
+            nat = int(in_keep[0]) if len(in_keep) else -1
             smatch = ps.best_hs_match(anhs, np.arange(len(lists)))
-            near = abs(pos[nat, 2] - hz) < HS_WINDOW
+            near = nat >= 0 and abs(pos[nat, 2] - hz) < HS_WINDOW
             ok = smatch >= 0 and nat == smatch
             sel[i, na - 1] = [int(smatch >= 0), int(ok), int(near), int(ok and near)]
             aplain = np.array([ps.sumpt2_score(trk.pt[x] / 1000.0) for x in lists])
@@ -226,7 +245,7 @@ def process_chunk(path: str, root: str, gnn: str, do_hs: bool) -> dict:
             ok = m_r >= 0 and s_r == m_r
             sel[i, na] = [int(m_r >= 0), int(ok), int(near), int(ok and near)]
         rn = np.array([len(x) for x in alists])
-        a2 = axyz[rn >= 2, 2]
+        a2 = axyz[rn >= max(2, hs_min_tracks), 2]
         ka = int(np.argmin(np.abs(a2 - hz))) if len(a2) else -1
         if ka >= 0 and abs(a2[ka] - hz) < HS_WINDOW:
             res[i, -1] = a2[ka] - hz
@@ -234,7 +253,7 @@ def process_chunk(path: str, root: str, gnn: str, do_hs: bool) -> dict:
         ev_out[i] = [
             e, z["mu"][i], len(tz2), len(tz), nt, int((truth >= 0).sum()),
             int((truth == h).sum()), tn[h] if has_hs else 0, others.sum() / 4.0,
-            len(peaks), int(k_hs >= 0), int(ka >= 0 and abs(a2[ka] - hz) < HS_WINDOW),
+            len(peaks), pvf_hs_within, int(ka >= 0 and abs(a2[ka] - hz) < HS_WINDOW),
             int(has_hs),
         ]  # fmt: skip
     return {"path": path, "counts": counts, "sel": sel, "res": res,
@@ -249,6 +268,10 @@ def main() -> None:
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--no-hs", action="store_true", help="skip HS selection/fits")
+    ap.add_argument(
+        "--hs-min-tracks", type=int, default=1, choices=MIN_TRACKS,
+        help="vertex track rule for the HS selection and residual (both algorithms)",
+    )  # fmt: skip
     ap.add_argument("--max-chunks", type=int, default=0)
     a = ap.parse_args()
     meta_in = json.loads((a.infer / "metadata.json").read_text())
@@ -259,7 +282,7 @@ def main() -> None:
         paths = paths[: a.max_chunks]
     t0 = time.monotonic()
     with ProcessPoolExecutor(a.workers) as pool:
-        futs = [pool.submit(process_chunk, p, meta_in["root"], a.gnn, not a.no_hs) for p in paths]  # fmt: skip
+        futs = [pool.submit(process_chunk, p, meta_in["root"], a.gnn, not a.no_hs, a.hs_min_tracks) for p in paths]  # fmt: skip
         parts = []
         for k, f in enumerate(futs):
             parts.append(f.result())
@@ -275,6 +298,7 @@ def main() -> None:
         "sel_fields": SEL_FIELDS, "sel_arms": [*(f"t{t}" for t in T_GRID), "amvf_stored", "amvf_rule"],
         "event_fields": EVENT_FIELDS, "window_mm": WINDOW, "hs_window_mm": HS_WINDOW,
         "max_vertex_chi2": ps.MAX_VERTEX_CHI2, "hs_computed": not a.no_hs,
+        "hs_min_tracks": a.hs_min_tracks,
         "git": git_state(), "script_sha256": sha256(Path(__file__)),
         "metrics_sha256": sha256(Path(hm.__file__)),
         "events_sha256": hashlib.sha256(cat["events"][:, 0].astype(np.int64).tobytes()).hexdigest(),
