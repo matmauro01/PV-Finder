@@ -85,11 +85,12 @@ Twelve $40$ mm intervals: $12{,}000$ bins of $0.04$ mm over $|z|<240$ mm.
 \textbf{One configuration for all HL-LHC results}
 \par\vspace{.6em}\centering
 \begin{tabular}{lr}\toprule
-Amplitude threshold & $0.01$\\
-Minimum width & $3$ bins\\
-Minimum integral & $0.30$\\
-Minimum height & $0.03$\\
+Amplitude threshold & $\ampThr$\\
+Minimum width & $\minWidth$ bins\\
+Minimum integral & $\intThr$\\
+Minimum height & $\heightThr$\\
 Position & local centroid\\
+Vertex & $\geq2$ GNN tracks\\
 GNN score cut $t$ & $\gnnT$\\
 Matching window & $\windowMM$ mm\\
 Hard-scatter window & $\hsWindowMM$ mm\\\bottomrule
@@ -247,7 +248,7 @@ Clean vertices dominate at every $\mu$ up to $200$.
 \begin{columns}[c]\begin{column}{.5\linewidth}\centering
 \img{.55}{deltaz_pu200.png}\\[.2em]\footnotesize $\Delta z$ between reconstructed vertices, PU200
 \end{column}\begin{column}{.47\linewidth}\centering
-\img{.55}{sigma_vs_mu.png}\\[.2em]\footnotesize $\svtx$ versus $\mu$
+\img{.55}{sigma_vs_mu.png}\\[.2em]\footnotesize 68\% residual (top) and $\svtx$ (bottom) versus $\mu$
 \end{column}\end{columns}
 \par\vspace{.4em}
 \takeaway{PU200: $\svtx=\sigPVF\pm\sigPVFErr$ mm for PV-Finder, $\sigAMVF\pm\sigAMVFErr$ mm for AMVF.}
@@ -275,7 +276,7 @@ Clean vertices dominate at every $\mu$ up to $200$.
 \end{column}\begin{column}{.37\linewidth}
 \small\textbf{Clean vertices / truth vertices}
 \par\vspace{.6em}
-Clean: $\geq70\%$ of the vertex tracks from one interaction.
+Clean: $\geq70\%$ of the vertex tracks from one interaction. Vertices with $\geq2$ tracks for both algorithms.
 \par\vspace{.8em}\centering
 \begin{tabular}{lr}\toprule
 PV-Finder + GNN & $\cleanTruthGNN\%$\\
@@ -284,7 +285,7 @@ $z_0$ within $3\sigma$ & $\cleanTruthZsig\%$\\
 AMVF & $\cleanTruthAMVF\%$\\\bottomrule
 \end{tabular}
 \end{column}\end{columns}
-\takeaway{The GNN more than doubles the clean-vertex yield of AMVF and of $z_0$-based assignment.}
+\takeaway{The GNN raises the clean-vertex yield $\cleanRatio\times$ over AMVF and $z_0$-based assignment.}
 \end{frame}
 
 %----------------------------------------------------------------------
@@ -294,7 +295,7 @@ AMVF & $\cleanTruthAMVF\%$\\\bottomrule
 \end{column}\begin{column}{.32\linewidth}
 \small Clean vertices / truth vertices versus $\mu$ for each stage of the chain and for AMVF.
 \par\vspace{.8em}
-Lower panel: ratio to AMVF.
+Vertices with $\geq2$ tracks for every arm.
 \end{column}\end{columns}
 \end{frame}
 
@@ -310,7 +311,7 @@ HS vertex purity & $\hsPurGNN\%$ & $\hsPurAMVF\%$\\
 HS selected ($\sum p_T^2$) & $\hsSelGNN\%$ & $\hsSelAMVF\%$\\\bottomrule
 \end{tabular}
 \par\vspace{.8em}\raggedright\footnotesize
-ATLAS definitions; tracks counted, not fit-weighted. HS vertex: most HS tracks. Selected: largest $\sum p_T^2$ and within $\hsWindowMM$ mm. AMVF: its stored primary vertex.
+ATLAS definitions; tracks counted, not fit-weighted. HS vertex: most HS tracks. Selected: largest $\sum p_T^2$ of compatible tracks (Athena 24.0 rule) and within $\hsWindowMM$ mm. AMVF: its stored primary vertex.
 \end{column}\begin{column}{.5\linewidth}\centering
 \img{.6}{hs_selection_eff_vs_mu.png}
 \end{column}\end{columns}
@@ -319,7 +320,7 @@ ATLAS definitions; tracks counted, not fit-weighted. HS vertex: most HS tracks. 
 %----------------------------------------------------------------------
 \begin{frame}{Hard-Scatter Longitudinal Resolution}
 \begin{columns}[c]\begin{column}{.55\linewidth}\centering
-\img{.66}{hs_resolution_vs_ntrk.png}
+\img{.66}{hs_resolution_vs_density.png}
 \end{column}\begin{column}{.42\linewidth}
 \small
 \textbf{Vertex fit on the GNN tracks}
@@ -386,7 +387,7 @@ AMVF, CPU & $\sim\athAMVF$\\\bottomrule
 U-Net channels & 280 & 112 & 80\\
 CPU time [ms] & $\cpuVsixPad$ & $\cpuSFivePack$ & $\cpuSEightPack$\\
 Speed-up & $1$ & $\spdSFive\times$ & $\spdSEight\times$\\
-$\Delta$efficiency [pt] & & $\sFiveDEffA$ & $\sEightDEffA$\\
+$\Delta$eff. at v6 fake rate [pt] & & $\sFiveDEffA$ & $\sEightDEffA$\\
 $\Delta$fake / event & & $\sFiveDFake$ & $\sEightDFake$\\\bottomrule
 \end{tabular}
 \par\vspace{.5em}\raggedright\footnotesize
@@ -402,9 +403,9 @@ s8 + GNN & $\sim\projSEight$\\
 AMVF & $\sim\athAMVF$\\\bottomrule
 \end{tabular}
 \par\vspace{.6em}\raggedright\footnotesize
-Packed inference alone: $\spdVsixPack\times$ for v6 at no cost.
+Packed inference alone: $\spdVsixPack\times$ for v6 at no cost. s5: 9 Nov measurement.
 \end{column}\end{columns}
-\takeaway{The small network brings the CPU chain to the speed of AMVF at $\mu=200$.}
+\takeaway{With the frozen small network the projected CPU chain is faster than AMVF at $\mu=200$.}
 \end{frame}
 
 %----------------------------------------------------------------------
@@ -412,13 +413,13 @@ Packed inference alone: $\spdVsixPack\times$ for v6 at no cost.
 \begin{itemize}\setlength\itemsep{.75em}
 \item At PU200, PV-Finder finds $\effPVF\%$ of truth vertices, $+\effDiff$ points over AMVF, with fewer fakes.
 \item Vertex--vertex resolution $\sigPVF$ mm against $\sigAMVF$ mm for AMVF.
-\item With GNN track association: $\cleanTruthGNN\%$ clean vertices per truth vertex, against $\cleanTruthAMVF\%$ for AMVF.
+\item With GNN track association: $\cleanTruthGNN\%$ clean vertices per truth vertex, against $\cleanTruthAMVF\%$ for AMVF (vertices with $\geq2$ tracks).
 \item Hard scatter: selected in $\hsSelGNN\%$ of events ($\hsSelAMVF\%$ AMVF); position resolution $\hsResGNN~\mu$m ($\hsResAMVF~\mu$m AMVF).
 \item Validated on Run 2 and Run 3 collision data.
 \item Running in Athena on CPU and GPU.
 \end{itemize}
 \par\vspace{.6em}
-\textbf{Next:} freeze the HL-LHC density model and GNN, and complete the paper draft.
+\textbf{Next:} complete the paper draft with the frozen configuration.
 \end{frame}
 
 %----------------------------------------------------------------------
