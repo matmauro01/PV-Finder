@@ -1,0 +1,101 @@
+# GNN v3 campaign, run p2b (docs/evaluation/gnn_v3_campaign_2026-11-13.md).
+# Phase 2, run p2b: run d's recipe (interaction network, hidden 128, 4 layers, softmax + no-vertex)
+# with the phase-2 data. Axis: capacity at 2.3x data (vs p2a).
+# s8 peak cuts at build time: 0.01 / 3 / 0.184 / 0.0184 / centroid 3 (evaluation uses the 13 Nov cuts).
+# Shard sets: base, thin, pu200 (70 shards, interleaved); 1260 shard epochs = 18.0 passes.
+# Written by scripts/gnn_v3_make_config.py.
+data_files:
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_00.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_00.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_00.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_00.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_01.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_01.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_01.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_01.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_02.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_02.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_02.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_03.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_03.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_03.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_02.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_04.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_04.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_04.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_05.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_05.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_03.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_05.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_06.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_06.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_06.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_07.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_07.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_04.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_07.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_08.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_08.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_05.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_09.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_09.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_08.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_09.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_10.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_10.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_06.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_11.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_11.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_10.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_07.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_12.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_12.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_11.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_13.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_13.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_12.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_08.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_14.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_14.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_13.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_15.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_15.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_09.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_14.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_16.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_16.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_15.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_17.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_17.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_10.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_16.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_18.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_18.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16443_train_shard_11.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16438_thin_shard_19.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/phase2/r16633_pu200_shard_19.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/r16638_train_shard_17.pt
+val_file: /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/validation_monitor.pt
+monitor_file: /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/validation_monitor.pt
+batch_size: 32
+num_workers: 2
+model_config:
+  arch: ign
+  hidden: 128
+  layers: 4
+  heads: 4
+  dropout: 0.1
+  norm: true
+  pv_counts: true
+  pv_sigma: true
+  loss: softmax_null
+n_epochs: 1260
+learning_rate: 0.001
+warmup_epochs: 5
+eta_min: 1.0e-05
+weight_decay: 0.0
+grad_clip: 1.0
+seed: 20261113
+device_id: 2
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_v3_20261113/p2b
+runname: ttva_v3_p2b
