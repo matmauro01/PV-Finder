@@ -1,5 +1,9 @@
 # HL-LHC resolution versus pile-up, 11 November 2026
 
+> **Superseded for results by the frozen model (s8):**
+> `resolution_vs_mu_2026-11-12_s8.md`. This page keeps the v6 reference and the
+> method and physics discussion.
+
 Before the GNN. Two resolution measures in bins of the number of interactions
 mu, for PV-Finder and AMVF on the same events, with per-bin statistical errors
 capped:

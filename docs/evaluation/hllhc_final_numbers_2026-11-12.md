@@ -246,7 +246,10 @@ exceeds the dip there (resolution_vs_mu_2026-11-11.md). The 180-200 bin agrees
 with the PU200 headline (0.217 / 0.305 mm; 55.6 / 56.5 um). The s8 sigma fit
 fails at mu 0-10 (v6: 58 um; the dip is not separable from the notch).
 PV-Finder p68 is 0.4-1.4 um below AMVF above mu = 30 and 0.9-1.6 um above it
-at mu < 20.
+at mu < 20. s8 minus v6 on the same events: p68 +0.3 to +0.8 um at every
+mu >= 10; sigma +0.7 to +3.4 um for mu >= 100 (each within ~2 sigma); s8
+chi2/ndf 15-30 for mu >= 120 (v6 7-19). Details:
+[resolution_vs_mu_2026-11-12_s8.md](resolution_vs_mu_2026-11-12_s8.md).
 
 ## Reproduction
 
