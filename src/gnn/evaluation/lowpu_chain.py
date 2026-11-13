@@ -8,8 +8,9 @@ The GNN runs once per event; every t is a replay of the top-1 edges.
 Per event, per t (and once for AMVF) one integer record ``FIELDS``:
 
 * track-purity categories (``classify_assignments``, the code behind every
-  earlier low pile-up table) on the vertices with >= 1 assigned track
-  (drop-empty, the July 2026 convention): Clean / Merged / Split / Fake,
+  earlier low pile-up table) on the vertices with >= ``--min-tracks``
+  assigned tracks (default 2, decided 12 Nov 2026; 1 is the July drop-empty
+  convention); tracks on dropped vertices count as unassigned: Clean / Merged / Split / Fake,
   n_reco, n_truth (truth vertices with >= 2 tracks);
 * track counts (``threshold_scan.track_assignment_counts``): correct,
   assigned with a truth label, assigned, and all truth-labelled tracks;
@@ -61,8 +62,11 @@ T_GRID: tuple[float, ...] = (
 FIELDS: tuple[str, ...] = (
     "clean", "merged", "split", "fake", "n_reco", "n_truth",
     "n_correct", "n_assigned_truth", "n_assigned", "n_labelled",
-    "hs_ok", "hs_ok_primary", "n_empty",
+    "hs_ok", "hs_ok_primary", "n_empty", "n_small",
 )  # fmt: skip
+# Decided 12 Nov 2026: a reconstructed vertex counts only with >= 2 tracks,
+# for PV-Finder + GNN and AMVF alike. --min-tracks 1 gives the July convention.
+MIN_TRACKS = 2
 NTRK_EDGES = np.array([2, 3, 4, 5, 6, 8, 10, 13, 16, 20, 25, 30, 40, 50, 70, 100, 1000])
 MU_BINS: dict[str, tuple[float, float]] = {
     "inclusive": (-1.0, 1e9), "0-20": (-1.0, 20.0), "20-40": (20.0, 40.0),
@@ -104,18 +108,22 @@ def load_hs_and_amvf(
 
 
 def event_record(
-    lists: list[np.ndarray], truth_ev: dict[str, Any], hs: int, primary: int = -2
-) -> tuple[np.ndarray, np.ndarray]:
+    lists: list[np.ndarray], truth_ev: dict[str, Any], hs: int, primary: int = -2,
+    min_tracks: int = MIN_TRACKS,
+) -> tuple[np.ndarray, np.ndarray]:  # fmt: skip
     """One integer record (``FIELDS``) for one event and one vertex list.
 
-    ``lists`` may contain empty vertices; they are dropped before
-    classification (drop-empty). ``primary`` (AMVF only) is the index, in
-    ``lists``, of the stored primary vertex; -2 means "not applicable".
+    Vertices with fewer than ``min_tracks`` tracks are dropped before
+    classification; their tracks count as unassigned. ``n_empty`` counts the
+    dropped vertices with no track, ``n_small`` those with 1 .. min_tracks - 1.
+    ``primary`` (AMVF only) is the index, in ``lists``, of the stored primary
+    vertex; -2 means "not applicable".
     Also returns the histogram over ``NTRK_EDGES`` of the track counts of the
     truth vertices (>= 2 tracks) that are the dominant truth of a Clean vertex.
     """
-    keep = [i for i, m in enumerate(lists) if len(m)]
+    keep = [i for i, m in enumerate(lists) if len(m) >= max(min_tracks, 1)]
     nonempty = [lists[i] for i in keep]
+    n_empty = sum(1 for m in lists if len(m) == 0)
     rows, info = classify_assignments(
         nonempty, truth_ev["pt"], truth_ev["tti"], truth_ev["tpi"],
         truth_ev["truth_pvs_count"],
@@ -125,11 +133,12 @@ def event_record(
     tt = truth_ev["track_truth"]
     hs_ok = int(lead >= 0 and dominant_truth(nonempty[lead], tt) == hs)
     hs_ok_primary = 0
-    if primary >= 0 and len(lists[primary]):
+    if primary >= 0 and len(lists[primary]) >= max(min_tracks, 1):
         hs_ok_primary = int(dominant_truth(lists[primary], tt) == hs)
     rec = [
         *rows, counts["n_correct"], counts["n_assigned_truth"], counts["n_assigned"],
-        int((tt >= 0).sum()), hs_ok, hs_ok_primary, len(lists) - len(nonempty),
+        int((tt >= 0).sum()), hs_ok, hs_ok_primary, n_empty,
+        len(lists) - len(nonempty) - n_empty,
     ]  # fmt: skip
     ntrk = np.bincount(truth_ev["tpi"].astype(np.int64))
     clean_truth = [
@@ -240,6 +249,7 @@ def main() -> None:
     ap.add_argument("-d", "--device", type=int, default=0)
     ap.add_argument("--n-boot", type=int, default=500)
     ap.add_argument("-n", "--max-events", type=int, default=None)
+    ap.add_argument("--min-tracks", type=int, default=MIN_TRACKS)
     args = ap.parse_args()
     dev = torch.device(
         f"cuda:{args.device}"
@@ -266,11 +276,15 @@ def main() -> None:
     }
     for t in T_GRID:
         out = [
-            event_record(gnn_lists(c, t), tr, h) for c, tr, h in zip(cache, truth, hs)
+            event_record(gnn_lists(c, t), tr, h, min_tracks=args.min_tracks)
+            for c, tr, h in zip(cache, truth, hs)
         ]
         recs[f"t{t:g}"] = np.stack([o[0] for o in out])
         hists[f"t{t:g}"] = np.sum([o[1] for o in out], axis=0)
-    out = [event_record(a, tr, h, p) for a, tr, h, p in zip(amvf, truth, hs, primary)]
+    out = [
+        event_record(a, tr, h, p, args.min_tracks)
+        for a, tr, h, p in zip(amvf, truth, hs, primary)
+    ]
     recs["amvf"] = np.stack([o[0] for o in out])
     hists["amvf"] = np.sum([o[1] for o in out], axis=0)
     for name, rec in recs.items():
@@ -298,7 +312,9 @@ def main() -> None:
             "density_checkpoint_sha256": sha256(regime.density.checkpoint),
             "event_keys_sha256": hashlib.sha256("|".join(keys).encode()).hexdigest(),
             "vf_h5_events_first_last": h5_events[:1] + h5_events[-1:],
-            "convention": "drop-empty, MaxScore top-1, track-purity 70%",
+            "convention": f"vertices with >= {args.min_tracks} tracks, MaxScore "
+            "top-1, track-purity 70%",
+            "min_tracks": args.min_tracks,
         },
         "t_grid": list(T_GRID),
         "fields": list(FIELDS),

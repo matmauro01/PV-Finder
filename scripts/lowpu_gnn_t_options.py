@@ -152,7 +152,7 @@ def main() -> None:  # noqa: PLR0915
             "amvf": {k: (amvf[f"{k}_per_reco"]["value"], amvf[f"{k}_per_reco"]["err"])
                      for k in ("clean", "merged", "split", "fake")}}  # fmt: skip
     lab9 = [lines[0], f"PV-Finder + GNN ($t$ = {HLLHC_T:g}), AMVF",
-            "Vertices without tracks removed"]  # fmt: skip
+            f"Vertices with $\\geq$ {summ['provenance'].get('min_tracks', 1)} tracks"]  # fmt: skip
     paths["fig9b"] = P.category_bars(frac, lab9, fig, "fig9b_run2mc_categories")
     matched = {"pvf_gnn": d[f"ntrk_matched_{chosen}"], "amvf": d["ntrk_matched_amvf"]}
     paths["fig9a"] = P.eff_vs_ntrk(d["ntrk_edges"], d["ntrk_matched_truth"], matched,

@@ -129,9 +129,27 @@ def new_totals() -> dict[str, Any]:
     """Empty accumulators for one t."""
     return {
         "n_tracks": 0, "n_gnn_assigned": 0, "n_amvf_assigned": 0,
-        "n_populated": 0, "n_lead_events": 0, "n_lead_agree": 0,
+        "n_populated": 0, "n_lead_events": 0, "n_lead_agree": 0, "n_dropped_small": 0,
         "windows": {str(w): {} for w in WINDOWS_MM},
     }  # fmt: skip
+
+
+def keep_min_tracks(
+    gnn: np.ndarray, z: np.ndarray, min_tracks: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Drop GNN vertices with fewer than ``min_tracks`` tracks.
+
+    Their tracks become unassigned and the kept peaks are re-indexed, so the
+    dropped peaks take no part in matching or in the leading-vertex choice.
+    Returns (assignment, kept peak z, number of dropped populated vertices).
+    """
+    n = np.bincount(gnn[gnn >= 0], minlength=len(z))
+    keep = n >= max(min_tracks, 1)
+    new_index = np.cumsum(keep) - 1
+    out = np.where(
+        (gnn >= 0) & keep[np.maximum(gnn, 0)], new_index[np.maximum(gnn, 0)], -1
+    )
+    return out.astype(np.int64), z[keep], int(((n > 0) & ~keep).sum())
 
 
 def accumulate(tot: dict[str, Any], x: dict[str, Any], z: np.ndarray, gnn: np.ndarray,
@@ -163,6 +181,7 @@ def rates(tot: dict[str, Any], n_events: int, n_peaks: int, n_amvf: int) -> dict
         "populated_vertices_per_event": tot["n_populated"] / n_events,
         "amvf_vertices_per_event": n_amvf / n_events,
         "leading_vertex_agreement": tot["n_lead_agree"] / max(tot["n_lead_events"], 1),
+        "dropped_small_vertices_per_event": tot["n_dropped_small"] / n_events,
         "agreement": {},
     }
     for w, c in tot["windows"].items():
@@ -182,6 +201,9 @@ def main() -> None:  # noqa: PLR0915
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--lead-window", type=float, default=MATCH_WINDOW_MM)
     ap.add_argument("-d", "--device", type=int, default=0)
+    # Decided 12 Nov 2026: a vertex counts only with >= 2 tracks (AMVF already
+    # uses nTracks >= 2). 1 reproduces the populated-vertex convention.
+    ap.add_argument("--min-tracks", type=int, default=2)
     args = ap.parse_args()
     regime = get_regime("lowpu")
     p = regime.peaks
@@ -240,7 +262,9 @@ def main() -> None:  # noqa: PLR0915
         max_scores.append(mx)
         for t in T_GRID:
             gnn = gnn_assignments(scores, ei, len(amvf), t)
-            accumulate(totals[t], x, z, gnn, amvf, args.lead_window)
+            gnn, zk, nd = keep_min_tracks(gnn, z, args.min_tracks)
+            totals[t]["n_dropped_small"] += nd
+            accumulate(totals[t], x, zk, gnn, amvf, args.lead_window)
 
     n_ev = len(entries)
     if gates["peaks_equal_pkl"] != n_ev or gates["amvf_equal_pkl"] != n_ev:
@@ -261,6 +285,7 @@ def main() -> None:  # noqa: PLR0915
             "entries_sha256": hashlib.sha256(entries.tobytes()).hexdigest(),
             "entries_first_last": [int(entries[0]), int(entries[-1])],
             "lead_window_mm": args.lead_window,
+            "min_tracks": args.min_tracks,
         },
         "gates": {**gates, "amvf_self_check": sc_rate},
         "n_events": n_ev,
