@@ -56,44 +56,84 @@ def plot_fits(
             plt.close(fig)
 
 
-def plot_summary(rows: list[dict[str, Any]], out: Path, label: str) -> None:
-    """sigma_vtx-vtx vs mu (top) and the 68% single-vertex residual vs mu (bottom).
+# sigma_vtx-vtx is quoted only for mu >= 100 (paper and note treatment,
+# docs/evaluation/resolution_vs_mu_2026-11-11.md): below it the
+# correlated excess of close reconstructed pairs exceeds the dip (merge length
+# < 0 in the v6 study) and the fitted sigma measures that excess, not the
+# separation of independent interactions.  Those bins are drawn open.
+SIGMA_QUOTE_MU_MIN = 100.0
 
-    sigma_vtx-vtx is drawn with filled markers only where the dip dominates the
-    pairwise distribution (merge length >= 0); elsewhere the correlated excess
-    of close reconstructed pairs exceeds the dip and the marker is open.
-    """
-    use_atlas_style()
-    fig, (a1, a2) = plt.subplots(
-        2, 1, figsize=(8, 9), sharex=True,
-        gridspec_kw={"height_ratios": [1, 1], "hspace": 0.05},
-    )  # fmt: skip
+
+def _xerr(rows: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
+    """Bin-mean mu and the asymmetric bin-edge x errors."""
+    x = np.array([r["mu_mean"] for r in rows])
     lo = np.array([r["mu_lo"] for r in rows])
     hi = np.array([r["mu_hi"] for r in rows])
-    x = np.array([r["mu_mean"] for r in rows])
+    return x, np.array([x - lo, hi - x])
+
+
+def _draw_p68(ax: plt.Axes, rows: list[dict[str, Any]]) -> None:
+    """68% single-vertex residual vs mu, PV-Finder and AMVF."""
+    x, xe = _xerr(rows)
+    for n in ("pvf", "amvf"):
+        p = np.array([r[n]["p68_um"] for r in rows])
+        pe = np.array([r[n]["p68_err_um"] for r in rows])
+        ax.errorbar(x, p, xerr=xe, yerr=pe, fmt="o" if n == "pvf" else "s", ms=5,
+                    color=COLORS[n], label=NAMES[n])  # fmt: skip
+    ax.set_ylabel(r"68% $|z_{\mathrm{reco}} - z_{\mathrm{true}}|$ [$\mu$m]")
+
+
+def _draw_sigma(ax: plt.Axes, rows: list[dict[str, Any]]) -> None:
+    """sigma_vtx-vtx vs mu; open markers below SIGMA_QUOTE_MU_MIN."""
+    x, xe = _xerr(rows)
+    ok = np.array([r["mu_lo"] >= SIGMA_QUOTE_MU_MIN for r in rows])
     for n in ("pvf", "amvf"):
         mk = "o" if n == "pvf" else "s"
         s = np.array([1e3 * r[n]["sigma_mm"] for r in rows])
         se = np.array([1e3 * r[n]["boot_err_mm"] for r in rows])
-        ok = np.array([r[n]["merge_len_mm"] >= 0 for r in rows])
-        xe = np.array([x - lo, hi - x])
-        a1.errorbar(x[ok], s[ok], xerr=xe[:, ok], yerr=se[ok], fmt=mk, ms=5,
+        ax.errorbar(x[ok], s[ok], xerr=xe[:, ok], yerr=se[ok], fmt=mk, ms=5,
                     color=COLORS[n], label=NAMES[n])  # fmt: skip
-        a1.errorbar(x[~ok], s[~ok], xerr=xe[:, ~ok], yerr=se[~ok], fmt=mk, ms=5,
+        ax.errorbar(x[~ok], s[~ok], xerr=xe[:, ~ok], yerr=se[~ok], fmt=mk, ms=5,
                     mfc="white", color=COLORS[n])  # fmt: skip
-        p = np.array([r[n]["p68_um"] for r in rows])
-        pe = np.array([r[n]["p68_err_um"] for r in rows])
-        a2.errorbar(x, p, xerr=xe, yerr=pe, fmt=mk, ms=5, color=COLORS[n],
-                    label=NAMES[n])  # fmt: skip
-    a1.set_ylabel(r"$\sigma_{\mathrm{vtx-vtx}}$ [$\mu$m]")
-    a1.text(0.97, 0.05, "Open markers: close-pair excess exceeds the dip",
-            transform=a1.transAxes, ha="right", fontsize="x-small")  # fmt: skip
-    a2.set_ylabel(r"68% $|z_{\mathrm{reco}} - z_{\mathrm{true}}|$ [$\mu$m]")
+        odd = [r["mu_lo"] for r, q in zip(rows, ok) if (r[n]["merge_len_mm"] >= 0) != q]
+        if odd:
+            print(f"NOTE {NAMES[n]}: merge-length sign disagrees with the quoting rule "
+                  f"mu >= {SIGMA_QUOTE_MU_MIN:.0f} in bins starting at mu = {odd}",
+                  flush=True)  # fmt: skip
+    ax.set_ylabel(r"$\sigma_{\mathrm{vtx-vtx}}$ [$\mu$m]")
+    ax.text(0.97, 0.05, rf"Open markers ($\mu$ < {SIGMA_QUOTE_MU_MIN:.0f}): "
+            "close-pair excess exceeds the dip",
+            transform=ax.transAxes, ha="right", fontsize="x-small")  # fmt: skip
+
+
+def plot_summary(rows: list[dict[str, Any]], out: Path, label: str) -> None:
+    """Paper plot (68% residual vs mu) and the two-panel p68 + sigma_vtx-vtx figure.
+
+    ``resolution_vs_mu_p68``: the 68% single-vertex residual vs mu alone.
+    ``resolution_vs_mu``: the same on top, sigma_vtx-vtx vs mu below.
+    """
+    use_atlas_style()
+    fig, ax = plt.subplots(figsize=(8, 6))
+    _draw_p68(ax, rows)
+    ax.set_xlabel(r"Number of interactions $\mu$")
+    ax.set_xlim(0, 200)
+    ax.set_ylim(0, ax.get_ylim()[1] * 1.35)
+    ax.legend(loc="upper right")
+    atlas_label(ax, desc=DESC)
+    save_figure(fig, out, "resolution_vs_mu_p68")
+
+    fig, (a1, a2) = plt.subplots(
+        2, 1, figsize=(8, 9), sharex=True,
+        gridspec_kw={"height_ratios": [1, 1], "hspace": 0.05},
+    )  # fmt: skip
+    _draw_p68(a1, rows)
+    _draw_sigma(a2, rows)
     a2.set_xlabel(r"Number of interactions $\mu$")
-    for ax in (a1, a2):
-        ax.set_ylim(0, ax.get_ylim()[1] * 1.35)
-        ax.legend(loc="upper right")
+    for a in (a1, a2):
+        a.set_ylim(0, a.get_ylim()[1] * 1.35)
+        a.legend(loc="upper right")
     a2.set_xlim(0, 200)
     atlas_label(a1, desc=DESC)
     save_figure(fig, out, "resolution_vs_mu")
-    print(f"summary plot: {out / 'resolution_vs_mu.png'} ({label})", flush=True)
+    print(f"summary plots: {out / 'resolution_vs_mu_p68.png'}, "
+          f"{out / 'resolution_vs_mu.png'} ({label})", flush=True)  # fmt: skip
