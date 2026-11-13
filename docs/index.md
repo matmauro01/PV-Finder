@@ -40,6 +40,8 @@ Project wiki. Each page describes the current state of one topic. Rewrite (don't
 - [model_freeze_candidates_2026-11-12](evaluation/model_freeze_candidates_2026-11-12.md) — HL-LHC density-model freeze candidates (v6, s5 1+1, s5 2+2, s8) at the final working point: efficiency, fakes, HS, resolution, matched fake rate
 - [gnn_v2_freeze_2026-11-12](evaluation/gnn_v2_freeze_2026-11-12.md) — GNN v2 checkpoint (e527), t scan in mu bins with t options, low-mu diagnosis, v6 vs s8 after the GNN, AMVF on the same events
 - [**lowpu_final_numbers_2026-11-12**](evaluation/lowpu_final_numbers_2026-11-12.md) — final low pile-up numbers (Run 2 MC, Run 2 and Run 3 data) at the frozen `lowpu` working point: vertex finding vs AMVF, GNN chain, Run 3 association, Figs. 8-10, gates; vertices need >= 2 tracks after association; low pile-up GNN frozen at mu60 v2 e115, t = 0.97
+- [**hllhc_final_numbers_2026-11-12**](evaluation/hllhc_final_numbers_2026-11-12.md) — **final HL-LHC numbers** at the frozen `hllhc` working point (s8, GNN v2 e527, t = 0.97, 0.17 mm; >= 2-track vertices after the GNN): one headline table with sources, every plot (paper main / backup), gates, odd findings
+- [hllhc_supplementary_2026-11-12](evaluation/hllhc_supplementary_2026-11-12.md) — Trey's side ntuple: identity check, HS metrics vs ITk local density, vertex classes per event (AMVF-note style) with fit-weight cross-check
 - [additional studies summary (PDF)](additional_studies/additional_studies_summary.pdf) — one-page status of the reviewer-requested studies
 - [paper_figures](evaluation/paper_figures.md) — figures and Table 1 for the short ATLAS paper: sources, conventions, open items
 - [vertex_association](evaluation/vertex_association.md) — GNN metrics

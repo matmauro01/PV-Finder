@@ -5357,6 +5357,31 @@ sigma paragraph in the CPU-model page is marked superseded.
 - Doc: `docs/evaluation/lowpu_final_numbers_2026-11-12.md`. Outputs:
   `outputs/11_12_2026_output/lowpu_final/`.
 
+## 2026-11-12 — HL-LHC supplementary studies with Trey's side ntuple
+
+- **Input:** Trey's 12 Nov r16443 ntuple, joined to the old file by entry, as
+  a side table only. Entries 0-24,999, frozen s8 + GNN v2 e527, t = 0.97.
+- **Identity:** the two files agree exactly on tracks, AMVF vertices and
+  TTVA links, mu, nTracks >= 2 truth (as a set) and the HS.
+  - The old truth list is the new one restricted to nTracks >= 1. The new
+    file has +30.5 zero-track truth vertices per event and reorders the list.
+  - A z tie between two truth vertices (entry 22577) first tripped the
+    check; pairing by (z, x, y) fixed it.
+- **HS vs ITk local density** (all truth within +-2 mm): HS reconstruction
+  is saturated for both algorithms. PV-Finder leads HS selection (identical
+  rule) by +2.7 to +5.0 pt per bin and HS resolution by 0.2-0.9 um. The old
+  density gives the same picture.
+- **Vertex classes at PU200:** PV-Finder 74.3 Clean / 12.7 Merged / 6.8
+  Split per event vs AMVF 34.4 / 41.7 / 21.7 (same rule).
+  - Classifying AMVF with its fit tracks and weights raises Clean by +11.8
+    per event (+34%); about 60% of that is the different track list.
+  - GNN-score weights change PV-Finder by +0.07 Clean.
+- **New helper:** `gnn.evaluation.weighted_classification`. With unit weights
+  it reproduces `hs_metrics.classify_vertices` exactly; this is asserted on
+  every event and tested.
+- Doc: `docs/evaluation/hllhc_supplementary_2026-11-12.md`. Outputs:
+  `outputs/11_12_2026_output/hllhc_final/supplementary/`.
+
 ## 2026-11-13: Paper deck for the paper draft (structure and placeholders)
 
 - **Deck:** `presentations/mattia/11_13_2026_paper/` (104 pages, EB-deck
@@ -5378,3 +5403,61 @@ sigma paragraph in the CPU-model page is marked superseded.
   (s8: 80 channels, 439,593); s8 checkpoint is Phase-2 step 450,000 of 465,624
   (host-memory stop before the epoch checkpoint, learning rate at the floor);
   one t = 0.97 everywhere; low pile-up on PVF-e400 at integral 0.50.
+
+## 2026-11-12 (evening) — HL-LHC supplementary studies: >= 2-track headline rule
+
+Supersedes the classification headline of the 12 Nov supplementary entry.
+Coordinator decision: a vertex counts only if it has >= 2 tracks, for both
+algorithms (AMVF assocTracks or fit tracks; PV-Finder GNN tracks at t = 0.97).
+The >= 1-track numbers are now labelled backup.
+
+- **Vertex classes at PU200 under the rule:** PV-Finder 60.0 Clean / 12.8
+  Merged / 2.0 Split / 0.03 Fake per event vs AMVF 34.4 / 41.7 / 21.7 / 0.07.
+  - The rule drops 19.2 PV-Finder vertices per event (20%): 14.3 Clean, 4.8
+    Split and 0.14 Fake. AMVF loses 0.03.
+  - The Clean ratio is 1.74x (was 2.16x).
+  - With weights on both sides (fit weights, GNN scores) it is 1.30x.
+- **HS vs ITk density:** uses `hllhc_final/chain/metrics/test_s8_v2e527_hsmin2`
+  (HS candidates with >= 2 tracks). PV-Finder selection moves by 0 to
+  +0.19 pt and AMVF is unchanged, so the HS conclusions stand.
+- **Gates:** both rules reproduce the `chain_t_metrics` counts exactly. The
+  hsmin2 record has the same events and counts as the baseline, identical
+  AMVF residuals, and a PV-Finder residual exactly when a >= 2-track peak is
+  within 0.1 mm.
+- Doc and README updated: `docs/evaluation/hllhc_supplementary_2026-11-12.md`,
+  `outputs/11_12_2026_output/hllhc_final/supplementary/README.md`.
+
+## 2026-11-12 (night) — HL-LHC final recompute at the frozen working point (H1-H8)
+
+- **Configuration:** `get_regime("hllhc")` only: s8 (0.184 / 0.0184, centroid
+  ±3), 0.17 mm (HS 0.1 mm), GNN v2 e527, t = 0.97, sigma on the counted peaks.
+  After the GNN a vertex counts only with >= 2 tracks, for both algorithms
+  (decided this evening; the >= 1-track numbers are kept as backup).
+- **Pre-GNN (r16443 PU200, 1,920 events):** Eq. (1) 83.06 vs AMVF 79.85%
+  (+3.20 ± 0.06; r16638 +3.08); fake fraction 18.48 vs 20.08%; sigma_vtx-vtx
+  0.217 vs 0.305 mm; 68% residual 55.58 vs 56.45 um (3 x 68% = 0.167 /
+  0.169 mm, window stays 0.17). s8 minus v6: -0.15 / -0.08 pt.
+- **Post-GNN:** Clean/truth 53.9 vs 30.9%; HS selection (Athena rule) 95.0%
+  vs AMVF stored 92.9% (same rule 89.1%); HS resolution 9.48 vs 10.24 um;
+  track F1 67.7 vs 68.5% (not a GNN win; the t cut costs the low-mu F1).
+- **New:** Eq. (4) baseline (32.3%, no better than nearest z0), efficiency vs
+  n_trk and local density, track-level wrong/unassigned rates, supplementary
+  ntuple studies, resolution vs mu with s8, CPU timing (s8 packed 10.9x
+  faster than v6 padded; projected Athena chain 413 ms vs AMVF ~650 ms).
+- **Fix:** `scripts/resolution_vs_mu.py` used `HLLHC_PEAKS` (the old v6 cuts);
+  it now reads `get_regime("hllhc")`.
+- **Gates:** AMVF anchors, bookkeeping, identical events, peak identity
+  pre/post GNN, regression, and an independent recomputation all pass.
+- **Odd:** post-GNN positional efficiency of PV-Finder (73.4%) is below AMVF
+  (79.9%) under the >= 2-track rule; AMVF sigma_vtx-vtx fit sits at the c >= 0
+  bound (0.282-0.305 mm by fit method); the chain's sigma_PV is the peak width,
+  not the paper's Appendix B formula. The two pre-GNN evals were killed by an
+  external SIGTERM at 19:01 and rerun.
+- **t rescan with >= 2-track vertices (validation):** t = 0.97 still maximises
+  Clean/truth; t = 0.92 maximises track F1 (+1.5 pt over AMVF) and HS
+  selection at -4.2 pt Clean/truth. No t brings the post-GNN positional
+  efficiency up to AMVF. t is not changed pending a decision.
+- EB deck numbers repointed to these results (`scripts/eb_numbers.py`);
+  the deck commit waits for the t decision.
+- Doc: `docs/evaluation/hllhc_final_numbers_2026-11-12.md`. Outputs:
+  `outputs/11_12_2026_output/hllhc_final/`.
