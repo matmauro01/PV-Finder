@@ -1,0 +1,63 @@
+# GNN v3 campaign, control run e (docs/evaluation/gnn_v3_campaign_2026-11-13.md, section 9).
+# Mattia's question: is truth-candidate training as good as s8-candidate training at the same network?
+# Exactly run c (interaction network, hidden 64, 3 layers, softmax + no-vertex; 540 shard epochs, batch 32,
+# cosine 1e-3 -> 1e-5, seed, same s8 validation monitor for checkpoint selection), but trained on v2's
+# TRUTH-vertex graphs: the same 149,820 events in the same shard order (v2's 30 shards). Candidate features
+# for truth vertices as v2 had them: z = truth z, height = recipe height (July height fix), sigma = preset
+# sigma(nTracks) (hllhc_alleta), the sigma chain_inference_v3 gives truth candidates. Evaluated on s8.
+data_files:
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_00.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_00.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_01.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_01.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_02.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_03.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_02.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_04.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_03.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_05.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_06.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_04.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_07.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_05.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_08.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_09.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_06.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_10.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_07.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_11.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_12.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_08.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_13.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_09.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_14.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_15.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_10.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_16.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v1_20260924/train_shard_11.pt
+- /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/fullmu_v2_20261111/r16638_train_shard_17.pt
+val_file: /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/validation_monitor.pt
+monitor_file: /data/home/matmauro/codice/PV-Finder/data/run4_all_etas/ttva_graphs/chain_s8_v3_20261113/validation_monitor.pt
+batch_size: 32
+num_workers: 2
+model_config:
+  arch: ign
+  hidden: 64
+  layers: 3
+  heads: 4
+  dropout: 0.1
+  norm: true
+  pv_counts: true
+  pv_sigma: true
+  loss: softmax_null
+n_epochs: 540
+learning_rate: 0.001
+warmup_epochs: 5
+eta_min: 1.0e-05
+weight_decay: 0.0
+grad_clip: 1.0
+seed: 20261113
+device_id: 0
+save_folder: /data/home/matmauro/codice/PV-Finder/model_weights/ttva_gnn_v3_20261113/e
+runname: ttva_v3_e
+pv_sigma_preset: hllhc_alleta

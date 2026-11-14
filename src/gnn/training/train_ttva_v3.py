@@ -19,6 +19,13 @@ next to them makes every checkpoint loadable by ``load_v3``.
 ``model_config: {legacy_v2: true}`` trains the unchanged v1/v2
 ``TTVAGATModel`` (hidden 32, 2 GAT layers) with BCE, as the control.
 
+``pv_sigma_preset: <preset>`` (truth-candidate training shards, which carry no
+``pv.sigma``): each training graph without it gets the preset resolution
+sigma(nTracks) of ``RESOLUTION_PRESETS[<preset>]``, nTracks counted from
+``track.truth_pv``; this equals the sigma ``chain_inference_v3.truth_graph``
+gives truth candidates (checked on 40 events). Validation/monitor graphs keep
+their own.
+
     PYTHONPATH=src python -u -m gnn.training.train_ttva_v3 -c configs/gnn/<cfg>.yml
 """
 
@@ -35,6 +42,7 @@ import torch
 import yaml
 from torch_geometric.loader import DataLoader
 
+from gnn.data.root_to_graphs import compute_pv_sigma_preset
 from gnn.models.ttva_gat import TTVAGATModel
 from gnn.models.ttva_v3 import (
     E_KEY,
@@ -67,6 +75,24 @@ class LegacyV2(torch.nn.Module):
 
     def scores_from(self, logit, null, src, n_t):  # noqa: ANN001, ANN201
         return torch.sigmoid(logit)
+
+
+def add_preset_sigma(graphs: list, preset: str) -> int:
+    """Set ``pv.sigma`` = preset sigma(nTracks) on graphs lacking it; returns how many."""
+    from pv_finder.data.resolution_presets import RESOLUTION_PRESETS
+
+    res = RESOLUTION_PRESETS[preset]
+    n = 0
+    for g in graphs:
+        if "sigma" in g["pv"]:
+            continue
+        tp = g["track"].truth_pv.numpy()
+        cnt = np.bincount(tp[tp >= 0], minlength=int(g["pv"].x.shape[0]))
+        g["pv"].sigma = torch.from_numpy(
+            compute_pv_sigma_preset(cnt, *res).astype(np.float32)
+        )
+        n += 1
+    return n
 
 
 def build_model(cfg: dict) -> torch.nn.Module:
@@ -201,6 +227,8 @@ def main(cfg: dict, resume: bool) -> None:
         shard = shards[ep % len(shards)]
         gen.manual_seed(seed + ep)
         data = torch.load(shard, weights_only=False)
+        if cfg.get("pv_sigma_preset"):
+            add_preset_sigma(data, cfg["pv_sigma_preset"])
         t_load = time.time() - t0
         loader = DataLoader(data, shuffle=True, generator=gen, **kw)
         model.train()
