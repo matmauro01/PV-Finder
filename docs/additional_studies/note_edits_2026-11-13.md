@@ -83,13 +83,9 @@ On the GNN v3 retrain:
 - p. 41 l. 832: GNN median dominant-track fraction (100%, GNN v4).
 - p. 46 l. 933: Sec. 7.7 (GNN v4 augmentation study), kept as a record.
 
-Small recomputations not yet done (CPU, no GPU needed unless noted):
-- p. 41 l. 829: track multiplicity of truth vertices without a one-to-one peak
-  (median 3 vs 9, 34.8% with two tracks; earlier model, 0.5 mm). Needs truth
-  n_trk per vertex from ROOT.
-- p. 44 l. 891, 895, 899, 905: low pile-up Truth+GNN row, oracle 81.9% and the
-  88.8% truth-graph Clean fraction (earlier configuration). Needs GNN inference
-  on truth graphs (CPU feasible, about the size of the Run 3 rerun).
+Done in round 3 (below): p. 41 l. 829 and p. 44 l. 891-907.
+
+Left for Mattia:
 - p. 26 l. 490-495: Sec. 4.3.2 height-cut and GBT studies, earlier model; with
   no height cut in the frozen configuration they could be cut or moved to the
   appendix.
@@ -97,6 +93,30 @@ Small recomputations not yet done (CPU, no GPU needed unless noted):
 Other:
 - p. 28 Fig. 5.1 and p. 29 l. 581: timing of the earlier model; the frozen
   chain has no Athena timing yet (the CPU number is a projection).
+
+## Round 3: the two CPU recomputations (13 Nov 2026)
+
+Current PDF page/line. CPU only, from saved inputs; scripts committed.
+
+- **p. 41 l. 829, truth vertices without a one-to-one peak** (s8, r16443 PU200,
+  greedy closest-first within 0.17 mm, `scripts/note_unmatched_truth_ntrk.py`):
+  56,944 of 213,738 unmatched (one-to-one 73.36%, equal to the finder cap);
+  median n_trk 3 (unchanged) against 10 for matched (was 9); 33.5% have exactly
+  two tracks (was 34.8%). ROOT truth equals the cache in all 1,920 events.
+- **p. 44 l. 892-907, low pile-up Truth+GNN** (mu60 v2 e115 on the July truth
+  graphs `data/mu60/ttva_graphs/mu60_truth_test_fixedheights.pt`,
+  `gnn.evaluation.lowpu_chain -d -1 --min-tracks 2`, t = 0.94): 67,545
+  vertices; Clean / Merged / Split / Fake 83.42 ± 0.20 / 12.01 ± 0.16 /
+  4.57 ± 0.09 / 0.003%; Clean/truth 78.06 ± 0.22% (was 89.2% at t = 0.98 with
+  >= 1 track). Regression: the same graphs with >= 1 track at t = 0.98 give 72,544 vertices, 88.76 / 7.40 / 3.83%, Clean/truth 89.20%, the old row exactly.
+- **p. 44 l. 896, oracle on the frozen peaks** (`scripts/note_lowpu_oracle.py`,
+  e400 integral 0.50 peaks, each labelled track to the peak nearest its truth
+  vertex within 0.17 mm, >= 2 tracks): Clean/truth 73.90 ± 0.19% (was 81.9% at
+  1 mm on the integral-0.2 peaks, >= 1 track). The GNN (70.57%) is 3.3 pt below.
+  Sanity: below the one-to-one finder match (76.24%).
+- **p. 44 l. 901**: Clean fraction of reconstructed vertices 85.1% (chain)
+  against 83.4% (truth graphs), so the sentence "slightly higher for the
+  deployed chain" still holds.
 
 ## Numbers: what is final and what is flagged
 

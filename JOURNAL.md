@@ -5650,3 +5650,11 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
 - Sec. 4.1.2 now uses the s8 window scan (+0.75 / +2.90 pt at 0.5 mm, fake+split crossing 0.63 mm,
   matched-multiplicity control +2.74 pt). Fake+split restored: 0.63 ± 0.09 fewer per event.
 - What still waits, with page/line: `docs/additional_studies/note_edits_2026-11-13.md`, "Still waiting".
+
+## 2026-11-13: Note edits, round 3 (two CPU recomputations)
+- Truth vertices without a one-to-one s8 peak at 0.17 mm (r16443 PU200): median n_trk 3 vs 10 for
+  matched, 33.5% with two tracks (`scripts/note_unmatched_truth_ntrk.py`).
+- Low pile-up Truth+GNN at t = 0.94, >= 2 tracks (CPU, July truth graphs): Clean/truth 78.06 ± 0.22%,
+  Clean/reco 83.4%; the >= 1-track, t = 0.98 rerun reproduces the old 89.2% row exactly. Oracle on the
+  frozen e400 peaks at 0.17 mm: 73.90 ± 0.19% (`scripts/note_lowpu_oracle.py`). Note Sec. 7.5-7.6
+  updated; outputs in `outputs/11_13_2026_output/note_edits/`.
