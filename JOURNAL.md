@@ -5668,3 +5668,16 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   with 0 beyond 1 sigma (c: 3 strict, 1 beyond). The first attempt crashed on GPU 0 when run e
   started (memory); the coordinator reran it on GPU 2.
 - Doc sections 5 and 8.
+
+## 2026-11-14: GNN v3 control run e: truth-candidate training is worse
+- e (c's network and recipe, v2's truth-vertex graphs) evaluated on s8 candidates like c. Its s8
+  monitor loss is lowest at epoch 2 (0.90 against c's 0.70) and degrades steadily with training
+  (1.53 at the last epoch; F1 at t = 0.5 falls from 0.79 to 0.61). Truth graphs have narrower
+  sigma (median 0.044 against 0.079 mm), higher heights and almost no tracks without a vertex.
+- At epoch 2, against c at matched points: PU200 track eff at 85% purity 56.9 vs 60.1, HS purity at
+  AMVF's HS-track fraction 93.2 vs 96.6; only marginally above v2 e527 (56.7 / 92.0). Failures
+  against AMVF: single t 50 (c 30), two-threshold 35 (c 3).
+- So training on deployment candidates matters at fixed architecture. e is not a better
+  truth-trained reference than v2 for the note. The last-epoch evaluation is queued.
+- Set up the GPU 0 evaluation queue (tmux `gnnv3_evalq0`): p2c and p2a full chains (single t,
+  top-2, two-threshold, summaries against c), evaluation only, never next to a training run.

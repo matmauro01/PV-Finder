@@ -548,7 +548,66 @@ is 27.6 GiB. Pipeline (tmux `gnnv3_e`, `scripts/run_gnn_v3_e_pipeline.sh`):
 4. top-2 inference and the two-threshold grid (`eval/twothr_e`);
 5. two-threshold summary of c and e (`eval/twothr_ce/summary`).
 
-Expected done: 14 Nov, about 08:00. Config: `configs/gnn/config_gnn_ttva_v3_e.yml`.
+Done 14 Nov 06:06. Config: `configs/gnn/config_gnn_ttva_v3_e.yml`.
+
+**Result (14 Nov 06:06): truth-candidate training is clearly worse than c, and gets
+worse the longer it trains.**
+
+On the s8 monitor, e is best at epoch 2: loss 0.90 against c's 0.70. After that
+the monitor degrades steadily while e's truth training loss keeps falling:
+
+| epoch | e monitor loss | e F1 at t = 0.5 | e track eff at t = 0.5 | c F1 at t = 0.5 |
+|---:|---:|---:|---:|---:|
+| 0 | 0.956 | 0.787 | 0.758 | 0.787 |
+| 2 (selected) | 0.900 | 0.781 | 0.746 | 0.793 |
+| 50 | 1.011 | 0.732 | 0.678 | 0.797 |
+| 200 | 1.062 | 0.709 | 0.635 | 0.798 |
+| 539 (last) | 1.525 | 0.609 | 0.468 | 0.800 |
+
+The selection rule (lowest monitor loss) therefore picked a nearly untrained
+network. The numbers below are for e at epoch 2, its best case. The last epoch is
+being evaluated (queue `gnnv3_evalq0`, `eval/phase1_e539`).
+
+Why, measured on 300 events of the same shard (truth / s8):
+- sigma: median 0.044 against 0.079 mm (q05-q95 0.022-0.093 against 0.037-0.153);
+- height: the recipe never goes below 0.27, s8 peaks reach 0.04;
+- 98.6% of the tracks have a positive edge on truth graphs, 89.6% on s8: truth
+  training never shows a missed vertex.
+
+The more e learns the truth graphs, the more these differences hurt. v2 had no
+sigma input. A sigma-free pair (e and c both without `pv_sigma`) would say how
+much of the gap is the sigma input. It is not run (2 x 6 GPU hours). The
+direction is not in doubt, since height and missing vertices differ too.
+
+Single t (`eval/phase1_ce/summary`), fewest failures: c 30 at t = 0.55, e 50 at
+t = 0.75 (45 beyond 1 sigma; v2 e527 62).
+
+Matched operating points:
+
+| bin | at | c | e (epoch 2) | v2 e527 | AMVF |
+|---|---|---:|---:|---:|---:|
+| PU200 | trk eff at trk pur 85% | 60.1 | 56.9 | 56.7 | 68.4 (at 68.7%) |
+| PU200 | HS purity / Clean HS at AMVF's HS-track fraction | 96.6 / 99.1 | 93.2 / 97.8 | 92.0 / 97.1 | 88.9 / 93.8 |
+| inclusive | trk eff at trk pur 85% | 70.5 | 67.5 | 67.7 | 74.3 (at 74.9%) |
+| inclusive | HS purity at AMVF's HS-track fraction | 98.0 | 95.9 | 94.9 | 92.75 |
+| 0-10 | trk eff / Clean/truth at AMVF's trk pur | 96.9 / 88.9 | 95.3 / 88.3 | 92.5 / 86.3 | 95.6 / 83.8 |
+| 0-10 | HS purity at AMVF's HS-track fraction | 99.5 | 99.0 | 98.0 | 98.15 |
+
+Two-threshold (`eval/twothr_ce/summary`, same grid):
+- e: best 35 failures at (t = 0.4, t_HS = 0.75, unassign), with track efficiency
+  below AMVF in all 22 bins (PU200 63.5 against 68.4);
+- c: 3 failures.
+
+At any t low enough for track efficiency, e's HS purity fails.
+
+Conclusion for Mattia's question:
+- On s8 candidates, at the same network, truth-candidate training is worse than
+  s8-candidate training at every matched point (PU200: -3.2 points of track
+  efficiency, -3.4 of HS purity).
+- Its best checkpoint is barely above v2 e527, the truth-trained network the note
+  uses.
+- e should not replace v2 as the note's conservative truth-trained reference:
+  its numbers come from an epoch-2 checkpoint and degrade with training.
 
 **e_aug not run (not cheap).** The chain-like augmentation
 (`graph_augmentation`) is applied at graph-build time from statistics that
