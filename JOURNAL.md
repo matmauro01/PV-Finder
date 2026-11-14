@@ -5693,3 +5693,12 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
 - Recommendation: p2c with two cuts, the fastest within a few tenths of the best (1.3x v2 CPU).
   p2b (ETA 21:30) is unlikely to move more than a few tenths at 9x v2 CPU.
 - Doc: `docs/evaluation/gnn_v3_preliminary_comparison_2026-11-14.md`, campaign doc section 7.
+
+## 2026-11-14 — Paper deck final version for the colleague (13:00-13:40)
+- Mattia: send the paper info (not the note) within 1 h; cut his own Q&A slides, keep simple answers to the colleague's 29 questions, up-to-date plots and numbers.
+- presentations/mattia/11_13_2026_paper: removed the "Mattia's questions" and "note edits" parts (104 -> 78 pages); new slide "What Can Still Change" (GNN being retrained with a single cut; HL-LHC peak cuts simplified to integral 0.186, no height, which changes nothing measurable).
+- numbers.tex: every TBD filled at the frozen EB configuration (t = 0.94, >= 2 tracks); hlT and lpT were still 0.97 -> 0.94. Values match presentations/mattia/11_13_2026_EB/numbers.tex.
+- Run 3 data association at t = 0.94 was missing: added 0.94 to T_GRID in src/gnn/evaluation/run3_assoc_lowpu.py and reran (outputs/11_14_2026_output/run3_assoc_ntrk2_t094; the 0.95 row reproduces the 12 Nov run exactly). 95.78 / 95.46 / 94.47 / 91.28 %.
+- Figures repointed to the >= 2-track and t = 0.94 versions; new Clean/truth-by-method plot without the Eq. 4 arms (outputs/11_14_2026_output/paper_deck/clean_yield/make_paper_clean_yield.py); stale per-position category plots dropped.
+- Config tables: output vertices need >= 2 tracks for both algorithms (was >= 1).
+- GNN decision (Mattia, 14 Nov): keep one score cut, no two-threshold scheme.

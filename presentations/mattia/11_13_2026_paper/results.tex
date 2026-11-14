@@ -1,5 +1,6 @@
-% Results: every paper figure and number at the frozen configuration.
-% Figures through images.txt; placeholders until the recompute agents finish.
+% Results: every paper figure and number at the frozen configuration
+% (s8, GNN v2 e527, t = 0.94, vertices with >= 2 tracks, 0.17 / 0.1 mm windows).
+% Figures through images.txt.
 
 %---------------------------------------------------------------------- HL-LHC before the GNN
 \begin{frame}{HL-LHC before the GNN: Table 3 at PU200}
@@ -68,7 +69,7 @@ AMVF / PVF $\svtx$, $\mu\ge100$ & \multicolumn{2}{c}{\sigRatioMu} \\
 \bottomrule
 \end{tabular}
 \par\vspace{.5em}
-$\svtx$ per bin only for $\mu\ge100$ (M10). The two-panel version is on the M10 slide.
+$\svtx$ per bin is quoted only for $\mu\ge100$.
 \end{column}
 \end{columns}
 \end{frame}
@@ -99,12 +100,6 @@ PU200: PV-Finder \hsRecoPVF\%, AMVF \hsRecoAMVF\%.
 {splits_per_event_vs_mu}{Split vertices per event versus $\mu$.}
 \end{frame}
 
-\begin{frame}{HL-LHC before the GNN: Positional Categories (Backup)}
-\backupbadge
-\twofig{pos_categories_pu200}{Positional categories at PU200, both algorithms.}%
-{amvf_pos_categories_vs_mu}{AMVF positional categories versus $\mu$.}
-\end{frame}
-
 \begin{frame}{HL-LHC before the GNN: Efficiency vs $n_\mathrm{trk}$, Density, Separation (Backup)}
 \backupbadge
 \threefig{eff_ntrk_pre_pu200}{versus truth $n_\mathrm{trk}$, PU200.}%
@@ -114,7 +109,7 @@ PU200: PV-Finder \hsRecoPVF\%, AMVF \hsRecoAMVF\%.
 
 %---------------------------------------------------------------------- HL-LHC after the GNN
 \begin{frame}{HL-LHC after the GNN: Table 4 at PU200}
-\mainbadge\hfill{\footnotesize \hlModel{} + GNN v2 ($t=\hlT$) vs AMVF TTVA links, \nEvtPU{} events, vertices with $\ge1$ track}
+\mainbadge\hfill{\footnotesize \hlModel{} + GNN v2 ($t=\hlT$) vs AMVF TTVA links, \nEvtPU{} events, vertices with $\ge2$ tracks}
 \par\vspace{.2em}\scriptsize
 \begin{center}
 \renewcommand{\arraystretch}{1.1}
@@ -150,7 +145,7 @@ All $\mu$: HS reconstructed and selected [\%] & \hsSelGNNincl & \hsSelAMVFincl \
 \end{column}
 \begin{column}{.37\linewidth}
 \small
-\fcap{Clean, Merged, Split and Fake vertices per event at PU200, track-content classification (70\% rule), PV-Finder + GNN tracks vs AMVF TTVA links.}
+\fcap{Clean, Merged, Split and Fake vertices per event at PU200 (70\% track-content rule, vertices with $\ge2$ tracks).}
 \par\vspace{.5em}
 Clean per event: \clnEvtGNN{} vs \clnEvtAMVF.
 \end{column}
@@ -163,6 +158,13 @@ Clean per event: \clnEvtGNN{} vs \clnEvtAMVF.
 {split_evt_vs_mu}{Split / event}{fake_evt_vs_mu}{Fake / event}
 \end{frame}
 
+\begin{frame}{HL-LHC after the GNN: Clean/truth by Association Method}
+\mainbadge
+\twofig{clean_yield_paper}{Clean/truth at PU200: truth-guided reference, PV-Finder + GNN, nearest-$z_0$ baselines, AMVF.}%
+{clean_yield_mu_paper}{The same versus $\mu$.}
+\par\vspace{.2em}{\footnotesize Truth-guided: each track goes to the PV-Finder candidate nearest its true vertex (MC only), the best any association can do on these peaks.}
+\end{frame}
+
 \begin{frame}{HL-LHC after the GNN: Clean/truth and Efficiency versus $n_\mathrm{trk}$}
 \mainbadge
 \twofig{clean_truth_vs_mu}{Clean vertices over truth vertices versus $\mu$.}%
@@ -172,7 +174,7 @@ Clean per event: \clnEvtGNN{} vs \clnEvtAMVF.
 \begin{frame}{HL-LHC after the GNN: Hard-Scatter Selection and Resolution}
 \mainbadge
 \twofig{hs_sel_vs_mu}{HS reconstructed and selected (\hsWinMM{} mm), Athena rule for PV-Finder + GNN; AMVF stored primary and same rule.}%
-{hs_res_vs_mu}{HS longitudinal resolution (iterative 3-RMS), 3D adaptive fit on GNN tracks vs AMVF.}
+{hs_res_vs_mu}{HS longitudinal resolution (RMS within $\pm3$ RMS, iterated), adaptive fit on the GNN tracks vs AMVF.}
 \end{frame}
 
 \begin{frame}{HL-LHC after the GNN: Hard Scatter versus Local Pile-up Density}
@@ -187,19 +189,14 @@ Clean per event: \clnEvtGNN{} vs \clnEvtAMVF.
 \threefig{trk_f1_vs_mu}{\mainbadge{} Track $F_1$}%
 {trk_eff_vs_mu}{\backupbadge{} Track efficiency}%
 {trk_pur_vs_mu}{\backupbadge{} Track purity}
-\par\vspace{.3em}{\footnotesize At PU200 the GNN trades efficiency (\trkEffGNN{} vs \trkEffAMVF\%) for purity (\trkPurGNN{} vs \trkPurAMVF\%); $F_1$ \trkFOneGNN{} vs \trkFOneAMVF\%. At low $\mu$ the GNN $F_1$ is below AMVF (M5).}
+\par\vspace{.3em}{\footnotesize At PU200 the GNN trades efficiency (\trkEffGNN{} vs \trkEffAMVF\%) for purity (\trkPurGNN{} vs \trkPurAMVF\%); $F_1$ \trkFOneGNN{} vs \trkFOneAMVF\%. At low $\mu$ the GNN $F_1$ is below AMVF.}
 \end{frame}
 
-\begin{frame}{HL-LHC after the GNN: Hard-Scatter Tracks (Backup)}
+\begin{frame}{HL-LHC after the GNN: Hard-Scatter Tracks, Density Definition (Backup)}
 \backupbadge
-\twofig{hs_clean_vs_mu}{Clean-HS fraction versus $\mu$.}%
-{hs_trkfrac_vs_mu}{HS tracks on the HS-matched vertex over all HS tracks.}
-\end{frame}
-
-\begin{frame}{HL-LHC after the GNN: HS Resolution vs $n_\mathrm{trk}$, Density Definition (Backup)}
-\backupbadge
-\twofig{hs_res_vs_ntrk}{HS resolution versus HS truth $n_\mathrm{trk}$, PU200.}%
-{density_definitions}{Local density: ITk definition (all truth vertices) and the stored-truth one.}
+\threefig{hs_clean_vs_mu}{Clean-HS fraction versus $\mu$.}%
+{hs_trkfrac_vs_mu}{HS tracks on the HS-matched vertex over all HS tracks.}%
+{density_definitions}{Local density: ITk definition and the stored-truth one.}
 \end{frame}
 
 \begin{frame}{HL-LHC after the GNN: Classification Cross-checks (Backup)}
@@ -209,17 +206,11 @@ Clean per event: \clnEvtGNN{} vs \clnEvtAMVF.
 \par\vspace{.2em}{\footnotesize With its own fit weights AMVF has \clnEvtAMVFfit{} Clean per event; PV-Finder + GNN leads by \cleanLeadFit$\times$ instead of \cleanLeadTTVA$\times$.}
 \end{frame}
 
-\begin{frame}{HL-LHC after the GNN: Association Baselines (Backup)}
+\begin{frame}{HL-LHC after the GNN: One-to-one Bound and Eq.~(4) (Backup)}
 \backupbadge
-\twofig{eq4_vs_mu}{Eq.~(4) significance association, Clean/truth versus $\mu$.}%
-{z0_baselines_vs_mu}{Nearest $z_0$ and $3\sigma(z_0)$ baselines.}
-\end{frame}
-
-\begin{frame}{HL-LHC after the GNN: Bounds and Stages (Backup)}
-\backupbadge
-\threefig{truth_guided_vs_mu}{Truth-guided association on the same peaks.}%
-{finder_cap_vs_mu}{Finder cap (one to one, \winMM{} mm).}%
-{stages_pu200}{Clean yield by stage, PU200.}
+\threefig{finder_cap_vs_mu}{One-to-one match of candidates to truth (\winMM{} mm), PV-Finder and AMVF.}%
+{eq4_vs_mu}{Eq.~(4) significance association, Clean/truth versus $\mu$.}%
+{stages_pu200}{All arms at PU200, one-to-one and Eq.~(4) included.}
 \end{frame}
 
 \begin{frame}{HL-LHC after the GNN: Unassigned and Wrong Tracks (Backup)}
@@ -236,10 +227,10 @@ Clean per event: \clnEvtGNN{} vs \clnEvtAMVF.
 {sigma_pv_pu200}{Peak width ($\sigma_\mathrm{PV}$) vs the $n_\mathrm{trk}$ parameterisation.}
 \end{frame}
 
-\begin{frame}{GNN v2: Learning Curve and Metrics versus $\mu$ (Backup)}
+\begin{frame}{GNN v2: Learning Curve (Backup)}
 \backupbadge
-\twofig{gnn_learning_curve}{Validation-monitor loss, v1 and v2.}%
-{vs_mu_test_s8}{All chain metrics versus $\mu$ for several $t$, \hlModel{} peaks, test events.}
+\begin{center}\plot{gnn_learning_curve}{.62}\end{center}
+\fcap{Validation-monitor loss of GNN v1 and v2.}
 \end{frame}
 
 %---------------------------------------------------------------------- Low pile-up
@@ -299,7 +290,7 @@ Track $F_1$ & \lpFOne & \lpFOneAMVF \\
 HS ident. & \lpHSID & \lpHSIDAMVF \\
 \bottomrule
 \end{tabular}
-\par\vspace{.3em}{\scriptsize $t=\lpT$; per reco vertex with $\ge1$ track; \lpEmpty{} empty candidates dropped.}
+\par\vspace{.3em}{\scriptsize $t=\lpT$; per reco vertex with $\ge2$ tracks; \lpEmpty{} empty candidates dropped.}
 \end{column}
 \begin{column}{.31\linewidth}\centering
 \plot{lp_fig9a}{.5}\fcap{(a) Matched-vertex efficiency vs truth $n_\mathrm{trk}$.}
@@ -363,7 +354,7 @@ AMVF, CPU (note figure) & \athAMVF \\
 \bottomrule
 \end{tabular}
 \par\vspace{.5em}
-The CPU claim in the paper needs packed inference in Athena (M6). The GPU claim stands as measured.
+The GPU claim stands as measured. A CPU claim needs packed inference in Athena first.
 \end{column}
 \end{columns}
 \end{frame}

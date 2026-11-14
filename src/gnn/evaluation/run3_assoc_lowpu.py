@@ -52,7 +52,7 @@ from pv_finder.utils.constants import PT_SCALE
 from pv_finder.utils.peak_finding import pv_locations_updated_res
 from pv_finder.utils.working_points import MATCH_WINDOW_MM, get_regime
 
-T_GRID: tuple[float, ...] = (0.0, 0.5, 0.9, 0.95, 0.97, 0.98, 0.99, 0.995)
+T_GRID: tuple[float, ...] = (0.0, 0.5, 0.9, 0.94, 0.95, 0.97, 0.98, 0.99, 0.995)
 # The regime window, plus the 0.5 / 1.0 mm windows of the July 2026 study.
 WINDOWS_MM: tuple[float, ...] = (MATCH_WINDOW_MM, 0.5, 1.0)
 BRANCHES = (

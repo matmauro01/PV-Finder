@@ -1,5 +1,5 @@
 % PV-Finder paper deck, 13 November 2026. Build: bash build.sh
-% Every number is a macro from numbers.tex; red TBD = not final yet.
+% Every number is a macro from numbers.tex.
 % Figures come from images.txt through images_manifest.tex (written by build.sh).
 \input{preamble.tex}
 \input{numbers.tex}
@@ -33,28 +33,33 @@
 \small
 \begin{columns}[T]
 \begin{column}{.52\linewidth}
-\textbf{For the colleague finishing the paper draft} (\texttt{PVFinderPaper\_11\_11\_2026.pdf}).
+\textbf{For the paper draft} (\texttt{PVFinderPaper\_11\_11\_2026.pdf}).
 \begin{enumerate}\setlength\itemsep{.3em}
-\item Frozen configuration, one table per regime
-\item Datasets and which file is used for what
-\item Metric definitions, with the code that computes each one
+\item Final configuration, one table per regime
+\item Datasets: which file is used for what
+\item Metric definitions
 \item Answers to the 29 questions in the draft, with page and line
-\item Answers to Mattia's own questions
-\item Results: every paper figure and number, main and backup
-\item Proposed internal-note edits
+\item Results: every paper figure and number
 \end{enumerate}
 \end{column}
 \begin{column}{.45\linewidth}
 \textbf{How to read it}
 \begin{itemize}\setlength\itemsep{.3em}
-\item Every number is a macro in \texttt{numbers.tex}.
-\item \TBD{} marks a number from the final recompute that is not in yet. Its source file and key are in the comment next to the macro.
-\item A framed red box marks a figure not produced yet, with its expected path.
-\item \mainbadge{} figures are proposed for the paper; \backupbadge{} figures go to the note or the backup.
+\item All numbers are on the test set (r16443 entries 0--24,999) with the configuration on the next two slides, the one shown at the EB on 13 November.
+\item \mainbadge{} figures are proposed for the paper; \backupbadge{} figures are for the note or the backup.
 \item PV-Finder and AMVF are always compared on the same events with the same code.
 \end{itemize}
 \end{column}
 \end{columns}
+\end{frame}
+
+\begin{frame}{What Can Still Change}
+\small
+\begin{itemize}\setlength\itemsep{.6em}
+\item \textbf{GNN (track association).} An updated GNN is being trained, with the same single score cut $t$ as now. On validation events it improves the hard-scatter and pile-up vertex metrics over the current GNN. If it is adopted, the after-GNN numbers and figures will be updated once, on the same test set. The vertex-finding results before the GNN do not change.
+\item \textbf{HL-LHC peak cuts.} We simplified the cuts to one integral cut (0.186, no height cut), like the low pile-up setup. On the selection events this changes efficiency by less than 0.01 points and fakes by 0.01 per event, so the numbers here stand. The final recompute will use the simplified cuts.
+\item Everything else (density models, windows, datasets, definitions) is final.
+\end{itemize}
 \end{frame}
 
 %======================================================================
@@ -80,7 +85,7 @@ Position & local centroid, $\pm$\hlCentroid{} bins about the maximum \\
 GNN & full-$\mu$ v2, epoch \hlGnnEpoch, \gnnParams{} parameters \\
 Graph & $k=\gnnK$ nearest peaks per track \\
 Score cut $t$ & \hlT{} (top-1 edge per track kept if score $\ge t$) \\
-Output vertices & candidates with $\ge1$ assigned track \\
+Output vertices & candidates with $\ge2$ assigned tracks (same rule for AMVF) \\
 \midrule
 Matching window & \winMM{} mm (all vertex results, both algorithms) \\
 Hard-scatter window & \hsWinMM{} mm \\
@@ -120,7 +125,7 @@ Position & local centroid, $\pm$\hlCentroid{} bins \\
 \midrule
 GNN & \texttt{\lpGnnCkpt} \\
 Score cut $t$ & \lpT{} (same as HL-LHC) \\
-Output vertices & candidates with $\ge1$ assigned track \\
+Output vertices & candidates with $\ge2$ assigned tracks (same rule for AMVF) \\
 \midrule
 Matching window & \winMM{} mm \\
 Hard-scatter window & \hsWinMM{} mm \\
@@ -156,6 +161,7 @@ GNN score cut & 0.98 (categories), 0.95 (HS) & \hlT{} for every use \\
 Low pile-up density model & ep300 (KDE-initialised), PVF-e400, KDE two-stage & \lpModel{} only \\
 Low pile-up GNN peaks & integral 0.2, full-region mean & integral \lpIntegral, local centroid \\
 Low pile-up $t$ & 0.99, 0.95 ($F_1$), 0.5 (HS), 0.98 (Run 3) & \lpT{} for every use \\
+Output vertices & $\ge1$ assigned track & $\ge2$ assigned tracks, both algorithms \\
 HS selection & plain $\sum p_\mathrm{T}^2$ & Athena 24.0 rule, same code for both \\
 HS position & histogram peak & 3D adaptive fit with beam spot \\
 Categories & AMVF TTVA links vs GNN tracks & same, plus weighted cross-checks \\
@@ -326,7 +332,7 @@ Hard-scatter window & \hsWinMM{} mm, ITk performance paper & \texttt{working\_po
 
 \begin{frame}{After the GNN: Vertex Categories}
 \mtab{%
-Assignment & each track keeps its top-1 GNN edge if the score is $\ge t=\hlT$; candidates with no track are dropped from the output & \texttt{gnn/evaluation/\allowbreak chain\_inference.py} \\
+Assignment & each track keeps its top-1 GNN edge if the score is $\ge t=\hlT$; candidates with fewer than two tracks are dropped; AMVF vertices need two tracks too & \texttt{gnn/evaluation/\allowbreak chain\_inference.py} \\
 Track lists & PV-Finder: GNN-assigned tracks. AMVF: its TTVA links (\texttt{Nonprompt\_Hard\_MaxWeight}, \texttt{RecoVertex\_assocTracks}). One rule for both. & \\
 Clean, Merged, Fake & per vertex, the plurality truth vertex of its tracks. Fake if the plurality is unlabelled tracks; Clean if its share is $\ge\purityCut$; Merged otherwise & \texttt{classify\_\allowbreak assignments}, \texttt{gnn/evaluation/\allowbreak classification.py} \\
 Split & among vertices with the same plurality truth vertex, all but the largest $\sum p_\mathrm{T}^2$ & same \\
@@ -366,18 +372,8 @@ Unassigned fraction & $1-$ (assigned labelled tracks / labelled tracks); efficie
 \input{questions.tex}
 
 %======================================================================
-\partdivider{5}{Mattia's Questions}{Decisions behind the configuration}
-
-\input{mattia.tex}
-
-%======================================================================
-\partdivider{6}{Results}{Every paper figure and number; PV-Finder and AMVF on the same events}
+\partdivider{5}{Results}{Every paper figure and number; PV-Finder and AMVF on the same events}
 
 \input{results.tex}
-
-%======================================================================
-\partdivider{7}{Proposed Internal-Note Edits}{Old text and new [MM: ...] text, with page and line}
-
-\input{noteedits.tex}
 
 \end{document}
