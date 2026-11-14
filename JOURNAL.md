@@ -5658,3 +5658,13 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   Clean/reco 83.4%; the >= 1-track, t = 0.98 rerun reproduces the old 89.2% row exactly. Oracle on the
   frozen e400 peaks at 0.17 mm: 73.90 ± 0.19% (`scripts/note_lowpu_oracle.py`). Note Sec. 7.5-7.6
   updated; outputs in `outputs/11_13_2026_output/note_edits/`.
+
+## 2026-11-14: GNN v3 run d evaluated
+- d (h128 l4, epoch 466) on the 7,500 validation entries: best single t is 0.55 with 30 failures,
+  the same as c. At every matched point d is within 0.1-0.3 pt of c (PU200 track eff at 85% purity
+  60.3 vs 60.1; HS purity at AMVF's HS-track fraction 96.7 vs 96.6). CPU 3.3x c, 9.0x v2.
+  Capacity buys nothing measurable on the phase-1 data.
+- Two-threshold d: 4 strict failures at (0.2, 0.6) unassign and (0.2, 0.65) fallback, the latter
+  with 0 beyond 1 sigma (c: 3 strict, 1 beyond). The first attempt crashed on GPU 0 when run e
+  started (memory); the coordinator reran it on GPU 2.
+- Doc sections 5 and 8.

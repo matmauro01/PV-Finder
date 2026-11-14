@@ -287,9 +287,20 @@ What phase 1 established:
    in nearly every bin. The few HS-resolution failures (2-3 isolated bins of 375
    events) are within 1 sigma.
 
-Run d (hidden 128, 4 layers), monitor at epoch 257 of 540: loss 0.6997, equal to
-c's final 0.69935. d is ahead of c at the same epoch (c: 0.7023 at 250), so
-capacity buys a little. The gain over c will be known when d finishes.
+**Run d (hidden 128, 4 layers; evaluated 13 Nov 23:50, epoch 466, `eval/phase1_all/summary`).**
+Capacity buys nothing measurable on the phase-1 data:
+- d's best single t is also 0.55, with 30 failures (26 beyond 1 sigma), the same
+  as c.
+- At every matched point d is within 0.1-0.3 points of c. At PU200 and 85% track
+  purity, track efficiency is 60.3 against 60.1. At AMVF's HS-track fraction, HS
+  purity is 96.7 against 96.6 and Clean HS 99.15 against 99.1. At mu 0-10 and
+  AMVF's track purity, Clean/truth is 88.8 against 88.9.
+- PU200 at t = 0.55, d / c: track efficiency 57.7 / 57.4, Clean HS 98.1 / 98.2,
+  HS purity 92.2 / 92.2.
+- No paired d-c bootstrap was run. The differences are below the paired errors of
+  either run against AMVF (0.3-1 point).
+- d costs 3.3x c on CPU (713 against 218 ms per PU200 event; 9.0x v2). Whether
+  capacity pays with more data is phase 2's p2b.
 
 CPU time of the GNN forward per PU200 event (1 thread, 60 r16438 events, mean
 1,367 tracks and 27,330 edges, 3 passes interleaved round-robin; median of the
@@ -414,8 +425,26 @@ b (BCE): single t = 0.96 has 31 failures. The best two-threshold point,
 at mu < 30 (0-10: 97.9 against 98.15), fakes in 2 bins and HS res in 2 bins.
 Fallback gives 12. With BCE, t <= 0.5 applies almost no cut, and the HS purity at
 low mu needs t_HS near 0.97. c's calibrated score is better here, which supports
-its loss for phase 2. Run d is added automatically when it finishes (tmux
-`gnnv3_twothr_d`, output `eval/twothr_bcd/summary`).
+its loss for phase 2.
+
+d (`eval/twothr_bcd/summary`): the best two-threshold points have 4 strict
+failures. With unassign, (t = 0.2, t_HS = 0.6) leaves 1 beyond 1 sigma (HS purity
+0-10). With fallback, (0.2, 0.65) leaves 0 beyond 1 sigma; the remaining failures
+are HS res in 3 isolated bins and fakes in 50-60. c has 3 strict and 1 beyond
+1 sigma.
+
+d has 7 grid points with no failure beyond 1 sigma; c has none. d reaches the AMVF
+track efficiency at a higher global t (0.2 against 0.1), so it keeps more
+Clean/truth (PU200 43.5 against 40.1, AMVF 30.9), but its track-efficiency margin
+is thinner (PU200 68.6 against 68.4 for AMVF; c 69.4). Rows at d's fallback point
+(model / AMVF):
+- PU200: trk eff 68.6 / 68.4, HS purity 93.5 / 88.9, Clean HS 97.9 / 93.8;
+- inclusive: trk eff 74.7 / 74.3, HS purity 95.1 / 92.75;
+- mu 0-10: HS purity 98.16 / 98.15.
+
+The first d attempt crashed on GPU 0 when run e started (cuDNN engine error, GPU
+memory full). The coordinator reran it on GPU 2; the crash log is kept as
+`eval_twothr_d_crash_gpu0_oom.log`.
 
 The fake failure is 7 fakes in 350 events against AMVF's 5 (inclusive 0.022 against
 0.035 per event). The HS-resolution failures sit in two isolated bins (380 and 350
