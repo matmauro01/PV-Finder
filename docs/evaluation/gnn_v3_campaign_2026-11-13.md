@@ -480,6 +480,55 @@ What this shows:
   already passes it in every mu bin by +0.5 to +1.1 points. The headroom above
   that is network discrimination, the target of phase 2.
 
+## 9. Control run e: truth-candidate training at c's network (queued 13 Nov)
+
+Mattia suspects truth-candidate training may be as good or better. Phase 1 does
+not answer this: a vs v2 changes the candidates but compares two networks at
+different operating points, and c differs from v2 in both network and candidates.
+Run e isolates the candidates. It is exactly c (network, loss, 540 shard epochs,
+batch 32, cosine 1e-3 to 1e-5, seed, and the same s8 validation monitor for
+checkpoint selection), trained on v2's truth-vertex graphs instead. Those cover
+the same 149,820 events in the same shard order (v2's 30 shards; c's shards were
+built on them one to one).
+
+Vertex features for truth candidates, as v2 had them. None needs dropping, so c
+needs no reduced-feature twin:
+- z: truth z;
+- height: the recipe height stored in the v2 truth graphs (nonzero, after the July
+  height-bug fix);
+- sigma (c's `pv_sigma` input; at deployment the peak width): the preset
+  resolution sigma(nTracks) of `hllhc_alleta`, with nTracks counted from
+  `track.truth_pv`. This is the sigma `chain_inference_v3.truth_graph` gives truth
+  candidates in the truth-candidate diagnostic (section 1). On 40 events the shard
+  graphs equal `truth_graph` (pv.x, edges, labels) and the derived sigma matches
+  bit for bit. It is filled at load time (`pv_sigma_preset` in
+  `train_ttva_v3`).
+- the multiplicity counts within 1 and 3 sigma are computed by the network from
+  sigma, as for c.
+
+Training labels follow v2: every truth vertex is a candidate, including 1-track
+vertices, and each labelled track has its own vertex as the positive edge.
+Unlabelled tracks have none.
+
+Launch: GPU 0 after d finishes (expected about 23:30). GPUs 1-3 have no safe room
+next to the phase-2 jobs: p2a has cached 39 GB, p2c 24 GB, and p2b's worst batch
+is 27.6 GiB. Pipeline (tmux `gnnv3_e`, `scripts/run_gnn_v3_e_pipeline.sh`):
+1. train;
+2. single-t evaluation, as for c (`eval/phase1_e`);
+3. matched points of c and e (`eval/phase1_ce/summary`);
+4. top-2 inference and the two-threshold grid (`eval/twothr_e`);
+5. two-threshold summary of c and e (`eval/twothr_ce/summary`).
+
+Expected done: 14 Nov, about 08:00. Config: `configs/gnn/config_gnn_ttva_v3_e.yml`.
+
+**e_aug not run (not cheap).** The chain-like augmentation
+(`graph_augmentation`) is applied at graph-build time from statistics that
+`chain_gap_decomposition` measured for v6 peaks at PU200: miss probability vs
+nTracks, z jitter, sigma, height ratio and junk rate. Reusing them for s8 at flat
+mu would over-drop vertices at low mu. A faithful e_aug needs those statistics
+remeasured on s8 at flat mu, 30 augmented shards rebuilt (about 105 GB) and a
+second GPU slot. It is worth doing only if e comes close to c.
+
 ## Reproduction
 
 ```bash
@@ -513,4 +562,5 @@ INFER=.../twothr_bc/infer OUT=.../twothr_bc/metrics THS="0.5 0.55 0.6 0.65 0.7 0
     bash scripts/run_gnn_v3_two_threshold.sh c
 PYTHONPATH=src venv/bin/python -u scripts/gnn_v3_two_threshold_summary.py --metrics c=.../twothr_bc/metrics/c.npz --out .../summary_c
 bash scripts/run_gnn_v3_two_threshold_d_when_done.sh   # tmux gnnv3_twothr_d: d after its standard eval, then b+c+d summary
+bash scripts/run_gnn_v3_e_pipeline.sh                  # tmux gnnv3_e: control run e (section 9), train + full evaluation
 ```

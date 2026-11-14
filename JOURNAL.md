@@ -5623,3 +5623,17 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   mu 0-10; track efficiency is +0.5 to +1.1 over AMVF in every bin. The cost is Clean/truth (PU200
   40.8 against 55.0 at t = 0.55; AMVF 30.9). b: 7 at (0.5, 0.97). d is added automatically.
 - Doc: `docs/evaluation/gnn_v3_campaign_2026-11-13.md` section 8.
+
+## 2026-11-13: GNN v3 control run e queued (truth-candidate training)
+- Mattia's question: is truth-candidate training as good as s8-candidate training? Run e is exactly c
+  (network, loss, schedule, seed, s8 monitor), trained on v2's truth-vertex graphs (same 149,820 events,
+  same shard order) and evaluated identically on s8 candidates.
+- Truth-candidate features as in v2: z, the stored recipe height (post July fix), and sigma = preset
+  sigma(nTracks) (hllhc_alleta), filled at load time (`train_ttva_v3` key `pv_sigma_preset`). On 40
+  events the shards equal `truth_graph` and the sigma matches bit for bit. No feature dropped, so c
+  needs no reduced twin.
+- Runs on GPU 0 after d (tmux `gnnv3_e`, `scripts/run_gnn_v3_e_pipeline.sh`: train, single-t,
+  two-threshold, summaries with c); results expected about 08:00 on 14 Nov. GPUs 1-3 have no safe room
+  next to phase 2.
+- e_aug not run: the augmentation statistics are v6 at PU200 and would need remeasuring for s8 at
+  flat mu, plus a 105 GB rebuild.
