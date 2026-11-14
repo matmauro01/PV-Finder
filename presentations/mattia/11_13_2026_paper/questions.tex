@@ -11,7 +11,8 @@
 \item \textbf{No.} Interval $k$ covers $[-240+40k,\,-240+40(k+1))$ mm, $k=0,\dots,11$.
 \item Each track goes to the one interval that contains its $z_0$.
 \item Tracks outside $[-240,240)$ mm are dropped; the ntuple selection already requires $|z_0|\le200$ mm.
-\item Worth one sentence: the target is built on the full 12,000-bin grid and then cut into twelve pieces, so a truth vertex near a boundary can put some target content into the neighbouring interval.
+\item The edges are not a problem because peaks are found on the stitched 12,000-bin histogram and the GNN sees the whole event, so no vertex is cut in two.
+\item \textbf{Test} (PU200, r16443): efficiency for truth vertices within 0.1 mm of an edge is $82.0\pm1.2\%$, against $83.1\pm0.1\%$ far from edges (10--20 mm), the same within $1\sigma$; r16638 gives $84.8\pm1.1\%$. The only effect is a small fake excess right at the edge, about 0.2 fakes per event (1\% of all fakes).
 \end{itemize}
 \end{frame}
 
@@ -45,10 +46,13 @@
 \qtext{The current target-width model is derived from AMVF vertex resolutions. Has anything been done to remove this dependence?}
 \small
 \begin{itemize}\setlength\itemsep{.4em}
-\item \textbf{Not for this paper.} The final models use the AMVF-derived widths.
-\item Only the widths come from AMVF. The target positions are the truth vertex positions.
+\item \textbf{Not for this paper.} The final models use the AMVF-derived widths. This is unlikely to matter:
+\begin{itemize}
+\item Only the widths come from AMVF, as a smooth function of $n_\mathrm{trk}$. The target positions are the truth vertex positions, and every result is measured against truth.
+\item The width only sets how sharp the target peak is. The network still has to find each vertex from its tracks, and PV-Finder beats AMVF in efficiency and resolution, so it does not inherit AMVF's limits.
+\end{itemize}
 \item Width model: $\sigma(n_\mathrm{trk})=A\,n_\mathrm{trk}^{-B}+C$, floor 2~$\mu$m; truth vertices with fewer than two tracks get one bin (0.04 mm). HL-LHC parameters in Q29.
-\item Removing it would need a width model fitted on track-only precision, a new training sample and a retrain (13.7 h for \hlModel).
+\item It can be removed: fit the width model on the track-only precision (inverse-variance $z_0$ of the truth tracks), rebuild the training sample and retrain (13.7 h for \hlModel).
 \end{itemize}
 \end{frame}
 
@@ -102,7 +106,7 @@
 \begin{columns}[T]
 \begin{column}{.5\linewidth}
 \begin{itemize}\setlength\itemsep{.3em}
-\item \textbf{Sample}: six PU200 files, \nPoolEvt{} events.
+\item \textbf{Model}: \hlModel{} (the final HL-LHC model). \textbf{Sample}: six PU200 files, \nPoolEvt{} events.
 \item \textbf{Split}: random split of the 40 mm intervals: \nTrainSub{} / \nValSub{} / \nTestSub{} (96/3/1\%). The results use separate held-out files (r16443, r16638).
 \item \textbf{Schedule}: Phase 1 one epoch, Phase 2 one epoch.
 \item \textbf{Checkpoint}: Phase 2 step 450,000 of 465,624 (97\%), the last saved state, at the end of the learning-rate decay.
@@ -111,7 +115,7 @@
 \begin{column}{.47\linewidth}
 \begin{itemize}\setlength\itemsep{.3em}
 \item \textbf{Learning rate}: Phase 1 constant $10^{-3}$. Phase 2 linear warm-up from $10^{-6}$ to $10^{-4}$ over 3,000 steps, then cosine decay to $10^{-6}$.
-\item \textbf{Other}: Adam $(0.9, 0.999)$, batch 128, gradient clip 1.0, MSE loss.
+\item \textbf{Other}: Adam $(0.9, 0.999)$, batch 128, gradient clip 1.0, MSE loss, dropout 0.25.
 \item \textbf{Hardware and time}: one NVIDIA A100 (40 GB). Phase 1 9.1 h, Phase 2 4.6 h, 13.7 h in total.
 \end{itemize}
 \end{column}
@@ -122,7 +126,8 @@
 \draftref{p.~10, l.~262}
 \small
 \begin{itemize}\setlength\itemsep{.4em}
-\item \textbf{Width}: square root of the amplitude-weighted variance of the bin positions over the peak region, in mm (0.04 mm per bin).
+\item \textbf{Position}: local centroid, the amplitude-weighted mean over $\pm$\hlCentroid{} bins about the maximum (the final method).
+\item \textbf{Width}: square root of the amplitude-weighted variance of the bin positions over the whole peak region, in mm (0.04 mm per bin). The local centroid changes only the position, not the width.
 \item \textbf{$\sigma_\mathrm{PV}$}: this width. It enters the first edge feature $(z_0-z_\mathrm{PV})/\sqrt{\sigma(z_0)^2+\sigma_\mathrm{PV}^2}$. Median at PU200: \sigmaPVmed{} mm.
 \item \textbf{Height}: the maximum bin value of the peak, the raw predicted density. Second vertex feature.
 \item The GNN is trained on graphs built from truth vertices: truth $z$, $\sigma_\mathrm{PV}$ from the $n_\mathrm{trk}$ width model, height from the target. At inference all three come from the PV-Finder peak. The text near l.~441 should say this.
@@ -153,7 +158,7 @@ $\svtx$ peaks & same peaks & same peaks \\
 \item \textbf{Yes}, the local centroid is used at low pile-up too. It changes the Run 2 MC efficiency by \lpCentroidShift{} points.
 \item The draft's 0.30 / 0.03 are the cuts of the older v6 model.
 \item There is no separate peak finding for the resolution fit.
-\item We are simplifying the HL-LHC cuts to the low pile-up form: integral 0.186, no height cut. At PU200 this changes the efficiency by less than 0.01 points and the fakes by 0.01 per event.
+\item \textbf{HL-LHC: one integral cut, no height cut}, as at low pile-up. Dropping the earlier height cut changes PU200 efficiency by $<0.01$ points and fakes by 0.01 per event.
 \end{itemize}
 \end{column}
 \end{columns}
@@ -347,7 +352,7 @@ AMVF & \cleanTruthAMVF \\
 \begin{itemize}\setlength\itemsep{.45em}
 \item \textbf{Compute budget}, not physics. The 25,000 are the first entries of r16443 (100,000 events, flat $\mu$ 0--200).
 \item The \nEvtPU{} PU200 events are those with $185\le\mu\le215$ (in practice 185--200, $\langle\mu\rangle=\meanMuPU$).
-\item The full chain cannot use more events from these files: the rest of r16443 and r16638 were used to train and validate the GNN.
+\item The full chain cannot use more events from these files: the rest of r16443 and r16638 were used to train and validate the GNN. The other PU200 files are the density model's training pool, so they cannot be used either.
 \item Before the GNN, more events are used where it helps: r16638 as a second held-out file (\nEvtPUb{} PU200 events), and \nEvtResMu{} events for the resolution versus $\mu$.
 \end{itemize}
 \end{frame}
@@ -446,7 +451,7 @@ AMVF & $\lpSigAMVF\pm\lpSigAMVFErr$ & \lpEffAMVF & \lpFakeFracAMVF & \lpPseAMVF 
 \item Clean/truth \lpCleanTruth\% (AMVF \lpCleanTruthAMVF\%);
 \item Clean / Merged / Split / Fake per reco: \lpClean{} / \lpMerged{} / \lpSplit{} / \lpFake\%.
 \end{itemize}
-\item Integral \lpIntegral{} finds fewer small vertices than 0.2; together with the lower $t$ this explains the change from 77.43\%.
+\item Integral \lpIntegral{} finds fewer small vertices than 0.2; together with the new model, $t$ and the rule that a vertex needs two tracks, this explains the change from 77.43\%.
 \end{itemize}
 \end{frame}
 
@@ -455,7 +460,7 @@ AMVF & $\lpSigAMVF\pm\lpSigAMVFErr$ & \lpEffAMVF & \lpFakeFracAMVF & \lpPseAMVF 
 \small
 \begin{itemize}\setlength\itemsep{.45em}
 \item \textbf{One $t=\lpT$} for vertex classification, track $F_1$ and HS identification, the same as HL-LHC. The draft's 0.99 / 0.95 / 0.5 are dropped.
-\item No other $t$ is better in Clean/truth, HS identification and $F_1$ together by more than two standard errors.
+\item No other $t$ is better on all three together: a higher $t$ (0.985) gains 1.4 points of Clean/truth but loses 1.2 points of $F_1$.
 \item At $t=\lpT$: Clean/truth \lpCleanTruth\%, $F_1$ \lpFOne\% (AMVF \lpFOneAMVF\%), HS identification \lpHSID\% (AMVF \lpHSIDAMVF\%).
 \item The draft's 98.98\% HS identification was at $t=0.99$, not at the 0.5 the note lists.
 \end{itemize}

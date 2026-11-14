@@ -57,7 +57,7 @@
 \small
 \begin{itemize}\setlength\itemsep{.6em}
 \item \textbf{GNN (track association).} An updated GNN is being trained, with the same single score cut $t$ as now. On validation events it improves the hard-scatter and pile-up vertex metrics over the current GNN. If it is adopted, the after-GNN numbers and figures will be updated once, on the same test set. The vertex-finding results before the GNN do not change.
-\item \textbf{HL-LHC peak cuts.} We simplified the cuts to one integral cut (0.186, no height cut), like the low pile-up setup. On the selection events this changes efficiency by less than 0.01 points and fakes by 0.01 per event, so the numbers here stand. The final recompute will use the simplified cuts.
+\item \textbf{HL-LHC peak cuts.} The final cut is one integral cut (\hlIntegral, no height cut). The numbers in this deck were computed with the earlier pair (integral 0.184, height 0.0184). The difference is below 0.01 points in efficiency and 0.01 fakes per event at PU200, so the numbers stand; they will be refreshed in the final recompute.
 \item Everything else (density models, windows, datasets, definitions) is final.
 \end{itemize}
 \end{frame}
@@ -95,8 +95,7 @@ $\svtx$ fit & counted peaks, \pairBins{} bins over $\pm6$ mm \\
 \end{column}
 \begin{column}{.37\linewidth}
 \begin{itemize}\setlength\itemsep{.25em}
-\item One line in code: \texttt{get\_regime("hllhc")} in \texttt{src/\allowbreak pv\_finder/\allowbreak utils/\allowbreak working\_points.py}.
-\item The integral and height cuts are the v6 cuts (0.30 / 0.03) scaled to give \hlModel{} the v6 fake rate.
+\item One integral cut, no height cut, as at low pile-up. The integral gives \hlModel{} the v6 fake rate; it was set on r16638, never on the test events.
 \item The $\svtx$ fit uses the same peaks as the counts. There is no second threshold.
 \item Clean requires $\ge\purityCut$ of a vertex's tracks from one truth vertex.
 \item Single-vertex residuals use an optimal one-to-one assignment within \assignMM{} mm. This is a measurement radius, not a matching window.
@@ -153,7 +152,7 @@ $\svtx$ fit & counted peaks, \pairBins{} bins over $\pm6$ mm \\
 Item & Draft of 11 November & Final \\
 \midrule
 HL-LHC density model & v6 (280 channels, 4 latent, 3.55 M parameters) & \hlModel{} (\hlUnetCh{} channels, 1 latent, \hlParams) \\
-HL-LHC peak cuts & integral 0.30, height 0.03 & \hlIntegral, \hlHeight{} \\
+HL-LHC peak cuts & integral 0.30, height 0.03 & integral \hlIntegral, no height cut \\
 $\svtx$ threshold & separate peak finding at integral 0.50 & the counted peaks \\
 Matching window & 0.1694 mm; 0.5 mm in the chain; fitted $\svtx$ at low $\mu$ & \winMM{} mm everywhere \\
 HL-LHC GNN & v4 (PU200 only), epoch 107 & full-$\mu$ v2, epoch \hlGnnEpoch \\
