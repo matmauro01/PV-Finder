@@ -5681,3 +5681,15 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   truth-trained reference than v2 for the note. The last-epoch evaluation is queued.
 - Set up the GPU 0 evaluation queue (tmux `gnnv3_evalq0`): p2c and p2a full chains (single t,
   top-2, two-threshold, summaries against c), evaluation only, never next to a training run.
+
+## 2026-11-14: GNN v3 preliminary comparison for Mattia
+- p2c (h32 l3, 349k events) and p2a (h64 l3, 349k events) evaluated like c. One cut: 31 / 28 failures
+  of 286 (c 30). Two cuts: p2c 4 at (0.1, 0.65) fallback (or 5, none beyond 1 sigma, at (0.1, 0.7)
+  unassign), p2a 3 at (0.2, 0.65), c 3, d 4. v2 e527 and a two-cut grids added: v2 gets 67 (its scale
+  needs t near 0.95, outside the grid), a 28.
+- Paired against c at identical cuts (200 replicas): no difference above 0.3 pt in PU200, inclusive
+  or mu 0-10 (p2a +0.13 ± 0.02 track eff; p2c -0.10 ± 0.02). Capacity and data have saturated;
+  candidate training and the network design were the steps that mattered.
+- Recommendation: p2c with two cuts, the fastest within a few tenths of the best (1.3x v2 CPU).
+  p2b (ETA 21:30) is unlikely to move more than a few tenths at 9x v2 CPU.
+- Doc: `docs/evaluation/gnn_v3_preliminary_comparison_2026-11-14.md`, campaign doc section 7.

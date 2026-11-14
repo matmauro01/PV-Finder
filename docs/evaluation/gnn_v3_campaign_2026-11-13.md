@@ -379,6 +379,33 @@ Evaluation: `TAG=phase2_<run> GPU=<g> bash scripts/run_gnn_v3_eval.sh <run>`, th
 not the lever. 601237 thinning is then not worth building, and the two-threshold
 point (section 5) is the next step.
 
+**Results (14 Nov; p2c and p2a evaluated, p2b still training).** Checkpoints
+(lowest monitor loss): p2c e1246, p2a e1249. Same protocol as phase 1. Outputs:
+- `eval/phase2_<run>/summary_vs_c` (one cut);
+- `eval/twothr_<run>/summary_vs_c` (two cuts);
+- the comparison of every network: `docs/evaluation/gnn_v3_preliminary_comparison_2026-11-14.md`.
+
+| run | one cut: best t, failures | two cuts: best point, failures | PU200 at the two-cut point: trk eff / HS purity / Clean HS / Clean/truth |
+|---|---|---|---|
+| c | 0.55, 30 / 26 | (0.1, 0.7) fallback, 3 / 1 | 69.4 / 94.0 / 98.1 / 40.1 |
+| p2a | 0.55, 28 / 26 | (0.2, 0.65) unassign, 3 / 1 | 68.5 / 93.6 / 98.4 / 44.0 |
+| p2c | 0.55, 31 / 26 | (0.1, 0.65) fallback, 4 / 1; (0.1, 0.7) unassign, 5 / 0 | 69.3 / 93.3 / 97.5 / 40.1 |
+
+Paired against c at the same cuts (0.1, 0.7, fallback), PU200, 200 event
+replicas:
+- p2a: track efficiency +0.13 ± 0.02, Clean/truth +0.24 ± 0.09, HS purity
+  +0.18 ± 0.16;
+- p2c: track efficiency -0.10 ± 0.02, HS purity +0.06 ± 0.15, Clean HS
+  -0.4 ± 0.4.
+
+No difference exceeds 0.3 points in any of inclusive, PU200 or mu 0-10. The
+2.3x data buys a resolved but tiny gain (p2a). Cutting hidden 64 to 32 costs about
+as much (p2c), for half the CPU time (1.3x v2 against 2.7x).
+
+p2b (h128 l4) at epoch 807 has monitor loss 0.6931, already below p2a's final
+0.6950. Monitor-loss differences of this size have meant +0.1 to +0.2 chain
+points so far. It finishes about 21:30 on 14 Nov.
+
 ## 8. Two-threshold working point (analysis for Mattia, 13 Nov)
 
 Definition, deployable without truth:
