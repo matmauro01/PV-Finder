@@ -5637,3 +5637,16 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
   next to phase 2.
 - e_aug not run: the augmentation statistics are v6 at PU200 and would need remeasuring for s8 at
   flat mu, plus a 105 GB rebuild.
+
+## 2026-11-13: Note edits, round 2 (Mattia's comments), branch commit 08ceda2
+- Same Draft MR 1. Applied the ten comments: s8 figures replace the 3.55M-model ones in Ch. 4
+  (4.1b, 4.2, 4.3, 4.4, 4.6), e400 figures in Figs. 6.1 and 6.2, Fig. 7.2 and Fig. 7.4 (b)-(d) at
+  t = 0.94; Table 2.2 simplified; "vertex-finding model"; CPU projection shortened.
+- CPU-only recomputations from saved outputs (`outputs/11_13_2026_output/note_edits/`):
+  close truth pairs below 0.217 mm = 12.8% (13.45% at 0.229 reproduces the old 13.4%); HS finding vs
+  stored density with s8 peaks (24,968 / 25,000); Run 2 MC positional categories at mu 55-65
+  (`scripts/note_lowpu_category_counts.py`); low pile-up t-scan, eff vs n_trk and category plots at
+  t = 0.94.
+- Sec. 4.1.2 now uses the s8 window scan (+0.75 / +2.90 pt at 0.5 mm, fake+split crossing 0.63 mm,
+  matched-multiplicity control +2.74 pt). Fake+split restored: 0.63 ± 0.09 fewer per event.
+- What still waits, with page/line: `docs/additional_studies/note_edits_2026-11-13.md`, "Still waiting".
