@@ -5704,3 +5704,12 @@ GPU 3); the test set r16443 0-24,999 is never read. Offline replay of the saved 
 - GNN decision (Mattia, 14 Nov): keep one score cut, no two-threshold scheme.
 - 14:00 follow-up (Mattia): final HL-LHC peak cuts in the deck (integral 0.186, no height cut; numbers computed with 0.184 + 0.0184, difference < 0.01 pt); Q1 boundary test numbers (efficiency within 0.1 mm of an edge 82.0 ± 1.2 % vs 83.1 ± 0.1 % far away), Q3 why the AMVF widths are unlikely to matter, Q7 says s8 and dropout 0.25, Q8 position = local centroid / width = whole region, Q9 final cuts, Q19 PU200 files are the density training pool, Q25/Q26 checked against lowpu_final/gnn_mc_ntrk2 at t = 0.94. GNN v2 description kept, with the line that an updated GNN is being trained.
 - Figures zip for the colleague: presentations/mattia/11_13_2026_paper/PVFinder_paper_figures_2026-11-14.zip (63 figures, README with slide and main/backup badge). Pre-commit large-file hook now also exempts zips under presentations/.
+
+## 2026-11-14 22:30 GNN v3: p2b evaluated, single-cut proposal
+
+p2b (h128 l4, 349k events) finished training at 20:56 and was evaluated (eval/phase2_p2b,
+twothr_p2b). Within 0.3 pt of p2a, c and p2c: size does not help. Following Mattia's
+one-cut decision, proposed p2c at t = 0.5 (PU200: trk eff 59.5, F1 70.1, Clean HS 97.2,
+HS purity 90.7 vs AMVF 68.4/68.5/93.8/88.9; 33 of 286 failures). Table and reasoning in
+docs/evaluation/gnn_v3_preliminary_comparison_2026-11-14.md. Waiting for approval before
+the test-set evaluation.

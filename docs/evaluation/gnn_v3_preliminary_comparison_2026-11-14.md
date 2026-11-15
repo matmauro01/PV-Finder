@@ -17,7 +17,7 @@ checks: `docs/evaluation/gnn_v3_campaign_2026-11-13.md` (sections 5, 7, 8, 9).
 | e | exactly c | truth vertices, 150k (control) | 260,704 | 218 ms (2.7x) |
 | p2a | exactly c | s8 peaks, 349k (+ PU200 files) | 260,704 | 218 ms (2.7x) |
 | p2c | as c, hidden 32 | s8 peaks, 349k | 66,880 | 108 ms (1.3x) |
-| p2b | as d | s8 peaks, 349k | 1,327,530 | 713 ms (9.0x), still training |
+| p2b | as d | s8 peaks, 349k | 1,327,530 | 713 ms (9.0x) |
 
 CPU: GNN forward only, 1 thread, 60 PU200 events, timed interleaved and quoted as a
 ratio to v2. e and p2a share c's architecture and p2c an untrained probe's, so
@@ -135,3 +135,44 @@ in the timing probe.
 
 Before any number goes into the note, the chosen network and cuts get one
 evaluation on the test set.
+
+## Update 14 Nov 22:30: p2b, and one cut (Mattia's decision 14 Nov 13:00)
+
+p2b finished (1,260 epochs, best monitor epoch 1232) and was evaluated the same way
+(`outputs/11_13_2026_output/gnn_v3_campaign/eval/phase2_p2b`, `twothr_p2b`). It is
+within 0.3 points of p2a, c and p2c everywhere, as expected. Size does not pay.
+
+Mattia chose one score cut, as before. PU200 (185 <= mu <= 215, 568 events), >= 2-track
+vertices, 7,500 validation events:
+
+| model | t | fails /286 | trk eff | trk pur | trk F1 | Clean/truth | Merged/evt | Split/evt | HS sel | Clean HS | HS purity | HS trk on HS vtx |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AMVF | | | 68.4 | 68.7 | 68.5 | 30.9 | 41.7 | 22.1 | 94.5 | 93.8 | 88.9 | 74.3 |
+| v2 e527 | 0.94 | 76 | 62.9 | 79.5 | 70.2 | 50.5 | 19.5 | 3.8 | 95.4 | 87.9 | 81.9 | 88.2 |
+| p2c | 0.5 | 33 | 59.5 | 85.3 | 70.1 | 54.4 | 12.5 | 1.1 | 96.7 | 97.2 | 90.7 | 86.4 |
+| p2c | 0.55 | 31 | 57.3 | 87.2 | 69.2 | 55.0 | 10.7 | 0.9 | 96.8 | 98.1 | 92.0 | 84.8 |
+| p2c | 0.6 | 45 | 55.2 | 88.8 | 68.0 | 55.3 | 9.3 | 0.6 | 96.5 | 98.4 | 93.1 | 83.3 |
+| p2a | 0.5 | 34 | 59.8 | 85.4 | 70.4 | 54.5 | 12.4 | 1.1 | 96.7 | 97.4 | 91.1 | 86.4 |
+| p2b | 0.5 | 34 | 60.0 | 85.6 | 70.5 | 54.7 | 12.2 | 1.1 | 96.5 | 98.2 | 91.5 | 86.5 |
+| p2b | 0.55 | 30 | 57.8 | 87.4 | 69.6 | 55.3 | 10.5 | 0.8 | 96.7 | 98.2 | 92.7 | 85.0 |
+
+mu 0-10 (375 events), p2c at t = 0.5: track efficiency 95.9 (AMVF 95.6, v2 84.8),
+F1 97.2 (96.7), Clean/truth 87.2 (83.8, v2 81.1), Clean HS 99.7 (99.7), HS purity 97.6 (98.15).
+
+With one cut, track efficiency fails in every bin except mu 0-10, at every t that
+keeps HS purity near AMVF. At t = 0.5, HS purity is below AMVF by 0.5-1.2 points
+for mu below 90 and above it from mu 110 up (+1.8 at PU200).
+
+**Proposal: p2c at t = 0.5.**
+- The network gives each track a probability over its candidate vertices plus "no
+  vertex". t = 0.5 assigns a track only when one vertex holds more than half of
+  it: a natural cut, not a tuned one.
+- Against t = 0.55 (fewest failures, 31 vs 33): +2.2 track efficiency and +0.9 F1
+  at PU200, for -0.9 Clean HS and -1.3 HS purity, both still above AMVF there.
+- Against v2 at 0.94, PU200: Clean HS +9.3, HS purity +8.8, Clean/truth +3.9,
+  merged and split per event a third of v2's, F1 equal, track efficiency -3.4.
+  At low mu it is better on everything (track efficiency +11).
+- p2c is the fastest of the four (1.3x v2's CPU); p2a and p2b gain 0.1-0.4 points
+  at 2.7x and 9x.
+
+Next: Mattia approves (network, t), then one test-set evaluation.
