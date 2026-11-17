@@ -1,5 +1,15 @@
 # Proposed internal-note edits, 13 November 2026
 
+**Status 16 Nov 2026: merged.** GitLab `main` = 2055e6f (clean version for the EB,
+54 pages, `presentations/mattia/11_13_2026_paper/note_clean_for_EB_2026-11-16.pdf`).
+The marked version stays on `mm-edits-2026-11-13` (bf7119f, 56 pages,
+`note_with_MM_edits_2026-11-13.pdf`). Rounds 4-5 (one configuration everywhere,
+Appendices A/D and other-cut studies removed, proofreading) and the summary for the
+colleague: `docs/additional_studies/note_changes_2026-11-16.md`. GNN kept at v2 e527,
+t = 0.94 (Mattia, 16 Nov). The 0.186 cut was checked on the test set: same efficiency
+(83.06%), +0.04 fakes/event, sigma within 0.3 um
+(`outputs/11_16_2026_output/note_final/cut0186_check/`).
+
 Note: ANA-IDTR-2026-01-INT1, branch `mm-edits-2026-11-13` (from `origin/main`
 91b6f49), Draft MR into `main`:
 https://gitlab.cern.ch/atlas-physics-office/IDTR/ANA-IDTR-2026-01/ANA-IDTR-2026-01-INT1/-/merge_requests/1

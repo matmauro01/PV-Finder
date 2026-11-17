@@ -5713,3 +5713,19 @@ one-cut decision, proposed p2c at t = 0.5 (PU200: trk eff 59.5, F1 70.1, Clean H
 HS purity 90.7 vs AMVF 68.4/68.5/93.8/88.9; 33 of 286 failures). Table and reasoning in
 docs/evaluation/gnn_v3_preliminary_comparison_2026-11-14.md. Waiting for approval before
 the test-set evaluation.
+
+## 2026-11-16 22:00 Internal note frozen for the EB
+
+Colleague asked for at most two cut configurations and a frozen note. Mattia: keep GNN v2,
+delete the leftover studies, keep the marked version visible, merge a clean note to main.
+- Checked the final HL-LHC cut on the test events from the saved histograms (CPU replay,
+  `outputs/11_16_2026_output/note_final/cut0186_check/`): integral 0.186 alone vs 0.184 +
+  height 0.0184 gives the same efficiency (83.06%), +0.04 fakes/event, sigma +0.3 um. The
+  numbers stay as computed; the frozen-table caption says so.
+- Round 4 (e6c125a): Appendices A (reproduction) and D (earlier-model PU200 checks), the old
+  peak-cut table, the height-cut/GBT study and the GNN v4 studies of Sec. 7.7 removed, with
+  red notes in the marked version.
+- Round 5 (bf7119f): two proofreading passes (abstract and conclusions leftovers, splice
+  points, Appendix B TTVA table to GNN v2, Appendix B/C/E consistency, typos).
+- Clean version by accepting all edits (script in `outputs/11_16_2026_output/note_final/`),
+  2055e6f fast-forwarded to GitLab main. PDFs in `presentations/mattia/11_13_2026_paper/`.
